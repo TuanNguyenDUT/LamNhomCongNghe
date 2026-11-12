@@ -1,0 +1,14 @@
+{
+  "name": "dut-notification-collector-api",
+  "version": "1.0.0",
+  "description": "Task 11: Thiết kế Schema CSDL PostgreSQL và cấu trúc REST API thu thập thông báo đa nguồn (Node.js Backend)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "author": "Nguyễn Hữu Tuấn",
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
