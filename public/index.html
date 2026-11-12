@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bảng Tin Thông Báo Tập Trung Đa Nguồn | MVP - Nguyễn Hữu Tuấn</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-badge">DUT</div>
+        <div>
+          <h1>Hệ Thống Tổng Hợp Thông Báo Đa Nguồn</h1>
+          <p class="subtitle">MVP Chức năng #4 (Task 11–15) • Phụ trách: <strong>Nguyễn Hữu Tuấn</strong></p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnCrawlNow" class="btn btn-primary">
+          <span>⚡ Đồng bộ / Cào tin đa nguồn</span>
+        </button>
+        <button id="btnMarkAllRead" class="btn btn-outline">
+          <span>✓ Đánh dấu đã đọc tất cả</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- Thanh thông báo kết quả đồng bộ -->
+    <div id="toastBanner" class="toast-banner hidden"></div>
+
+    <!-- Thống kê tổng quan -->
+    <section class="stats-grid" aria-label="Thống kê thông báo">
+      <div class="stat-card">
+        <span class="stat-label">Tổng thông báo tập trung</span>
+        <div class="stat-value" id="statTotal">0</div>
+        <span class="stat-meta" id="statUnread">0 tin chưa đọc</span>
+      </div>
+      <div class="stat-card stat-urgent">
+        <span class="stat-label">Tin Khẩn cấp & Ưu tiên cao</span>
+        <div class="stat-value" id="statHighPriority">0</div>
+        <span class="stat-meta">Tự động gắn nhãn độ quan trọng</span>
+      </div>
+      <div class="stat-card stat-targeted">
+        <span class="stat-label">Tin Riêng & Lớp học phần</span>
+        <div class="stat-value" id="statTargeted">0</div>
+        <span class="stat-meta">Phân loại Chung / Lớp / Cá nhân</span>
+      </div>
+      <div class="stat-card stat-perf">
+        <span class="stat-label">Hiệu năng truy vấn Feed</span>
+        <div class="stat-value" id="statQueryTime">0 ms</div>
+        <span class="stat-meta" id="statCacheHit">Cache Hit Rate: 0%</span>
+      </div>
+    </section>
+
+    <div class="workspace-grid">
+      <!-- CỘT TRÁI: BẢNG TIN THÔNG BÁO TẬP TRUNG (TASK 14) -->
+      <section class="feed-section">
+        <!-- Bộ lọc nguồn nhanh (Tabs) -->
+        <div class="source-tabs" id="sourceTabs">
+          <button class="tab-btn active" data-source="ALL">Tất cả nguồn</button>
+          <button class="tab-btn" data-source="TRAINING_DEPT">🏛️ Phòng Đào tạo</button>
+          <button class="tab-btn" data-source="FACULTY">🎓 Khoa CNTT</button>
+          <button class="tab-btn" data-source="CLASS">📚 Lớp học phần</button>
+          <button class="tab-btn" data-source="STUDENT_EMAIL">✉️ Email SV</button>
+          <button class="tab-btn" data-source="EXTRACURRICULAR">🌱 Ngoại khóa / CLB</button>
+        </div>
+
+        <!-- Thanh tìm kiếm & bộ lọc đa chiều -->
+        <div class="filter-bar">
+          <div class="search-box">
+            <input
+              type="search"
+              id="searchInput"
+              placeholder="🔍 Tìm kiếm theo tiêu đề, môn học (IT401, CSDL...), nội dung hoặc hashtag..."
+            />
+          </div>
+          <div class="filter-selects">
+            <select id="filterPriority" aria-label="Lọc theo độ ưu tiên">
+              <option value="ALL">Độ ưu tiên: Tất cả</option>
+              <option value="URGENT">🔥 Khẩn cấp (URGENT)</option>
+              <option value="HIGH">⚡ Ưu tiên cao (HIGH)</option>
+              <option value="MEDIUM">📌 Trung bình (MEDIUM)</option>
+              <option value="LOW">🌿 Thấp (LOW)</option>
+            </select>
+
+            <select id="filterScope" aria-label="Lọc theo phân loại">
+              <option value="ALL">Phạm vi: Tất cả</option>
+              <option value="PERSONAL">👤 Tin riêng cá nhân</option>
+              <option value="CLASS">🏫 Lớp học phần</option>
+              <option value="GENERAL">🌐 Thông báo chung</option>
+            </select>
+
+            <select id="filterCourse" aria-label="Lọc theo môn học">
+              <option value="ALL">Môn học: Tất cả</option>
+            </select>
+
+            <select id="filterRead" aria-label="Lọc theo trạng thái đọc">
+              <option value="ALL">Trạng thái: Tất cả</option>
+              <option value="0">Chưa đọc</option>
+              <option value="1">Đã đọc</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Danh sách thẻ thông báo -->
+        <div id="feedList" class="feed-list"></div>
+
+        <!-- Điều khiển phân trang -->
+        <div class="pagination-bar" id="paginationBar">
+          <span class="pagination-info" id="paginationInfo">Đang tải...</span>
+          <div class="pagination-buttons">
+            <button id="btnPrevPage" class="btn btn-sm" disabled>← Trang trước</button>
+            <span id="pageIndicator" class="page-indicator">1 / 1</span>
+            <button id="btnNextPage" class="btn btn-sm" disabled>Trang sau →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CỘT PHẢI: CÔNG CỤ TEST CRAWLER/WEBHOOK & BỘ PHÂN LOẠI TỰ ĐỘNG (TASK 12, 13, 15) -->
+      <aside class="sidebar-section">
+        <div class="panel-card">
+          <h2>🧠 Thuật toán Phân loại & Gắn nhãn (Task 12 & 13)</h2>
+          <p class="panel-desc">
+            Gửi thử thông báo từ Webhook / Portal / Email để kiểm tra bộ quy tắc tự động gắn tag môn học, phân loại Chung/Riêng và chấm điểm ưu tiên.
+          </p>
+
+          <form id="ingestForm" class="ingest-form">
+            <label>
+              <span>Kênh nguồn thu thập</span>
+              <select id="inputSourceType" required>
+                <option value="TRAINING_DEPT">Phòng Đào tạo (Portal)</option>
+                <option value="FACULTY">Khoa Công nghệ Thông tin</option>
+                <option value="CLASS">Lớp học phần (LMS)</option>
+                <option value="STUDENT_EMAIL">Email Sinh viên (@sv.dut.udn.vn)</option>
+                <option value="EXTRACURRICULAR">Kênh Ngoại khóa / CLB</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Tiêu đề thông báo</span>
+              <input
+                type="text"
+                id="inputTitle"
+                placeholder="VD: [Khẩn] Đổi phòng thi cuối kỳ môn Công nghệ phần mềm IT401"
+                required
+              />
+            </label>
+
+            <label>
+              <span>Nội dung chi tiết</span>
+              <textarea
+                id="inputContent"
+                rows="4"
+                placeholder="Nhập nội dung thông báo hoặc email sinh viên (có thể chứa MSSV, mã môn học IT401, IT302, hạn chót...)"
+                required
+              ></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button type="button" id="btnPreviewClassify" class="btn btn-outline btn-full">
+                🔍 Xem trước nhãn phân loại
+              </button>
+              <button type="submit" class="btn btn-primary btn-full">
+                ➕ Thu thập vào Bảng tin
+              </button>
+            </div>
+          </form>
+
+          <!-- Kết quả xem trước phân loại -->
+          <div id="classifyPreviewBox" class="preview-box hidden"></div>
+        </div>
+
+        <!-- Nhật ký đồng bộ đa nguồn -->
+        <div class="panel-card">
+          <h2>📊 Nhật ký Tích hợp Đa nguồn (Task 15)</h2>
+          <div id="ingestionLogsList" class="logs-list"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
