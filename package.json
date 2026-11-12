@@ -1,0 +1,13 @@
+{
+  "name": "student-notification-aggregator-mvp",
+  "version": "1.0.0",
+  "description": "MVP Chức năng tổng hợp thông báo từ nhiều nguồn (Tasks 11-15 - Nguyễn Hữu Tuấn)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --no-warnings src/server.js",
+    "test": "node --no-warnings --test tests/notification.test.js",
+    "benchmark": "node --no-warnings src/scripts/benchmark.js"
+  },
+  "author": "Nguyễn Hữu Tuấn",
+  "license": "MIT"
+}
