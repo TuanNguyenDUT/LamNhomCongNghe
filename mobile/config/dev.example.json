@@ -1,0 +1,6 @@
+{
+  "APP_ENV": "development",
+  "API_BASE_URL": "http://10.0.2.2:3000",
+  "ENABLE_FIREBASE": false,
+  "STUDENT_ID": "102230099"
+}

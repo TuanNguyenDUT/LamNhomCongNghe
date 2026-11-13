@@ -203,3 +203,36 @@ test('Task 13 - Tích hợp: Tự động chạy bộ quy tắc khi thu thập t
   assert.ok(item.tags.includes('#IT302-CSDL'));
   assert.ok(item.tags.includes('#LớpHọcPhần'));
 });
+
+test('Flutter API - Trạng thái đã đọc được lưu riêng theo sinh viên', async () => {
+  const { controller } = createServer();
+  const collected = await callApi(controller, {
+    method: 'POST',
+    url: '/api/v1/notifications/collect',
+    body: {
+      source_type: 'TRAINING_DEPT',
+      title: 'Thông báo lịch học mới',
+      content: 'Sinh viên kiểm tra lịch học trên hệ thống.',
+    },
+  });
+  const notificationId = collected.json.data.notification.notification_id;
+
+  const marked = await callApi(controller, {
+    method: 'PATCH',
+    url: `/api/v1/notifications/${notificationId}/read`,
+    body: { student_id: '102230099', is_read: true },
+  });
+  assert.equal(marked.status, 200);
+  assert.equal(marked.json.data.is_read, true);
+
+  const detail = await callApi(controller, {
+    url: `/api/v1/notifications/${notificationId}?student_id=102230099`,
+  });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.json.data.is_read, true);
+
+  const otherStudent = await callApi(controller, {
+    url: `/api/v1/notifications/${notificationId}?student_id=102230100`,
+  });
+  assert.equal(otherStudent.json.data.is_read, false);
+});

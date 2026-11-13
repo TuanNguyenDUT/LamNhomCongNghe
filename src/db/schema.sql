@@ -142,6 +142,28 @@ CREATE TABLE IF NOT EXISTS ingestion_logs (
     executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 10. Thiết bị nhận Push Notification (Task 6 - Hồ Đăng Hưng)
+-- Registration target được giữ trong PostgreSQL để backend gửi FCM. API tuyệt đối
+-- không trả target hoặc target_hash về client và không ghi chúng vào application log.
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    student_id VARCHAR(64) NOT NULL,
+    registration_target TEXT NOT NULL,
+    target_hash CHAR(64) NOT NULL,
+    target_type VARCHAR(10) NOT NULL DEFAULT 'TOKEN'
+        CHECK (target_type IN ('TOKEN', 'FID')),
+    platform VARCHAR(10) NOT NULL
+        CHECK (platform IN ('ANDROID', 'IOS', 'WEB')),
+    device_id VARCHAR(200) NOT NULL UNIQUE,
+    app_version VARCHAR(40),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_error_code VARCHAR(120),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- =============================================================================
 -- INDEXES TỐI ƯU TRUY VẤN TRÊN POSTGRESQL
 -- =============================================================================
@@ -159,3 +181,12 @@ CREATE INDEX IF NOT EXISTS idx_notifications_tags_gin
 
 CREATE INDEX IF NOT EXISTS idx_student_notifications_unread
     ON student_notifications (student_id, is_read, delivered_at DESC);
+
+-- Một FCM token chỉ được active trên một thiết bị tại một thời điểm. Partial
+-- unique index vẫn cho phép giữ lịch sử token đã bị hủy đăng ký.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_active_target_hash
+    ON device_tokens (target_hash)
+    WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_student_active
+    ON device_tokens (student_id, is_active, last_seen_at DESC);

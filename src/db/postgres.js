@@ -73,6 +73,7 @@ class NotificationRepository {
     this.pool = pgPool;
     this.sources = [...DEFAULT_SOURCES];
     this.memoryNotifications = [];
+    this.memoryReadStatuses = new Map();
   }
 
   /**
@@ -228,7 +229,14 @@ class NotificationRepository {
   /**
    * Truy vấn danh sách thông báo đã thu thập (phục vụ Flutter client & kiểm tra dữ liệu)
    */
-  async listNotifications({ source_type, scope_type, course_code, page = 1, limit = 10 } = {}) {
+  async listNotifications({
+    source_type,
+    scope_type,
+    course_code,
+    student_id,
+    page = 1,
+    limit = 10,
+  } = {}) {
     const safePage = Math.max(1, Number(page) || 1);
     const safeLimit = Math.min(100, Math.max(1, Number(limit) || 10));
     const offset = (safePage - 1) * safeLimit;
@@ -262,8 +270,26 @@ class NotificationRepository {
         [...values, safeLimit, offset]
       );
 
+      let items = dataRes.rows.map((item) => ({ ...item, is_read: false }));
+      if (student_id && items.length > 0) {
+        const ids = items.map((item) => item.notification_id);
+        const readRes = await this.pool.query(
+          `SELECT notification_id, is_read
+           FROM student_notifications
+           WHERE student_id = $1 AND notification_id = ANY($2::bigint[])`,
+          [student_id, ids]
+        );
+        const readById = new Map(
+          readRes.rows.map((item) => [String(item.notification_id), Boolean(item.is_read)])
+        );
+        items = items.map((item) => ({
+          ...item,
+          is_read: readById.get(String(item.notification_id)) || false,
+        }));
+      }
+
       return {
-        items: dataRes.rows,
+        items,
         pagination: {
           page: safePage,
           limit: safeLimit,
@@ -278,7 +304,12 @@ class NotificationRepository {
     if (course_code) filtered = filtered.filter((n) => n.course_code === course_code);
 
     return {
-      items: filtered.slice(offset, offset + safeLimit),
+      items: filtered.slice(offset, offset + safeLimit).map((item) => ({
+        ...item,
+        is_read: student_id
+          ? this.memoryReadStatuses.get(`${student_id}:${item.notification_id}`) || false
+          : false,
+      })),
       pagination: {
         page: safePage,
         limit: safeLimit,
@@ -287,17 +318,61 @@ class NotificationRepository {
     };
   }
 
-  async getNotificationById(notificationId) {
+  async getNotificationById(notificationId, studentId = null) {
     if (this.pool) {
       const { rows } = await this.pool.query(
         'SELECT * FROM notifications WHERE notification_id = $1',
         [Number(notificationId)]
       );
-      return rows[0] || null;
+      if (!rows[0]) return null;
+      if (!studentId) return { ...rows[0], is_read: false };
+      const readRes = await this.pool.query(
+        `SELECT is_read FROM student_notifications
+         WHERE notification_id = $1 AND student_id = $2`,
+        [Number(notificationId), studentId]
+      );
+      return { ...rows[0], is_read: Boolean(readRes.rows[0]?.is_read) };
     }
-    return (
-      this.memoryNotifications.find((n) => n.notification_id === Number(notificationId)) || null
+    const item = this.memoryNotifications.find(
+      (notification) => notification.notification_id === Number(notificationId)
     );
+    if (!item) return null;
+    return {
+      ...item,
+      is_read: studentId
+        ? this.memoryReadStatuses.get(`${studentId}:${item.notification_id}`) || false
+        : false,
+    };
+  }
+
+  async setReadStatus(notificationId, studentId, isRead = true) {
+    const item = await this.getNotificationById(notificationId);
+    if (!item) return null;
+
+    if (this.pool) {
+      const { rows } = await this.pool.query(
+        `INSERT INTO student_notifications (
+           notification_id, student_id, is_read, read_at
+         ) VALUES ($1, $2, $3, CASE WHEN $3 THEN NOW() ELSE NULL END)
+         ON CONFLICT (notification_id, student_id) DO UPDATE SET
+           is_read = EXCLUDED.is_read,
+           read_at = EXCLUDED.read_at
+         RETURNING notification_id, student_id, is_read, read_at`,
+        [Number(notificationId), studentId, Boolean(isRead)]
+      );
+      return rows[0];
+    }
+
+    this.memoryReadStatuses.set(
+      `${studentId}:${Number(notificationId)}`,
+      Boolean(isRead)
+    );
+    return {
+      notification_id: Number(notificationId),
+      student_id: studentId,
+      is_read: Boolean(isRead),
+      read_at: isRead ? new Date().toISOString() : null,
+    };
   }
 }
 
