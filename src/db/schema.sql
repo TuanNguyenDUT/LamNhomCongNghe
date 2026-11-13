@@ -73,6 +73,27 @@ CREATE TABLE IF NOT EXISTS ingestion_logs (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 5. Thiết bị nhận Push Notification (Task 6 - Hồ Đăng Hưng)
+-- Token được lưu để FCM định tuyến tới đúng app instance. API tuyệt đối không trả
+-- token/token_hash về client và không ghi các giá trị này vào application log.
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    token_hash TEXT NOT NULL,
+    target_type TEXT NOT NULL DEFAULT 'TOKEN' CHECK (target_type IN ('TOKEN', 'FID')),
+    platform TEXT NOT NULL CHECK (platform IN ('ANDROID', 'IOS', 'WEB')),
+    device_id TEXT NOT NULL,
+    app_version TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TEXT NOT NULL,
+    last_error_code TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (student_id, device_id)
+);
+
 -- =============================================================================
 -- INDEXES TỐI ƯU HÓA TRUY VẤN (Task 11 & Task 15)
 -- =============================================================================
@@ -93,3 +114,12 @@ CREATE INDEX IF NOT EXISTS idx_notifications_course_code
 
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read
     ON notifications (is_read, published_at DESC);
+
+-- Một FCM token chỉ được active trên một thiết bị tại một thời điểm. Partial
+-- unique index vẫn cho phép giữ lịch sử token đã bị hủy đăng ký.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_active_token_hash
+    ON device_tokens (token_hash)
+    WHERE is_active = 1;
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_student_active
+    ON device_tokens (student_id, is_active, last_seen_at DESC);

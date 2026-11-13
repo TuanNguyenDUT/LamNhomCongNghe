@@ -5,6 +5,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { DEFAULT_COURSES, classifyNotification } = require('../services/classifierService');
 const { feedCache } = require('../services/cacheService');
@@ -26,7 +27,21 @@ class DatabaseManager {
     const schemaPath = path.join(__dirname, 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
     this.db.exec(schemaSql);
+    this.applySchemaMigrations();
     this.seedReferenceData();
+  }
+
+  applySchemaMigrations() {
+    const deviceTokenColumns = this.db
+      .prepare('PRAGMA table_info(device_tokens)')
+      .all()
+      .map((column) => column.name);
+    if (!deviceTokenColumns.includes('target_type')) {
+      this.db.exec(
+        "ALTER TABLE device_tokens ADD COLUMN target_type TEXT NOT NULL DEFAULT 'TOKEN' " +
+        "CHECK (target_type IN ('TOKEN', 'FID'))"
+      );
+    }
   }
 
   seedReferenceData() {
@@ -201,6 +216,168 @@ class DatabaseManager {
 
   getSources() {
     return this.db.prepare('SELECT * FROM notification_sources ORDER BY base_weight DESC').all();
+  }
+
+  /**
+   * Đăng ký hoặc làm mới FCM token cho một thiết bị (Task 6).
+   * Cùng student_id + device_id sẽ được upsert. Nếu token đã chuyển sang một
+   * thiết bị khác, bản ghi active cũ được vô hiệu hóa trước khi đăng ký mới.
+   */
+  registerDeviceToken({
+    student_id,
+    token,
+    target_type = 'TOKEN',
+    platform,
+    device_id,
+    app_version = null,
+  }) {
+    const studentId = String(student_id).trim();
+    const normalizedToken = String(token).trim();
+    const normalizedTargetType = String(target_type).trim().toUpperCase();
+    const normalizedPlatform = String(platform).trim().toUpperCase();
+    const deviceId = String(device_id).trim();
+    const appVersion = app_version === null || app_version === undefined
+      ? null
+      : String(app_version).trim().slice(0, 100);
+    const tokenHash = crypto.createHash('sha256').update(normalizedToken).digest('hex');
+    const now = new Date().toISOString();
+
+    const existing = this.db
+      .prepare('SELECT id FROM device_tokens WHERE student_id = ? AND device_id = ?')
+      .get(studentId, deviceId);
+
+    this.db.exec('BEGIN IMMEDIATE TRANSACTION');
+    try {
+      this.db
+        .prepare(`
+          UPDATE device_tokens
+          SET is_active = 0,
+              last_error_code = 'TOKEN_REASSIGNED',
+              updated_at = ?
+          WHERE token_hash = ?
+            AND is_active = 1
+            AND NOT (student_id = ? AND device_id = ?)
+        `)
+        .run(now, tokenHash, studentId, deviceId);
+
+      this.db
+        .prepare(`
+          INSERT INTO device_tokens (
+            student_id, token, token_hash, target_type, platform, device_id, app_version,
+            is_active, failure_count, last_seen_at, last_error_code,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, NULL, ?, ?)
+          ON CONFLICT(student_id, device_id) DO UPDATE SET
+            token = excluded.token,
+            token_hash = excluded.token_hash,
+            target_type = excluded.target_type,
+            platform = excluded.platform,
+            app_version = excluded.app_version,
+            is_active = 1,
+            failure_count = 0,
+            last_seen_at = excluded.last_seen_at,
+            last_error_code = NULL,
+            updated_at = excluded.updated_at
+        `)
+        .run(
+          studentId,
+          normalizedToken,
+          tokenHash,
+          normalizedTargetType,
+          normalizedPlatform,
+          deviceId,
+          appVersion,
+          now,
+          now,
+          now
+        );
+
+      const row = this.db
+        .prepare('SELECT * FROM device_tokens WHERE student_id = ? AND device_id = ?')
+        .get(studentId, deviceId);
+      this.db.exec('COMMIT');
+      return {
+        created: !existing,
+        device: this.formatDeviceTokenRow(row),
+      };
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  getActiveDeviceTokenForDelivery(deviceId, studentId = null) {
+    const conditions = ['device_id = ?', 'is_active = 1'];
+    const values = [String(deviceId).trim()];
+    if (studentId) {
+      conditions.push('student_id = ?');
+      values.push(String(studentId).trim());
+    }
+    return this.db
+      .prepare(`SELECT * FROM device_tokens WHERE ${conditions.join(' AND ')} LIMIT 1`)
+      .get(...values) || null;
+  }
+
+  getDeviceTokenByIdForDelivery(id) {
+    return this.db
+      .prepare('SELECT * FROM device_tokens WHERE id = ? AND is_active = 1')
+      .get(Number(id)) || null;
+  }
+
+  listStudentDevices(studentId, { activeOnly = true } = {}) {
+    const whereActive = activeOnly ? 'AND is_active = 1' : '';
+    return this.db
+      .prepare(`
+        SELECT * FROM device_tokens
+        WHERE student_id = ? ${whereActive}
+        ORDER BY last_seen_at DESC
+      `)
+      .all(String(studentId).trim())
+      .map((row) => this.formatDeviceTokenRow(row));
+  }
+
+  unregisterDeviceToken(deviceId, studentId = null) {
+    const conditions = ['device_id = ?', 'is_active = 1'];
+    const values = [String(deviceId).trim()];
+    if (studentId) {
+      conditions.push('student_id = ?');
+      values.push(String(studentId).trim());
+    }
+    const result = this.db
+      .prepare(`
+        UPDATE device_tokens
+        SET is_active = 0,
+            last_error_code = 'UNREGISTERED_BY_CLIENT',
+            updated_at = ?
+        WHERE ${conditions.join(' AND ')}
+      `)
+      .run(new Date().toISOString(), ...values);
+    return result.changes > 0;
+  }
+
+  recordDevicePushSuccess(id) {
+    this.db
+      .prepare(`
+        UPDATE device_tokens
+        SET failure_count = 0,
+            last_error_code = NULL,
+            updated_at = ?
+        WHERE id = ?
+      `)
+      .run(new Date().toISOString(), Number(id));
+  }
+
+  recordDevicePushFailure(id, errorCode, { deactivate = false } = {}) {
+    this.db
+      .prepare(`
+        UPDATE device_tokens
+        SET failure_count = failure_count + 1,
+            last_error_code = ?,
+            is_active = CASE WHEN ? = 1 THEN 0 ELSE is_active END,
+            updated_at = ?
+        WHERE id = ?
+      `)
+      .run(String(errorCode || 'UNKNOWN_PUSH_ERROR'), deactivate ? 1 : 0, new Date().toISOString(), Number(id));
   }
 
   /**
@@ -543,6 +720,24 @@ class DatabaseManager {
       is_read: Boolean(row.is_read),
       is_pinned: Boolean(row.is_pinned),
       tags: parsedTags,
+    };
+  }
+
+  formatDeviceTokenRow(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      student_id: row.student_id,
+      platform: row.platform,
+      target_type: row.target_type || 'TOKEN',
+      device_id: row.device_id,
+      app_version: row.app_version,
+      is_active: Boolean(row.is_active),
+      failure_count: row.failure_count,
+      last_seen_at: row.last_seen_at,
+      last_error_code: row.last_error_code,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     };
   }
 

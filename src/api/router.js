@@ -5,6 +5,7 @@
 
 const { URL } = require('node:url');
 const { classifyNotification } = require('../services/classifierService');
+const { PushNotificationService } = require('../services/pushNotificationService');
 const {
   parsePortalHtml,
   parseStudentEmail,
@@ -17,10 +18,40 @@ function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   res.end(body);
+}
+
+function sendEmpty(res, statusCode) {
+  res.writeHead(statusCode, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+  res.end();
+}
+
+function validateDeviceRegistration(body = {}) {
+  const studentId = String(body.student_id || '').trim();
+  const registrationId = String(body.fid || body.token || '').trim();
+  const platform = String(body.platform || '').trim().toUpperCase();
+  const deviceId = String(body.device_id || '').trim();
+
+  if (!studentId || studentId.length > 64 || !/^[A-Za-z0-9._-]+$/.test(studentId)) {
+    return 'student_id không hợp lệ';
+  }
+  if (!registrationId || registrationId.length > 4096) {
+    return 'Firebase Installation ID hoặc FCM token không hợp lệ';
+  }
+  if (!['ANDROID', 'IOS', 'WEB'].includes(platform)) {
+    return 'platform phải là ANDROID, IOS hoặc WEB';
+  }
+  if (!deviceId || deviceId.length > 200 || !/^[A-Za-z0-9._:-]+$/.test(deviceId)) {
+    return 'device_id không hợp lệ';
+  }
+  return null;
 }
 
 function parseJsonBody(req) {
@@ -47,7 +78,7 @@ function parseJsonBody(req) {
   });
 }
 
-async function handleApiRequest(req, res, dbManager) {
+async function handleApiRequest(req, res, dbManager, dependencies = {}) {
   if (req.method === 'OPTIONS') {
     sendJson(res, 200, { ok: true });
     return true;
@@ -61,6 +92,99 @@ async function handleApiRequest(req, res, dbManager) {
   }
 
   try {
+    // Task 6: Đăng ký hoặc làm mới FCM token cho thiết bị sinh viên.
+    if (req.method === 'POST' && pathname === '/api/devices/register') {
+      const body = await parseJsonBody(req);
+      const validationError = validateDeviceRegistration(body);
+      if (validationError) {
+        sendJson(res, 400, {
+          status: 'error',
+          code: 'INVALID_DEVICE_REGISTRATION',
+          message: validationError,
+        });
+        return true;
+      }
+
+      const result = dbManager.registerDeviceToken({
+        student_id: String(body.student_id).trim(),
+        token: String(body.fid || body.token).trim(),
+        target_type: body.fid ? 'FID' : 'TOKEN',
+        platform: String(body.platform).trim().toUpperCase(),
+        device_id: String(body.device_id).trim(),
+        app_version: body.app_version,
+      });
+      sendJson(res, result.created ? 201 : 200, {
+        status: 'success',
+        data: result.device,
+      });
+      return true;
+    }
+
+    // Task 6: Hủy token theo device_id. Trong MVP chưa có auth nên student_id
+    // được truyền qua query; production phải lấy student_id từ access token.
+    const deviceMatch = pathname.match(/^\/api\/devices\/([A-Za-z0-9._:-]+)$/);
+    if (req.method === 'DELETE' && deviceMatch) {
+      const studentId = String(parsedUrl.searchParams.get('student_id') || '').trim();
+      if (!studentId) {
+        sendJson(res, 400, {
+          status: 'error',
+          code: 'STUDENT_ID_REQUIRED',
+          message: 'Thiếu student_id để xác nhận thiết bị cần hủy đăng ký',
+        });
+        return true;
+      }
+      dbManager.unregisterDeviceToken(deviceMatch[1], studentId);
+      sendEmpty(res, 204);
+      return true;
+    }
+
+    // Task 6: Endpoint gửi thử chỉ dành cho local/test hoặc khi được bật rõ ràng.
+    if (req.method === 'POST' && pathname === '/api/push/test') {
+      const testEndpointEnabled =
+        process.env.NODE_ENV !== 'production' ||
+        String(process.env.ENABLE_PUSH_TEST_ENDPOINT || '').toLowerCase() === 'true';
+      if (!testEndpointEnabled) {
+        sendJson(res, 404, { status: 'error', message: 'Không tìm thấy API endpoint' });
+        return true;
+      }
+
+      const body = await parseJsonBody(req);
+      const deviceId = String(body.device_id || '').trim();
+      const studentId = String(body.student_id || '').trim();
+      const title = String(body.title || '').trim();
+      const messageBody = String(body.body || '').trim();
+      if (!deviceId || !studentId || !title || !messageBody) {
+        sendJson(res, 400, {
+          status: 'error',
+          code: 'INVALID_TEST_PUSH_PAYLOAD',
+          message: 'Vui lòng cung cấp student_id, device_id, title và body',
+        });
+        return true;
+      }
+
+      const device = dbManager.getActiveDeviceTokenForDelivery(deviceId, studentId);
+      if (!device) {
+        sendJson(res, 404, {
+          status: 'error',
+          code: 'ACTIVE_DEVICE_NOT_FOUND',
+          message: 'Không tìm thấy thiết bị đang hoạt động',
+        });
+        return true;
+      }
+
+      const pushService = dependencies.pushService || new PushNotificationService({ dbManager });
+      const result = await pushService.sendToDevice({
+        deviceTokenId: device.id,
+        title,
+        body: messageBody,
+        data: body.data && typeof body.data === 'object' && !Array.isArray(body.data)
+          ? body.data
+          : {},
+      });
+      sendJson(res, 200, { status: 'success', data: result });
+      return true;
+    }
+
     // 1. GET /api/notifications - Lấy danh sách bảng tin tập trung (Tìm kiếm, Lọc, Phân trang)
     if (req.method === 'GET' && pathname === '/api/notifications') {
       const queryParams = Object.fromEntries(parsedUrl.searchParams.entries());
@@ -220,8 +344,9 @@ async function handleApiRequest(req, res, dbManager) {
     });
     return true;
   } catch (err) {
-    sendJson(res, 500, {
+    sendJson(res, Number(err.httpStatus) || 500, {
       status: 'error',
+      ...(err.code ? { code: err.code } : {}),
       message: err.message || 'Lỗi máy chủ nội bộ',
     });
     return true;

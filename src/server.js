@@ -9,6 +9,7 @@ const path = require('node:path');
 const { URL } = require('node:url');
 const { DatabaseManager } = require('./db/database');
 const { handleApiRequest } = require('./api/router');
+const { getFirebaseConfigurationStatus } = require('./config/firebase');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -58,10 +59,12 @@ if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   const { server } = createAppServer();
   server.listen(PORT, () => {
+    const firebaseStatus = getFirebaseConfigurationStatus();
     console.log(`====================================================================`);
     console.log(`🚀 MVP Bảng tin Tổng hợp Thông báo Đa nguồn đã khởi chạy!`);
     console.log(`👉 Giao diện Web UI : http://localhost:${PORT}`);
     console.log(`👉 REST API Feed   : http://localhost:${PORT}/api/notifications`);
+    console.log(`👉 Firebase Push   : ${firebaseStatus.configured ? 'Đã cấu hình' : 'Chưa cấu hình (API khác vẫn hoạt động)'}`);
     console.log(`👉 Phụ trách       : Nguyễn Hữu Tuấn (Tasks 11, 12, 13, 14, 15)`);
     console.log(`====================================================================`);
   });

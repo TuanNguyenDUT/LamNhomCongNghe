@@ -1,0 +1,6 @@
+{
+  "APP_ENV": "production",
+  "API_BASE_URL": "https://api.example.edu.vn",
+  "ENABLE_FIREBASE": true,
+  "STUDENT_ID": ""
+}

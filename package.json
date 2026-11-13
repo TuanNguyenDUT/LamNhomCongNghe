@@ -5,9 +5,12 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node --no-warnings src/server.js",
-    "test": "node --no-warnings --test tests/notification.test.js",
+    "test": "node --no-warnings --test tests/notification.test.js tests/push-notification.test.js",
     "benchmark": "node --no-warnings src/scripts/benchmark.js"
   },
   "author": "Nguyễn Hữu Tuấn",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^14.5.1"
+  }
 }
