@@ -1,11 +1,11 @@
 {
-  "name": "dut-deadline-notification-system",
+  "name": "dut-smart-campus-system",
   "version": "1.0.0",
-  "description": "DUT System: Quản lý hạn chót bài tập (Task 1, 2, 3, 4, 5) & FCM Push Notification (Task 6) & Thu thập thông báo đa nguồn (Task 11)",
+  "description": "DUT System: Quản lý hạn chót bài tập (Task 1-5) & FCM Push Notification (Task 6) & Thu thập thông báo đa nguồn (Task 11, 13)",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test tests/**/*.test.js"
+    "test": "node --no-warnings --test tests/**/*.test.js"
   },
   "author": "DUT Dev Team",
   "license": "MIT",

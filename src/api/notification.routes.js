@@ -46,11 +46,11 @@ async function notificationRouter(req, res, controller) {
   const pathname = parsedUrl.pathname;
 
   try {
-    // 1. Health check & thông tin cấu trúc API Task 11
+    // 1. Health check & thông tin cấu trúc API Task 11 & Task 13
     if (req.method === 'GET' && pathname === '/') {
       sendJson(res, 200, {
         service: 'DUT Multi-Source Notification Collector API',
-        task: 'Task 11: Thiết kế Schema CSDL (PostgreSQL) và cấu trúc API thu thập thông báo',
+        task: 'Task 11 & Task 13: CSDL PostgreSQL, REST API & Bộ quy tắc phân loại thông báo (Rules Engine)',
         pic: 'Nguyễn Hữu Tuấn',
         endpoints: [
           'GET  /api/v1/notifications/sources',
@@ -58,6 +58,8 @@ async function notificationRouter(req, res, controller) {
           'POST /api/v1/notifications/collect-batch',
           'GET  /api/v1/notifications',
           'GET  /api/v1/notifications/:id',
+          'POST /api/v1/notifications/classify (Task 13: xem trước phân loại & tính điểm)',
+          'GET  /api/v1/notifications/rules (Task 13: tra cứu bộ quy tắc & trọng số)',
         ],
       });
       return;
@@ -66,6 +68,21 @@ async function notificationRouter(req, res, controller) {
     // 2. GET /api/v1/notifications/sources - Danh sách kênh nguồn
     if (req.method === 'GET' && pathname === '/api/v1/notifications/sources') {
       const result = await controller.getSources();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 2.1. GET /api/v1/notifications/rules - Tra cứu cấu hình bộ quy tắc (Task 13)
+    if (req.method === 'GET' && pathname === '/api/v1/notifications/rules') {
+      const result = await controller.getRules();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 2.2. POST /api/v1/notifications/classify - Thử nghiệm bộ quy tắc phân loại (Task 13)
+    if (req.method === 'POST' && pathname === '/api/v1/notifications/classify') {
+      const payload = await readJsonBody(req);
+      const result = await controller.classifyPreview(payload);
       sendJson(res, result.statusCode, result.body);
       return;
     }

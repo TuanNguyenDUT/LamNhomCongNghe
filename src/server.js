@@ -33,6 +33,8 @@ function createServer(pgPool = null) {
 
   return {
     server,
+    repository: notifRepository,
+    controller: notificationController,
     notifRepository,
     notificationController,
     deadlineRepository,
