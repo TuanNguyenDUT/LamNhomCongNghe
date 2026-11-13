@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DUT Deadline Manager – Task 1, 2, 3, 4, 6</title>
+  <style>
+    /* ===================== RESET & BASE ===================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:    #1565C0;
+      --primary-lt: #E3F2FD;
+      --danger:     #D32F2F;
+      --danger-lt:  #FFEBEE;
+      --warn:       #F57C00;
+      --warn-lt:    #FFF3E0;
+      --success:    #2E7D32;
+      --success-lt: #E8F5E9;
+      --gray-bg:    #F4F6F9;
+      --card-bg:    #FFFFFF;
+      --border:     #DDE3ED;
+      --text:       #1A1D23;
+      --text-sub:   #6B7280;
+      --radius:     12px;
+      --shadow:     0 2px 8px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--gray-bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* ===================== HEADER ===================== */
+    .header {
+      background: var(--primary);
+      color: #fff;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header .logo { font-size: 26px; }
+    .header h1   { font-size: 18px; font-weight: 700; }
+    .header p    { font-size: 12px; opacity: .85; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    
+    .btn {
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .2s;
+    }
+    .btn-add { background: #fff; color: var(--primary); }
+    .btn-add:hover { background: #e0edfc; }
+    .btn-fcm { background: #FF9800; color: #fff; }
+    .btn-fcm:hover { background: #F57C00; }
+
+    /* ===================== CONTAINER ===================== */
+    .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ===================== API BADGE ===================== */
+    .api-badge-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #E8F5E9;
+      border: 1px solid #A5D6A7;
+      color: #2E7D32;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    .api-badge-bar.offline {
+      background: #FFF3E0;
+      border-color: #FFE082;
+      color: #E65100;
+    }
+    .api-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4CAF50;
+      margin-right: 6px;
+    }
+    .api-badge-bar.offline .api-indicator { background: #FFA000; }
+
+    /* ===================== STATS BAR ===================== */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stat-icon { font-size: 24px; }
+    .stat-num  { font-size: 22px; font-weight: 700; }
+    .stat-lbl  { font-size: 11px; color: var(--text-sub); }
+    .stat-card.danger  { border-left: 4px solid var(--danger); }
+    .stat-card.warn    { border-left: 4px solid var(--warn); }
+    .stat-card.ok      { border-left: 4px solid var(--success); }
+    .stat-card.total   { border-left: 4px solid var(--primary); }
+
+    /* ===================== FILTER ROW ===================== */
+    .filter-row {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-row label { font-size: 13px; color: var(--text-sub); white-space: nowrap; font-weight: 600; }
+    .filter-select, .search-input {
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--gray-bg);
+      outline: none;
+      transition: border-color .2s;
+    }
+    .filter-select:focus, .search-input:focus { border-color: var(--primary); background: #fff; }
+    .search-input { flex: 1; min-width: 160px; }
+    .filter-tags  { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag-btn {
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #fff;
+      color: var(--text-sub);
+      transition: all .15s;
+    }
+    .tag-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .tag-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+    .divider { width: 1px; height: 24px; background: var(--border); }
+
+    /* ===================== SECTION LABEL ===================== */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 20px 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ===================== DEADLINE CARD ===================== */
+    .deadline-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .deadline-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: transform .15s, box-shadow .15s;
+      border-left: 5px solid var(--border);
+      position: relative;
+    }
+    .deadline-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+    .deadline-card.OVERDUE  { border-left-color: var(--danger); background: #FFF8F8; }
+    .deadline-card.DUE_SOON { border-left-color: var(--warn); background: #FFFCF7; }
+    .deadline-card.UPCOMING { border-left-color: var(--primary); }
+    .deadline-card.COMPLETED{ border-left-color: var(--success); opacity: .75; background: #FAFAFA; }
+
+    .check-wrap { flex-shrink: 0; }
+    .check-wrap input[type=checkbox] { width: 22px; height: 22px; cursor: pointer; accent-color: var(--success); }
+
+    .course-tag {
+      flex-shrink: 0;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: var(--primary-lt);
+      color: var(--primary);
+      white-space: nowrap;
+    }
+
+    .card-body { flex: 1; min-width: 0; }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .COMPLETED .card-title { text-decoration: line-through; color: var(--text-sub); }
+    .card-meta {
+      display: flex;
+      gap: 14px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+    .card-meta span {
+      font-size: 12px;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-badge {
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .badge-OVERDUE   { background: var(--danger-lt);  color: var(--danger); }
+    .badge-DUE_SOON  { background: var(--warn-lt);    color: var(--warn); }
+    .badge-UPCOMING  { background: var(--primary-lt); color: var(--primary); }
+    .badge-COMPLETED { background: var(--success-lt); color: var(--success); }
+
+    .countdown {
+      flex-shrink: 0;
+      text-align: right;
+      min-width: 80px;
+    }
+    .countdown .days { font-size: 18px; font-weight: 800; }
+    .countdown .days-label { font-size: 10px; color: var(--text-sub); }
+    .OVERDUE   .countdown .days { color: var(--danger); }
+    .DUE_SOON  .countdown .days { color: var(--warn); }
+    .UPCOMING  .countdown .days { color: var(--primary); }
+    .COMPLETED .countdown .days { color: var(--success); }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #9E9E9E;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color .2s;
+    }
+    .btn-delete:hover { color: var(--danger); background: var(--danger-lt); }
+
+    /* ===================== EMPTY STATE ===================== */
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-sub);
+      background: #fff;
+      border-radius: var(--radius);
+      margin-top: 10px;
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+    /* ===================== MODAL ===================== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    }
+    .modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: var(--primary); }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--text-sub); display: block; margin-bottom: 5px; }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+    .btn-cancel {
+      padding: 9px 18px; border: 1.5px solid var(--border); border-radius: 8px;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-sub);
+    }
+    .btn-save {
+      padding: 9px 20px; border: none; border-radius: 8px;
+      background: var(--primary); color: #fff; cursor: pointer; font-size: 13px; font-weight: 700;
+    }
+
+    /* ===================== RESPONSIVE (Task 5) ===================== */
+    @media (max-width: 768px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .header h1 { font-size: 15px; }
+      .header p { display: none; }
+      .countdown { display: none; }
+      .filter-row { flex-direction: column; align-items: stretch; }
+      .divider { display: none; }
+      .deadline-card { padding: 12px; gap: 10px; }
+      .course-tag { font-size: 10px; padding: 2px 6px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="header">
+  <span class="logo">🎓</span>
+  <div>
+    <h1>DUT Deadline & Task Management</h1>
+    <p>Hệ thống Quản lý hạn chót bài tập & Push Notification tự động</p>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-fcm" onclick="openFcmModal()">
+      🔔 Cài đặt FCM Token
+    </button>
+    <button class="btn btn-add" onclick="openModal()">
+      ＋ Thêm deadline
+    </button>
+  </div>
+</header>
+
+<!-- ===================== MAIN ===================== -->
+<main class="container">
+
+  <!-- API Status Banner -->
+  <div class="api-badge-bar" id="apiStatusBanner">
+    <div>
+      <span class="api-indicator"></span>
+      <span id="apiStatusText">Đang kết nối Backend REST API...</span>
+    </div>
+    <span style="font-size: 11px;">Endpoints: <code>/api/v1/deadlines</code>, <code>/api/v1/device-tokens</code></span>
+  </div>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stat-card danger">
+      <span class="stat-icon">🔴</span>
+      <div>
+        <div class="stat-num" id="cnt-overdue">0</div>
+        <div class="stat-lbl">Quá hạn (Overdue)</div>
+      </div>
+    </div>
+    <div class="stat-card warn">
+      <span class="stat-icon">🟡</span>
+      <div>
+        <div class="stat-num" id="cnt-soon">0</div>
+        <div class="stat-lbl">Sắp đến (≤ 48h)</div>
+      </div>
+    </div>
+    <div class="stat-card ok">
+      <span class="stat-icon">🟢</span>
+      <div>
+        <div class="stat-num" id="cnt-done">0</div>
+        <div class="stat-lbl">Đã hoàn thành</div>
+      </div>
+    </div>
+    <div class="stat-card total">
+      <span class="stat-icon">📋</span>
+      <div>
+        <div class="stat-num" id="cnt-total">0</div>
+        <div class="stat-lbl">Tổng deadline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILTER ROW -->
+  <div class="filter-row">
+    <label>🔍 Tìm kiếm:</label>
+    <input class="search-input" id="searchInput" placeholder="Tìm kiếm bài tập, ghi chú..." oninput="handleSearch()" />
+    <div class="divider"></div>
+    <label>Môn học:</label>
+    <select class="filter-select" id="courseFilter" onchange="handleCourseChange()">
+      <option value="">Tất cả môn học</option>
+    </select>
+    <div class="divider"></div>
+    <div class="filter-tags" id="statusFilter">
+      <button class="tag-btn active" data-status="" onclick="setStatusFilter(this)">Tất cả</button>
+      <button class="tag-btn" data-status="OVERDUE"  onclick="setStatusFilter(this)">🔴 Quá hạn</button>
+      <button class="tag-btn" data-status="DUE_SOON" onclick="setStatusFilter(this)">🟡 Sắp đến</button>
+      <button class="tag-btn" data-status="UPCOMING" onclick="setStatusFilter(this)">🔵 Còn hạn</button>
+      <button class="tag-btn" data-status="COMPLETED"onclick="setStatusFilter(this)">✅ Hoàn thành</button>
+    </div>
+  </div>
+
+  <!-- LIST CONTENT -->
+  <div id="listContainer"></div>
+
+</main>
+
+<!-- ===================== MODAL THÊM DEADLINE (Task 1 & 3) ===================== -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <h2>➕ Thêm hạn chót mới (Task 3 API)</h2>
+    <div class="form-group">
+      <label>Tên bài tập / hạn chót *</label>
+      <input type="text" id="f-title" placeholder="VD: Nộp báo cáo giữa kỳ môn AI" />
+    </div>
+    <div class="form-group">
+      <label>Môn học (Course) *</label>
+      <select id="f-course">
+        <option value="">Chọn môn học...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Hạn chót (Due Date) *</label>
+      <input type="datetime-local" id="f-due" />
+    </div>
+    <div class="form-group">
+      <label>Ghi chú</label>
+      <textarea id="f-note" rows="2" placeholder="(Tùy chọn: nộp LMS hay Github, link nhóm...)"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Hủy</button>
+      <button class="btn-save" onclick="submitCreateDeadline()">Lưu vào Database</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL CÀI ĐẶT FCM TOKEN (Task 6) ===================== -->
+<div class="modal-overlay" id="fcmModalOverlay" onclick="closeFcmModal(event)">
+  <div class="modal">
+    <h2>🔔 Quản lý FCM Device Token (Task 6)</h2>
+    <p style="font-size: 13px; color: var(--text-sub); margin-bottom: 14px;">
+      Đăng ký Token thiết bị người dùng vào CSDL PostgreSQL để nhận thông báo đẩy nhắc deadline đa tầng (FCM / APNs).
+    </p>
+    <div class="form-group">
+      <label>Mã Sinh Viên</label>
+      <input type="text" id="f-fcm-student" value="102230001" />
+    </div>
+    <div class="form-group">
+      <label>Nền tảng thiết bị</label>
+      <select id="f-fcm-platform">
+        <option value="WEB">Web Browser</option>
+        <option value="ANDROID">Android Device</option>
+        <option value="IOS">Apple iOS Device</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>FCM Device Registration Token *</label>
+      <textarea id="f-fcm-token" rows="3" placeholder="Nhập chuỗi Token FCM sinh từ Flutter App hoặc Browser..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="generateDemoFcmToken()">Tạo Token Mẫu</button>
+      <button class="btn-save" onclick="submitRegisterFcmToken()">Lưu Token vào DB</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SCRIPT LOGIC ===================== -->
+<script>
+  const API_BASE = window.location.origin.includes('localhost') ? window.location.origin : 'http://localhost:3000';
+  let deadlinesData = [];
+  let currentStatus = '';
+  let isApiOnline = false;
+
+  // Tính trạng thái realtime (Task 4)
+  function computeStatus(dueDateStr, isCompleted) {
+    if (isCompleted) return 'COMPLETED';
+    const diffHours = (new Date(dueDateStr).getTime() - Date.now()) / 3600000;
+    if (diffHours < 0) return 'OVERDUE';
+    if (diffHours <= 48) return 'DUE_SOON';
+    return 'UPCOMING';
+  }
+
+  function formatDue(dateStr) {
+    return new Date(dateStr).toLocaleString('vi-VN', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function countdownText(dueDateStr, isCompleted) {
+    if (isCompleted) return { days: '✓', label: 'Hoàn thành' };
+    const diffH = (new Date(dueDateStr).getTime() - Date.now()) / 3600000;
+    if (diffH < 0) {
+      const h = Math.abs(Math.round(diffH));
+      return h < 24
+        ? { days: `${h}h`, label: 'đã trễ' }
+        : { days: `${Math.floor(h / 24)}d`, label: 'đã trễ' };
+    }
+    if (diffH <= 48) return { days: `${Math.round(diffH)}h`, label: 'còn lại' };
+    return { days: `${Math.floor(diffH / 24)}`, label: 'ngày nữa' };
+  }
+
+  // Tải danh sách môn học từ API
+  async function loadCourses() {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/courses`);
+      const json = await res.json();
+      const courses = json.data || [];
+      const filterSel = document.getElementById('courseFilter');
+      const formSel = document.getElementById('f-course');
+
+      courses.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.course_code;
+        opt.textContent = `${c.course_code} – ${c.course_name}`;
+        filterSel.appendChild(opt);
+
+        const opt2 = document.createElement('option');
+        opt2.value = c.course_code;
+        opt2.textContent = `${c.course_code} – ${c.course_name}`;
+        formSel.appendChild(opt2);
+      });
+    } catch (e) {
+      console.warn('Dùng danh sách môn dự phòng:', e.message);
+    }
+  }
+
+  // Tải danh sách deadline từ REST API (Task 3)
+  async function fetchDeadlines() {
+    const banner = document.getElementById('apiStatusBanner');
+    const text = document.getElementById('apiStatusText');
+    const search = document.getElementById('searchInput').value.trim();
+    const subject = document.getElementById('courseFilter').value;
+
+    let url = `${API_BASE}/api/v1/deadlines?`;
+    if (subject) url += `subject=${encodeURIComponent(subject)}&`;
+    if (currentStatus) url += `status=${encodeURIComponent(currentStatus)}&`;
+    if (search) url += `search=${encodeURIComponent(search)}&`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      deadlinesData = json.data || [];
+      isApiOnline = true;
+      banner.className = 'api-badge-bar';
+      text.innerHTML = '🟢 <strong>Backend REST API đang kết nối trực tiếp</strong>';
+    } catch (err) {
+      isApiOnline = false;
+      banner.className = 'api-badge-bar offline';
+      text.innerHTML = '🟠 <strong>Chế độ Mock Offline</strong> (Không kết nối được server, đang hiển thị mẫu)';
+      // Dữ liệu fallback
+      if (deadlinesData.length === 0) {
+        const now = Date.now();
+        deadlinesData = [
+          { deadline_id: 1, title: 'Nộp báo cáo bài tập lớn CNPM', subject: 'IT401', due_date: new Date(now - 86400000).toISOString(), is_completed: false, note: 'LMS nộp trước 23h' },
+          { deadline_id: 2, title: 'Làm bài tập Mạng máy tính tuần 9', subject: 'IT302', due_date: new Date(now + 20 * 3600000).toISOString(), is_completed: false, note: '' },
+          { deadline_id: 3, title: 'Nộp đồ án giữa kỳ AI', subject: 'IT501', due_date: new Date(now + 3 * 86400000).toISOString(), is_completed: false, note: 'File PDF + Zip' },
+          { deadline_id: 4, title: 'Bài tập HTML/CSS responsive', subject: 'IT210', due_date: new Date(now + 7 * 86400000).toISOString(), is_completed: true, note: 'Đã hoàn thành' },
+        ];
+      }
+    }
+    renderUI();
+  }
+
+  // Render danh sách ra giao diện (Task 1 & 4)
+  function renderUI() {
+    const container = document.getElementById('listContainer');
+    container.innerHTML = '';
+
+    // Cập nhật thống kê
+    let cOverdue = 0, cSoon = 0, cDone = 0;
+    deadlinesData.forEach(d => {
+      const st = computeStatus(d.due_date, d.is_completed);
+      if (st === 'COMPLETED') cDone++;
+      else if (st === 'OVERDUE') cOverdue++;
+      else if (st === 'DUE_SOON') cSoon++;
+    });
+    document.getElementById('cnt-overdue').textContent = cOverdue;
+    document.getElementById('cnt-soon').textContent = cSoon;
+    document.getElementById('cnt-done').textContent = cDone;
+    document.getElementById('cnt-total').textContent = deadlinesData.length;
+
+    // Phân nhóm
+    const groups = { OVERDUE: [], DUE_SOON: [], UPCOMING: [], COMPLETED: [] };
+    deadlinesData.forEach(d => {
+      const st = computeStatus(d.due_date, d.is_completed);
+      if (currentStatus && st !== currentStatus) return;
+      groups[st].push(d);
+    });
+
+    const labels = {
+      OVERDUE: '🔴 Quá hạn (Overdue)',
+      DUE_SOON: '🟡 Sắp đến hạn trong 48h (Due Soon)',
+      UPCOMING: '🔵 Còn hạn nộp (Upcoming)',
+      COMPLETED: '✅ Đã hoàn thành (Completed)',
+    };
+    const badgeTitles = {
+      OVERDUE: 'Quá hạn',
+      DUE_SOON: 'Sắp đến',
+      UPCOMING: 'Còn hạn',
+      COMPLETED: 'Đã xong',
+    };
+
+    let totalShown = 0;
+    Object.entries(groups).forEach(([st, items]) => {
+      if (!items.length) return;
+      totalShown += items.length;
+
+      const lbl = document.createElement('div');
+      lbl.className = 'section-label';
+      lbl.textContent = `${labels[st]} (${items.length})`;
+      container.appendChild(lbl);
+
+      const list = document.createElement('div');
+      list.className = 'deadline-list';
+
+      items.forEach(d => {
+        const cd = countdownText(d.due_date, d.is_completed);
+        const card = document.createElement('div');
+        card.className = `deadline-card ${st}`;
+        card.innerHTML = `
+          <div class="check-wrap">
+            <input type="checkbox" ${d.is_completed ? 'checked' : ''} onchange="toggleDone(${d.deadline_id})" title="Tick để hoàn thành bài tập" />
+          </div>
+          <span class="course-tag">${d.subject || d.course_code}</span>
+          <div class="card-body">
+            <div class="card-title">${escapeHtml(d.title)}</div>
+            <div class="card-meta">
+              <span>📅 ${formatDue(d.due_date)}</span>
+              ${d.note ? `<span>📝 ${escapeHtml(d.note)}</span>` : ''}
+            </div>
+          </div>
+          <span class="status-badge badge-${st}">${badgeTitles[st]}</span>
+          <div class="countdown">
+            <div class="days">${cd.days}</div>
+            <div class="days-label">${cd.label}</div>
+          </div>
+          <button class="btn-delete" onclick="deleteDeadlineItem(${d.deadline_id})" title="Xóa deadline này">🗑</button>
+        `;
+        list.appendChild(card);
+      });
+      container.appendChild(list);
+    });
+
+    if (totalShown === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">✨</div>
+          <p>Không có hạn chót nào trong danh sách hiện tại!</p>
+        </div>`;
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Toggle trạng thái hoàn thành bài tập (Task 4)
+  async function toggleDone(id) {
+    if (isApiOnline) {
+      try {
+        await fetch(`${API_BASE}/api/v1/deadlines/${id}/complete`, { method: 'PATCH' });
+      } catch (e) {
+        console.error('Lỗi toggle API:', e);
+      }
+    } else {
+      const it = deadlinesData.find(x => x.deadline_id === id);
+      if (it) it.is_completed = !it.is_completed;
+    }
+    fetchDeadlines();
+  }
+
+  // Xóa deadline (Task 3)
+  async function deleteDeadlineItem(id) {
+    if (!confirm('Bạn có chắc chắn muốn xóa deadline này?')) return;
+    if (isApiOnline) {
+      try {
+        await fetch(`${API_BASE}/api/v1/deadlines/${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Lỗi xóa API:', e);
+      }
+    } else {
+      deadlinesData = deadlinesData.filter(x => x.deadline_id !== id);
+    }
+    fetchDeadlines();
+  }
+
+  // Tạo deadline mới (Task 3)
+  async function submitCreateDeadline() {
+    const title = document.getElementById('f-title').value.trim();
+    const subject = document.getElementById('f-course').value;
+    const due_date = document.getElementById('f-due').value;
+    const note = document.getElementById('f-note').value.trim();
+
+    if (!title || !subject || !due_date) {
+      alert('Vui lòng nhập đủ các trường bắt buộc (*)');
+      return;
+    }
+
+    if (isApiOnline) {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/deadlines`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, subject, due_date: new Date(due_date).toISOString(), note }),
+        });
+        if (!res.ok) throw new Error('Không tạo được deadline');
+      } catch (e) {
+        alert('Lỗi tạo deadline: ' + e.message);
+      }
+    } else {
+      deadlinesData.push({
+        deadline_id: Date.now(),
+        title,
+        subject,
+        due_date: new Date(due_date).toISOString(),
+        is_completed: false,
+        note,
+      });
+    }
+
+    closeModal();
+    fetchDeadlines();
+  }
+
+  // Quản lý FCM Token (Task 6)
+  function openFcmModal() {
+    document.getElementById('fcmModalOverlay').classList.add('open');
+  }
+  function closeFcmModal(e) {
+    if (!e || e.target.id === 'fcmModalOverlay') {
+      document.getElementById('fcmModalOverlay').classList.remove('open');
+    }
+  }
+  function generateDemoFcmToken() {
+    const randomHex = Array.from({length: 32}, () => Math.floor(Math.random()*16).toString(16)).join('');
+    document.getElementById('f-fcm-token').value = `fcm_token_device_${randomHex}`;
+  }
+  async function submitRegisterFcmToken() {
+    const token = document.getElementById('f-fcm-token').value.trim();
+    const student_id = document.getElementById('f-fcm-student').value.trim();
+    const platform = document.getElementById('f-fcm-platform').value;
+
+    if (!token) {
+      alert('Vui lòng nhập hoặc bấm Tạo Token Mẫu!');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/device-tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id, device_token: token, platform, device_model: navigator.userAgent }),
+      });
+      const data = await res.json();
+      alert('✅ ' + (data.message || 'Lưu token thành công vào Database PostgreSQL!'));
+      closeFcmModal();
+    } catch (e) {
+      alert('Lưu token thất bại: ' + e.message);
+    }
+  }
+
+  // Filter actions
+  function handleSearch() { fetchDeadlines(); }
+  function handleCourseChange() { fetchDeadlines(); }
+  function setStatusFilter(btn) {
+    document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentStatus = btn.dataset.status;
+    fetchDeadlines();
+  }
+
+  // Modal actions
+  function openModal() {
+    document.getElementById('modalOverlay').classList.add('open');
+    const def = new Date(Date.now() + 48 * 3600000);
+    const local = new Date(def.getTime() - def.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('f-due').value = local;
+  }
+  function closeModal(e) {
+    if (!e || e.target.id === 'modalOverlay') {
+      document.getElementById('modalOverlay').classList.remove('open');
+    }
+  }
+
+  // Khởi động
+  loadCourses();
+  fetchDeadlines();
+</script>
+</body>
+</html>

@@ -1,70 +1,74 @@
-# 📢 Chức Năng Tổng Hợp Thông Báo Từ Nhiều Nguồn (Node.js + PostgreSQL + Flutter)
+# 🎓 DUT Smart Campus System: Quản Lý Hạn Chót Bài Tập & Thông Báo
 
 > **Dự án nhóm môn Công nghệ Phần mềm**  
-> **Thành viên phụ trách:** **Nguyễn Hữu Tuấn**  
-> **Kiến trúc hệ thống:** Node.js Backend + PostgreSQL + Flutter Mobile/Web + Firebase (FCM & Auth)  
-> **Tiến độ hiện tại:** Đã hoàn thành **Task 11** (*Thiết kế Schema CSDL PostgreSQL và cấu trúc API thu thập thông báo*). Các Task 12–15 đang được triển khai theo lộ trình đến Thứ 6 tuần sau.
+> **Kiến trúc hệ thống:** Node.js Backend + PostgreSQL + Web/Mobile Client + Firebase (FCM / Auth)  
 
 ---
 
-## 📂 Cấu Trúc Mã Nguồn (Task 11)
+## 📌 Bảng phân công & Tiến độ các Task
 
-```text
-LamNhomCongNghe/
-├── src/
-│   ├── db/
-│   │   ├── schema.sql                      # Thiết kế Schema PostgreSQL (Bảng, Quan hệ, ENUM, GIN/Composite Index)
-│   │   └── postgres.js                     # Tầng Repository kết nối PostgreSQL & xử lý lưu/truy vấn thông báo
-│   ├── controllers/
-│   │   └── notification.controller.js      # Controller kiểm tra dữ liệu đầu vào & điều phối luồng thu thập
-│   ├── api/
-│   │   └── notification.routes.js          # Định nghĩa cấu trúc REST API (/api/v1/notifications/...)
-│   └── server.js                           # Khởi chạy Node.js Backend Server
-└── package.json
+| No | Task | Phụ trách | Tiến độ | Mô tả chi tiết |
+|:---:|:---|:---|:---:|:---|
+| **1** | Thiết kế UI danh sách hạn chót & bộ lọc theo môn học | Nguyễn Hữu Duy Bảo | **100%** | Wireframe & Web UI responsive, lọc môn học & trạng thái |
+| **2** | Thiết kế Database Schema lưu trữ deadline & môn học | Nguyễn Hữu Duy Bảo | **100%** | Bảng `deadlines`, `courses` & ENUM `deadline_status_type` |
+| **3** | Xây dựng API CRUD quản lý hạn chót (thêm, sửa, xóa) | Nguyễn Hữu Duy Bảo | **100%** | Các endpoint REST API GET, POST, PUT, DELETE |
+| **4** | Phân loại trạng thái deadline & tick hoàn thành bài tập | Nguyễn Hữu Duy Bảo | **100%** | Tự động tính Overdue, Due Soon, Upcoming; checkbox toggle |
+| **5** | Kiểm thử chức năng (Unit Test) & tối ưu responsive | Nguyễn Hữu Duy Bảo | **100%** | Bộ 17 unit tests tự động (`npm test`), kiểm tra responsive |
+| **6** | Tích hợp Push Notification (FCM/APNs) & lưu Token DB | Hồ Đăng Hùng | **100%** | Bảng `user_device_tokens`, lưu token thiết bị & mock FCM push |
+| **11**| Thiết kế Schema CSDL & API thu thập thông báo đa nguồn | Nguyễn Hữu Tuấn | **100%** | Bảng `notifications`, đa nguồn PDT, Khoa, Lớp, Email |
+
+---
+
+## 🚀 Hướng Dẫn Khởi Chạy & Kiểm Thử
+
+### 1. Cài đặt thư viện:
+```bash
+npm install
 ```
 
+### 2. Chạy toàn bộ Unit Tests (Task 5):
+```bash
+npm test
+```
+> Kết quả: Chạy 17 bài test kiểm thử tự động (Auto-status, CRUD API, FCM Tokens, Responsive HTML).
+
+### 3. Khởi chạy Server:
+```bash
+npm start
+```
+- **Giao diện Web UI (Task 1):** `http://localhost:3000/` (hoặc `http://localhost:3000/deadlines`)
+- **API Deadlines (Task 3 & 4):** `http://localhost:3000/api/v1/deadlines`
+- **API FCM Device Tokens (Task 6):** `http://localhost:3000/api/v1/device-tokens`
+- **API Thông báo đa nguồn (Task 11):** `http://localhost:3000/api/v1/notifications`
+
 ---
 
-## 🗄️ 1. Thiết Kế Schema Cơ Sở Dữ Liệu PostgreSQL ([`src/db/schema.sql`](src/db/schema.sql))
+## 🔌 Danh Sách Endpoint REST API
 
-Schema PostgreSQL được thiết kế chuẩn quan hệ để tích hợp đồng bộ với các chức năng khác trong nhóm (Sinh viên, Môn học, Lớp học phần, Firebase Auth/FCM):
-
-1. **`students`**: Lưu thông tin sinh viên (`student_id`, `firebase_uid`, `full_name`, `email`, `faculty_code`).
-2. **`courses` & `class_sections` & `student_enrollments`**: Quản lý môn học (`course_code`, `course_tag`), lớp học phần và danh sách sinh viên đăng ký học phần.
-3. **`notification_sources`**: Quản lý 5 nhóm kênh nguồn thu thập thông báo (`TRAINING_DEPT` - Phòng Đào tạo, `FACULTY` - Khoa, `CLASS_SECTION` - Lớp học phần, `STUDENT_EMAIL` - Email sinh viên, `EXTRACURRICULAR` - Ngoại khóa/CLB).
-4. **`notifications`**: Bảng trung tâm lưu thông báo thu thập được, tích hợp:
-   - Khoá ngoại tới `notification_sources`, `courses`, `class_sections`, `students`.
-   - Phân loại phạm vi `scope_type` (`GENERAL`, `CLASS`, `PERSONAL`) và mức độ ưu tiên `priority` (`LOW`, `MEDIUM`, `HIGH`, `URGENT`).
-   - Trường `tags` và `attachments` kiểu `JSONB` (kèm `GIN Index`) và `content_hash` (`CHAR(64)` SHA-256 `UNIQUE`) chống trùng lặp dữ liệu khi cào đa nguồn.
-5. **`student_notifications`**: Bảng quan hệ lưu trạng thái nhận tin, đã đọc (`is_read`, `read_at`), ghim tin (`is_pinned`) và trạng thái đẩy FCM (`fcm_sent`) của từng sinh viên.
-6. **`ingestion_logs`**: Lưu lịch sử các phiên thu thập dữ liệu từ các kênh nguồn.
-
----
-
-## 🔌 2. Cấu Trúc REST API Thu Thập Thông Báo ([`src/api/notification.routes.js`](src/api/notification.routes.js))
-
-| Phương thức | Endpoint | Mô tả |
+### Module Quản Lý Hạn Chót (Deadline Management - Task 3 & 4)
+| Method | Endpoint | Chức năng |
 |---|---|---|
-| `GET` | `/api/v1/notifications/sources` | Lấy danh sách các kênh nguồn thông báo đang hoạt động (Phòng Đào tạo, Khoa, Lớp học phần, Email SV, Ngoại khóa). |
-| `POST` | `/api/v1/notifications/collect` | Thu thập 1 thông báo mới từ kênh nguồn, kiểm tra hợp lệ và khử trùng lặp qua `content_hash`. |
-| `POST` | `/api/v1/notifications/collect-batch` | Thu thập hàng loạt thông báo từ Crawler hoặc Webhook đa nguồn trong một lần gọi. |
-| `GET` | `/api/v1/notifications` | Truy vấn danh sách thông báo có phân trang và lọc theo `source_type`, `scope_type`, `course_code` cho ứng dụng Flutter. |
-| `GET` | `/api/v1/notifications/:id` | Lấy chi tiết một thông báo theo `notification_id`. |
+| `GET` | `/` hoặc `/deadlines` | Giao diện Web tương tác trực quan (Responsive Mobile/Web) |
+| `GET` | `/api/v1/courses` | Lấy danh sách môn học (`IT401`, `IT302`, `IT501`...) |
+| `GET` | `/api/v1/deadlines` | Lấy danh sách deadline (Hỗ trợ lọc: `?subject=IT401&status=DUE_SOON&search=tên`) |
+| `POST` | `/api/v1/deadlines` | Tạo deadline mới (`title`, `subject`, `due_date`, `note`) |
+| `GET` | `/api/v1/deadlines/:id` | Xem chi tiết 1 hạn chót |
+| `PUT` | `/api/v1/deadlines/:id` | Cập nhật thông tin hạn chót |
+| `PATCH`| `/api/v1/deadlines/:id/complete` | Checkbox tick hoàn thành / bỏ hoàn thành bài tập |
+| `DELETE`| `/api/v1/deadlines/:id` | Xóa hạn chót |
 
-### Ví dụ Payload gọi API thu thập thông báo (`POST /api/v1/notifications/collect`)
-```json
-{
-  "external_id": "PDT-2026-101",
-  "source_code": "PORTAL_PDT",
-  "source_type": "TRAINING_DEPT",
-  "title": "Thông báo lịch thi cuối kỳ học kỳ 1 năm học 2026-2027",
-  "content": "Phòng Đào tạo thông báo lịch thi cuối kỳ chính thức cho toàn bộ các lớp học phần...",
-  "sender_name": "Phòng Đào tạo Đại học",
-  "course_code": "IT401",
-  "scope_type": "GENERAL",
-  "priority": "HIGH",
-  "priority_score": 78,
-  "tags": ["#LịchThi", "#IT401-CNPM"],
-  "source_url": "https://sv.dut.udn.vn/lich-thi-hk1"
-}
-```
+### Module Push Notification & FCM Token (Task 6)
+| Method | Endpoint | Chức năng |
+|---|---|---|
+| `POST` | `/api/v1/device-tokens` | Lưu Device Token (FCM/APNs) của sinh viên vào Database |
+| `GET` | `/api/v1/device-tokens` | Lấy danh sách Device Token đang hoạt động |
+| `POST` | `/api/v1/device-tokens/test-push` | Gửi thử nghiệm Push Notification giả lập |
+
+### Module Thu Thập Thông Báo Đa Nguồn (Task 11)
+| Method | Endpoint | Chức năng |
+|---|---|---|
+| `GET` | `/api/v1/notifications/sources` | Danh sách kênh nguồn (Phòng Đào tạo, Khoa, LMS, Email...) |
+| `POST` | `/api/v1/notifications/collect` | Thu thập 1 thông báo |
+| `POST` | `/api/v1/notifications/collect-batch`| Thu thập hàng loạt thông báo |
+| `GET` | `/api/v1/notifications` | Lấy bảng tin thông báo tập trung |
+| `GET` | `/api/v1/notifications/:id` | Xem chi tiết thông báo |

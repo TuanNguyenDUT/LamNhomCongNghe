@@ -1,7 +1,29 @@
+# Dependencies
 node_modules/
+
+# Environment & Config
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database files
 data/*.db
 data/*.db-journal
 data/*.db-wal
 data/*.db-shm
-.env
-.DS_Store
+
+# Flutter / Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.lock
+mobile_app/.dart_tool/
+mobile_app/build/
+mobile_app/.flutter-plugins
+mobile_app/.flutter-plugins-dependencies
