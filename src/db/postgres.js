@@ -5,6 +5,7 @@
  */
 
 const crypto = require('node:crypto');
+const { classifyNotification } = require('../services/classifier.service');
 
 // Danh sách kênh nguồn mặc định trong hệ thống
 const DEFAULT_SOURCES = [
@@ -103,6 +104,16 @@ class NotificationRepository {
       published_at: publishedAt,
     });
 
+    // TASK 13: Tự động chạy qua bộ quy tắc nếu thông báo chưa được phân loại sẵn
+    const classified = classifyNotification({
+      source_type: source.source_type,
+      title: payload.title,
+      content: payload.content,
+      course_code: payload.course_code,
+      scope_type: payload.scope_type,
+      target_student_id: payload.target_student_id,
+    });
+
     const record = {
       external_id: payload.external_id || null,
       source_id: source.source_id,
@@ -110,20 +121,19 @@ class NotificationRepository {
       source_type: source.source_type,
       title: String(payload.title).trim(),
       content: String(payload.content).trim(),
-      summary:
-        payload.summary ||
-        (String(payload.content).length > 160
-          ? `${String(payload.content).slice(0, 157)}...`
-          : String(payload.content)),
+      summary: payload.summary || classified.summary,
       sender_name: payload.sender_name || source.source_name,
       sender_email: payload.sender_email || null,
-      course_code: payload.course_code || null,
+      course_code: payload.course_code || classified.course_code,
       section_id: payload.section_id || null,
-      target_student_id: payload.target_student_id || null,
-      scope_type: payload.scope_type || 'GENERAL',
-      priority: payload.priority || 'MEDIUM',
-      priority_score: Number(payload.priority_score ?? 50),
-      tags: Array.isArray(payload.tags) ? payload.tags : [],
+      target_student_id: payload.target_student_id || classified.target_student_id,
+      scope_type: payload.scope_type || classified.scope_type,
+      priority: payload.priority || classified.priority,
+      priority_score: Number(payload.priority_score ?? classified.priority_score),
+      tags:
+        Array.isArray(payload.tags) && payload.tags.length > 0
+          ? payload.tags
+          : classified.tags,
       attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
       source_url: payload.source_url || null,
       content_hash: contentHash,

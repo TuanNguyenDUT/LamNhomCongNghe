@@ -3,6 +3,15 @@
  * Phụ trách: Nguyễn Hữu Tuấn
  */
 
+const {
+  classifyNotification,
+  SOURCE_BASE_WEIGHTS,
+  SCOPE_WEIGHTS,
+  PRIORITY_RULES,
+  URGENCY_TIME_KEYWORDS,
+  DEFAULT_COURSES,
+} = require('../services/classifier.service');
+
 const VALID_SOURCE_TYPES = [
   'TRAINING_DEPT',
   'FACULTY',
@@ -153,6 +162,51 @@ class NotificationController {
       body: {
         status: 'success',
         data: item,
+      },
+    };
+  }
+
+  /**
+   * POST /api/v1/notifications/classify
+   * TASK 13: API xem trước kết quả bộ quy tắc (gắn tag môn học, phân loại chung/riêng, tính điểm ưu tiên)
+   */
+  async classifyPreview(payload = {}) {
+    if (!payload.title && !payload.content) {
+      return {
+        statusCode: 400,
+        body: {
+          status: 'error',
+          message: 'Vui lòng cung cấp ít nhất "title" hoặc "content" để phân loại',
+        },
+      };
+    }
+    const result = classifyNotification(payload);
+    return {
+      statusCode: 200,
+      body: {
+        status: 'success',
+        message: 'Đã phân loại và tính điểm ưu tiên thông báo thành công',
+        data: result,
+      },
+    };
+  }
+
+  /**
+   * GET /api/v1/notifications/rules
+   * TASK 13: API tra cứu danh mục quy tắc, trọng số và từ khóa nhận diện
+   */
+  async getRules() {
+    return {
+      statusCode: 200,
+      body: {
+        status: 'success',
+        data: {
+          source_weights: SOURCE_BASE_WEIGHTS,
+          scope_weights: SCOPE_WEIGHTS,
+          priority_rules: PRIORITY_RULES,
+          urgency_time_keywords: URGENCY_TIME_KEYWORDS,
+          default_courses: DEFAULT_COURSES,
+        },
       },
     };
   }
