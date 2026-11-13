@@ -9,7 +9,7 @@ function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   });
   res.end(JSON.stringify(payload, null, 2));
@@ -114,7 +114,18 @@ async function notificationRouter(req, res, controller) {
     // 6. GET /api/v1/notifications/:id - Xem chi tiết 1 thông báo
     const detailMatch = pathname.match(/^\/api\/v1\/notifications\/(\d+)$/);
     if (req.method === 'GET' && detailMatch) {
-      const result = await controller.getNotificationDetail(detailMatch[1]);
+      const result = await controller.getNotificationDetail(
+        detailMatch[1],
+        parsedUrl.searchParams.get('student_id')
+      );
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    const readMatch = pathname.match(/^\/api\/v1\/notifications\/(\d+)\/read$/);
+    if (req.method === 'PATCH' && readMatch) {
+      const payload = await readJsonBody(req);
+      const result = await controller.setReadStatus(readMatch[1], payload);
       sendJson(res, result.statusCode, result.body);
       return;
     }

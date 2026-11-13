@@ -146,8 +146,8 @@ class NotificationController {
    * GET /api/v1/notifications/:id
    * API xem chi tiết 1 thông báo
    */
-  async getNotificationDetail(id) {
-    const item = await this.repository.getNotificationById(id);
+  async getNotificationDetail(id, studentId = null) {
+    const item = await this.repository.getNotificationById(id, studentId);
     if (!item) {
       return {
         statusCode: 404,
@@ -164,6 +164,28 @@ class NotificationController {
         data: item,
       },
     };
+  }
+
+  async setReadStatus(id, payload = {}) {
+    const studentId = String(payload.student_id || '').trim();
+    if (!studentId) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: 'Trường "student_id" là bắt buộc' },
+      };
+    }
+    const result = await this.repository.setReadStatus(
+      id,
+      studentId,
+      payload.is_read !== undefined ? Boolean(payload.is_read) : true
+    );
+    if (!result) {
+      return {
+        statusCode: 404,
+        body: { status: 'error', message: 'Không tìm thấy thông báo' },
+      };
+    }
+    return { statusCode: 200, body: { status: 'success', data: result } };
   }
 
   /**

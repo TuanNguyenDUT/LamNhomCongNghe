@@ -4,12 +4,13 @@
   "description": "Task 11: Thiết kế Schema CSDL PostgreSQL và cấu trúc REST API thu thập thông báo đa nguồn (Node.js Backend)",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "test": "node --no-warnings --test tests/classifier.test.js"
+    "start": "node --no-warnings src/server.js",
+    "test": "node --no-warnings --test tests/classifier.test.js tests/push-notification.test.js"
   },
   "author": "Nguyễn Hữu Tuấn",
   "license": "MIT",
   "dependencies": {
+    "firebase-admin": "^14.5.1",
     "pg": "^8.13.1"
   }
 }
