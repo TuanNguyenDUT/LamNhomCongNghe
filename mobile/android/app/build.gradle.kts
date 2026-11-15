@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "vn.edu.dut.studentnotifications"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

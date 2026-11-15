@@ -1,18 +1,56 @@
 /**
- * TASK 11: Định nghĩa cấu trúc REST API thu thập & truy vấn thông báo đa nguồn
- * Phụ trách: Nguyễn Hữu Tuấn
+ * ĐỊNH NGHĨA TOÀN DIỆN CẤU TRÚC REST API CHO HỆ THỐNG THÔNG BÁO DUT
+ * Triển khai theo đặc tả AGENT.md (TSD Mục 3.3)
  */
 
 const { URL } = require('node:url');
+const fs = require('node:fs');
+const path = require('node:path');
+const https = require('node:https');
 
-function sendJson(res, statusCode, payload) {
+const MIME_MAP = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.wasm': 'application/wasm',
+  '.otf': 'font/otf',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function serveFlutterWebFile(res, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME_MAP[ext] || 'application/octet-stream';
+  const fileData = fs.readFileSync(filePath);
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Access-Control-Allow-Origin': '*',
+  });
+  res.end(fileData);
+}
+
+function sendJson(res, statusCode, payload, extraHeaders = {}) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    ...extraHeaders,
   });
   res.end(JSON.stringify(payload, null, 2));
+}
+
+function sendRaw(res, statusCode, rawContent, headers = {}) {
+  res.writeHead(statusCode, {
+    'Access-Control-Allow-Origin': '*',
+    ...headers,
+  });
+  res.end(rawContent);
 }
 
 function readJsonBody(req) {
@@ -37,6 +75,10 @@ function readJsonBody(req) {
 }
 
 async function notificationRouter(req, res, controller) {
+  if (!controller) {
+    const { notificationController } = require('../controllers/notification.controller');
+    controller = notificationController;
+  }
   if (req.method === 'OPTIONS') {
     sendJson(res, 200, { ok: true });
     return;
@@ -44,100 +86,317 @@ async function notificationRouter(req, res, controller) {
 
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
+  const queryParams = Object.fromEntries(parsedUrl.searchParams.entries());
 
   try {
-    // 1. Health check & thông tin cấu trúc API Task 11 & Task 13
-    if (req.method === 'GET' && pathname === '/') {
+    // 0. Phục vụ ứng dụng Flutter Mobile Web (Liquid Glass App) tại root "/" và "/app"
+    const flutterWebDir = path.join(__dirname, '../../mobile/build/web');
+    if (fs.existsSync(flutterWebDir)) {
+      const isFlutterSpaRoute =
+        pathname === '/' ||
+        pathname === '/app' ||
+        pathname.startsWith('/app/') ||
+        pathname === '/login' ||
+        pathname.startsWith('/notifications') ||
+        pathname.startsWith('/courses') ||
+        pathname.startsWith('/deadlines') ||
+        pathname.startsWith('/profile');
+
+      if (isFlutterSpaRoute && !pathname.startsWith('/api/')) {
+        const indexPath = path.join(flutterWebDir, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          serveFlutterWebFile(res, indexPath);
+          return;
+        }
+      }
+
+      // Phục vụ các tệp tài nguyên tĩnh của Flutter Web (js, wasm, json, css, assets...)
+      const subPath = pathname.startsWith('/app/') ? pathname.replace('/app/', '') : pathname.replace(/^\//, '');
+      const targetPath = path.join(flutterWebDir, subPath);
+      if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+        serveFlutterWebFile(res, targetPath);
+        return;
+      }
+    }
+
+    // 0.1 Trang Dashboard kỹ thuật (Dev/Admin) phục vụ theo dõi dữ liệu cào
+    if ((req.method === 'GET' || req.method === 'HEAD') && (pathname === '/admin' || pathname === '/web' || pathname === '/dev')) {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const htmlPath = path.join(__dirname, '../public/index.html');
+      if (fs.existsSync(htmlPath)) {
+        const html = fs.readFileSync(htmlPath, 'utf8');
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+        });
+        if (req.method === 'HEAD') {
+          res.end();
+          return;
+        }
+        res.end(html);
+        return;
+      }
+    }
+
+    // 0.2 Root API info / Health check
+    if ((req.method === 'GET' || req.method === 'HEAD') && (pathname === '/api' || pathname === '/api/')) {
       sendJson(res, 200, {
-        service: 'DUT Multi-Source Notification Collector API',
-        task: 'Task 11 & Task 13: CSDL PostgreSQL, REST API & Bộ quy tắc phân loại thông báo (Rules Engine)',
-        pic: 'Nguyễn Hữu Tuấn',
+        service: 'DUT Student Multi-Source Notification & Alert System API',
+        version: '2.0.0',
+        spec: 'AGENT.md (FR-01 to FR-09)',
         endpoints: [
-          'GET  /api/v1/notifications/sources',
-          'POST /api/v1/notifications/collect',
-          'POST /api/v1/notifications/collect-batch',
-          'GET  /api/v1/notifications',
-          'GET  /api/v1/notifications/:id',
-          'POST /api/v1/notifications/classify (Task 13: xem trước phân loại & tính điểm)',
-          'GET  /api/v1/notifications/rules (Task 13: tra cứu bộ quy tắc & trọng số)',
+          'POST   /api/v1/dut/sync-courses',
+          'GET    /api/v1/courses/enrolled',
+          'GET    /api/v1/courses/:courseCode/notifications',
+          'GET    /api/v1/notifications',
+          'POST   /api/v1/notifications/ingest',
+          'POST   /api/v1/notifications/:id/ack',
+          'GET    /api/v1/deadlines',
+          'POST   /api/v1/deadlines',
+          'PUT    /api/v1/deadlines/:id',
+          'DELETE /api/v1/deadlines/:id',
+          'POST   /api/v1/calendar/google/connect',
+          'POST   /api/v1/calendar/google/sync',
+          'GET    /api/v1/calendar/export.ics',
         ],
       });
       return;
     }
 
-    // 2. GET /api/v1/notifications/sources - Danh sách kênh nguồn
+    // 0. Xác thực & Định danh tài khoản sv.dut.udn.vn
+    if (req.method === 'POST' && (pathname === '/api/v1/auth/login' || pathname === '/api/v1/dut/login')) {
+      const body = await readJsonBody(req);
+      const result = await controller.login(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && (pathname === '/api/v1/auth/me' || pathname === '/api/v1/auth/profile')) {
+      const result = await controller.getCurrentUser(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/v1/auth/logout') {
+      const result = await controller.logout();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 0.1 Tùy chọn cá nhân hóa & Chủ đề quan tâm
+    if (req.method === 'GET' && pathname === '/api/v1/students/preferences') {
+      const result = await controller.getStudentPreferences(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if ((req.method === 'PUT' || req.method === 'POST') && pathname === '/api/v1/students/preferences') {
+      const body = await readJsonBody(req);
+      const result = await controller.updateStudentPreferences(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // Proxy ảnh thẻ sinh viên DUT (giải quyết triệt để lỗi CORS trên trình duyệt Flutter Web)
+    const avatarMatch = pathname.match(/^\/api\/v1\/avatar\/([0-9a-zA-Z_-]+)(?:\.jpg)?$/);
+    if (req.method === 'GET' && avatarMatch) {
+      const studentCode = avatarMatch[1];
+      const kYear = studentCode.length >= 5 ? studentCode.slice(3, 5) : '23';
+      const targetUrl = `https://cb.dut.udn.vn/ImageSV/${kYear}/${studentCode}.jpg`;
+
+      https.get(targetUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      }, (proxyRes) => {
+        if (proxyRes.statusCode === 200) {
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=86400',
+          });
+          proxyRes.pipe(res);
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ status: 'error', message: 'Không tìm thấy ảnh thẻ sinh viên' }));
+        }
+      }).on('error', (err) => {
+        res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ status: 'error', message: err.message }));
+      });
+      return;
+    }
+
+    // 1. Đồng bộ DUT & Học phần (FR-01, FR-04)
+    if (req.method === 'POST' && pathname === '/api/v1/dut/sync-courses') {
+      const body = await readJsonBody(req);
+      const result = await controller.syncCourses(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/courses/enrolled') {
+      const result = await controller.getEnrolledCourses(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    const courseNotifsMatch = pathname.match(/^\/api\/v1\/courses\/([^/]+)\/notifications$/);
+    if (req.method === 'GET' && courseNotifsMatch) {
+      const courseCode = decodeURIComponent(courseNotifsMatch[1]);
+      const result = await controller.getCourseNotifications(courseCode, queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 2. Crawler & Thu thập định kỳ đa nguồn (sv.dut.udn.vn & Facebook Fanpages)
+    if (req.method === 'POST' && pathname === '/api/v1/crawler/trigger') {
+      const result = await controller.triggerCrawler();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/crawler/status') {
+      const result = await controller.getCrawlerStatus();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 2. Ingest & Bảng tin thông báo (FR-02, FR-03, FR-05, FR-08)
+    if (req.method === 'POST' && pathname === '/api/v1/notifications/ingest') {
+      const body = await readJsonBody(req);
+      const result = await controller.ingestNotification(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    const ackMatch = pathname.match(/^\/api\/v1\/notifications\/([^/]+)\/ack$/);
+    if (req.method === 'POST' && ackMatch) {
+      const id = ackMatch[1];
+      const body = await readJsonBody(req);
+      const result = await controller.acknowledgeNotification(id, body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // Tương thích ngược: Collect, Classify, Rules, Sources
     if (req.method === 'GET' && pathname === '/api/v1/notifications/sources') {
       const result = await controller.getSources();
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 2.1. GET /api/v1/notifications/rules - Tra cứu cấu hình bộ quy tắc (Task 13)
     if (req.method === 'GET' && pathname === '/api/v1/notifications/rules') {
       const result = await controller.getRules();
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 2.2. POST /api/v1/notifications/classify - Thử nghiệm bộ quy tắc phân loại (Task 13)
     if (req.method === 'POST' && pathname === '/api/v1/notifications/classify') {
-      const payload = await readJsonBody(req);
-      const result = await controller.classifyPreview(payload);
+      const body = await readJsonBody(req);
+      const result = await controller.classifyPreview(body);
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 3. POST /api/v1/notifications/collect - Thu thập 1 thông báo từ kênh nguồn
     if (req.method === 'POST' && pathname === '/api/v1/notifications/collect') {
-      const payload = await readJsonBody(req);
-      const result = await controller.collectSingle(payload);
+      const body = await readJsonBody(req);
+      const result = await controller.collectSingle(body);
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 4. POST /api/v1/notifications/collect-batch - Thu thập hàng loạt thông báo từ Crawler/Webhook
     if (req.method === 'POST' && pathname === '/api/v1/notifications/collect-batch') {
-      const payload = await readJsonBody(req);
-      const result = await controller.collectBatch(payload);
+      const body = await readJsonBody(req);
+      const result = await controller.collectBatch(body);
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 5. GET /api/v1/notifications - Lấy danh sách thông báo (cho Flutter App)
     if (req.method === 'GET' && pathname === '/api/v1/notifications') {
-      const queryParams = Object.fromEntries(parsedUrl.searchParams.entries());
       const result = await controller.listNotifications(queryParams);
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
-    // 6. GET /api/v1/notifications/:id - Xem chi tiết 1 thông báo
-    const detailMatch = pathname.match(/^\/api\/v1\/notifications\/(\d+)$/);
-    if (req.method === 'GET' && detailMatch) {
-      const result = await controller.getNotificationDetail(
-        detailMatch[1],
-        parsedUrl.searchParams.get('student_id')
-      );
-      sendJson(res, result.statusCode, result.body);
-      return;
-    }
-
-    const readMatch = pathname.match(/^\/api\/v1\/notifications\/(\d+)\/read$/);
+    const readMatch = pathname.match(/^\/api\/v1\/notifications\/([^/]+)\/read$/);
     if (req.method === 'PATCH' && readMatch) {
-      const payload = await readJsonBody(req);
-      const result = await controller.setReadStatus(readMatch[1], payload);
+      const id = readMatch[1];
+      const body = await readJsonBody(req);
+      const result = await controller.setReadStatus(id, body);
       sendJson(res, result.statusCode, result.body);
       return;
     }
 
+    const singleNotifMatch = pathname.match(/^\/api\/v1\/notifications\/([^/]+)$/);
+    if (req.method === 'GET' && singleNotifMatch) {
+      const id = singleNotifMatch[1];
+      const result = await controller.getNotificationDetail(id, queryParams.student_id);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    // 3. Quản lý hạn chót (Deadlines) (FR-06, FR-07)
+    if (req.method === 'GET' && pathname === '/api/v1/deadlines') {
+      const result = await controller.listDeadlines(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/v1/deadlines') {
+      const body = await readJsonBody(req);
+      const result = await controller.createDeadline(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    const deadlineDetailMatch = pathname.match(/^\/api\/v1\/deadlines\/([^/]+)$/);
+    if (deadlineDetailMatch) {
+      const id = deadlineDetailMatch[1];
+      if (req.method === 'PUT') {
+        const body = await readJsonBody(req);
+        const result = await controller.updateDeadline(id, body);
+        sendJson(res, result.statusCode, result.body);
+        return;
+      }
+      if (req.method === 'DELETE') {
+        const result = await controller.deleteDeadline(id);
+        sendJson(res, result.statusCode, result.body);
+        return;
+      }
+    }
+
+    // 4. Google Calendar (FR-09)
+    if (req.method === 'POST' && pathname === '/api/v1/calendar/google/connect') {
+      const body = await readJsonBody(req);
+      const result = await controller.connectGoogleCalendar(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/v1/calendar/google/sync') {
+      const body = await readJsonBody(req);
+      const result = await controller.syncGoogleCalendar(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/calendar/export.ics') {
+      const result = await controller.exportIcsCalendar(queryParams);
+      sendRaw(res, result.statusCode, result.rawBody, result.headers);
+      return;
+    }
+
+    // Fallback 404
     sendJson(res, 404, {
       status: 'error',
-      message: `Không tìm thấy API endpoint: ${req.method} ${pathname}`,
+      message: `Endpoint không tồn tại: ${req.method} ${pathname}`,
     });
-  } catch (err) {
-    sendJson(res, 400, {
+  } catch (error) {
+    console.error('API Router Error:', error);
+    sendJson(res, 500, {
       status: 'error',
-      message: err.message || 'Lỗi xử lý yêu cầu API',
+      message: 'Lỗi máy chủ nội bộ',
+      details: error.message,
     });
   }
 }

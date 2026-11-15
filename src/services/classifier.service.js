@@ -1,15 +1,18 @@
 /**
- * TASK 13: Phát triển bộ lọc phân loại tin tức & thuật toán gắn nhãn độ ưu tiên
- * Phụ trách: Nguyễn Hữu Tuấn
+ * HỆ THỐNG PHÂN LOẠI THÔNG BÁO THÔNG MINH (SMART CLASSIFIER & RULES ENGINE)
+ * Triển khai theo đặc tả kỹ thuật AGENT.md (Mục II.3.2)
  *
  * Chức năng:
- * 1. Tự động gắn tag môn học (course_code, course_tag, tên môn học)
- * 2. Phân loại phạm vi thông báo: GENERAL (Chung), CLASS (Lớp học phần), PERSONAL (Riêng cá nhân)
- * 3. Thuật toán chấm điểm ưu tiên đa trọng số (0 - 100) và gắn nhãn (URGENT, HIGH, MEDIUM, LOW)
- * 4. Tự động sinh danh sách tags định dạng chuẩn (#IT401-CNPM, #LịchThi, #KhẩnCấp, #TinRiêng...)
+ * 1. Phân loại theo Quy tắc Logic (Rules Engine) cho nguồn có cấu trúc (sv.dut.udn.vn)
+ * 2. Phân loại & Tóm tắt bằng AI API (Gemini / Fallback Heuristic) cho bài viết Facebook & văn bản tự do
+ * 3. Công thức tính điểm ưu tiên đa trọng số S_total = W_base + W_scope + W_keyword + W_urgency
+ * 4. Tự động nhận diện môn học, phòng học, lịch học bù, nghỉ dạy, và hạn chót (deadline)
  */
 
-// Danh mục môn học mặc định tại trường (phục vụ đối soát và tự động gắn tag)
+const { aiService } = require('../config/ai');
+const { getDbStore } = require('../config/db');
+
+// Danh mục môn học phục vụ nhận diện và tự động gắn tag
 const DEFAULT_COURSES = [
   {
     course_code: 'IT401',
@@ -62,28 +65,46 @@ const DEFAULT_COURSES = [
   },
 ];
 
-// Trọng số cơ sở theo kênh nguồn
+// Trọng số cơ sở W_base
 const SOURCE_BASE_WEIGHTS = {
-  TRAINING_DEPT: 30,   // Phòng Đào tạo
-  FACULTY: 25,         // Khoa chuyên môn
-  CLASS_SECTION: 25,   // Lớp học phần / Giảng viên
-  STUDENT_EMAIL: 22,   // Email sinh viên
-  EXTRACURRICULAR: 10, // Ngoại khóa / CLB
+  // Chuẩn AGENT.md
+  DUT_COURSE_CLASS: 25,
+  DUT_TUITION_FEE: 25,
+  DUT_TRAINING: 20,
+  DUT_TESTING_QA: 20,
+  DUT_STUDENT_AFFAIRS: 15,
+  DUT_GENERAL: 15,
+  FB_CTSV: 10,
+  FB_TUVAN_SV: 10,
+  DUT_REGULATIONS: 10,
+
+  // Chuẩn legacy Task 11 / Task 13
+  TRAINING_DEPT: 30,
+  FACULTY: 25,
+  CLASS_SECTION: 25,
+  STUDENT_EMAIL: 22,
+  EXTRACURRICULAR: 10,
 };
 
-// Trọng số theo phạm vi gửi tin
+// Trọng số phạm vi W_scope
 const SCOPE_WEIGHTS = {
-  PERSONAL: 20, // Tin riêng cá nhân sinh viên
-  CLASS: 12,    // Tin lớp học phần
-  GENERAL: 5,   // Thông báo chung toàn trường / khoa
+  PERSONAL: 20,
+  CLASS: 12,
+  GENERAL: 5,
+  // Chuẩn AGENT.md
+  COURSE: 25,
+  FACULTY: 15,
+  COHORT: 15,
+  GLOBAL: 5,
 };
 
-// Bộ quy tắc từ khóa theo chủ đề để tính điểm ưu tiên và phân loại danh mục
+// Bộ quy tắc từ khóa theo chủ đề
 const PRIORITY_RULES = [
   {
     category: 'EMERGENCY',
     tag: '#KhẩnCấp',
     weight: 42,
+    is_emergency: true,
     keywords: [
       'khẩn cấp',
       'thông báo khẩn',
@@ -91,6 +112,7 @@ const PRIORITY_RULES = [
       'hoãn thi',
       'nghỉ học đột xuất',
       'nghỉ bão',
+      'nghỉ dạy',
       'cảnh báo học vụ',
       'buộc thôi học',
       'đình chỉ thi',
@@ -107,9 +129,12 @@ const PRIORITY_RULES = [
       'thi giữa kỳ',
       'phòng thi',
       'danh sách phòng thi',
+      'thi kết thúc học phần',
       'bảo vệ đồ án',
       'chấm đồ án',
       'vấn đáp',
+      'bảo vệ tốt nghiệp',
+      'khảo thí',
     ],
   },
   {
@@ -119,10 +144,14 @@ const PRIORITY_RULES = [
     keywords: [
       'học phí',
       'nợ học phí',
+      'nhắc nợ học phí',
       'gia hạn học phí',
       'thanh toán học phí',
       'hủy học phần do nợ học phí',
       'hóa đơn học phí',
+      'miễn giảm học phí',
+      'khóa tài khoản',
+      'lệ phí',
     ],
   },
   {
@@ -130,14 +159,13 @@ const PRIORITY_RULES = [
     tag: '#LịchHọc',
     weight: 25,
     keywords: [
+      'lịch học',
       'đổi phòng học',
-      'thay đổi lịch học',
       'học bù',
-      'lịch học bù',
-      'chuyển ca học',
-      'đăng ký tín chỉ',
-      'đăng ký học phần',
-      'rút học phần',
+      'nghỉ học',
+      'chuyển phòng',
+      'thời khóa biểu',
+      'thay đổi lịch',
     ],
   },
   {
@@ -145,15 +173,14 @@ const PRIORITY_RULES = [
     tag: '#BàiTập',
     weight: 22,
     keywords: [
-      'hạn chót',
-      'deadline',
-      'nộp bài',
-      'nộp bài tập',
       'bài tập lớn',
-      'nộp báo cáo',
+      'nộp bài',
+      'deadline',
+      'hạn chót',
       'báo cáo tiến độ',
-      'quiz',
-      'kiểm tra nhanh',
+      'nộp đồ án',
+      'assignment',
+      'thực hành',
     ],
   },
   {
@@ -163,63 +190,56 @@ const PRIORITY_RULES = [
     keywords: [
       'học bổng',
       'khuyến khích học tập',
-      'điểm rèn luyện',
-      'xét tốt nghiệp',
-      'thực tập doanh nghiệp',
-      'ngày hội việc làm',
+      'tài trợ',
+      'doanh nghiệp trao học bổng',
+      'khen thưởng',
     ],
   },
   {
-    category: 'EXTRACURRICULAR',
+    category: 'ACTIVITIES',
     tag: '#NgoạiKhóa',
     weight: -6,
     keywords: [
-      'câu lạc bộ',
+      'ngoại khóa',
       'clb',
-      'văn nghệ',
-      'tình nguyện',
-      'mùa hè xanh',
+      'câu lạc bộ',
       'giao lưu',
       'minigame',
-      'workshop ngoại khóa',
-      'sinh hoạt đoàn',
+      'tình nguyện',
+      'văn nghệ',
+      'đêm nhạc',
+      'thể thao',
     ],
   },
 ];
 
-// Từ khóa thể hiện tính cấp bách về mặt thời gian
+// Yếu tố thời gian khẩn cấp
 const URGENCY_TIME_KEYWORDS = [
   'hôm nay',
   'ngay lập tức',
-  'trong vòng 24h',
   'trước 17h',
-  'trước 23h59',
-  'sáng mai',
-  'chiều nay',
+  'trong vòng 24h',
+  'trong ngày',
   'gấp',
-  'khẩn',
   'hạn chót hôm nay',
 ];
 
-function normalizeText(text = '') {
-  return String(text).toLowerCase().trim();
-}
-
 /**
- * 1. Tự động nhận diện môn học và gắn tag môn học
- * @param {Object} rawNotification - { title, content, course_code }
- * @param {Array} customCourses - Danh sách môn học tùy chọn
- * @returns {Object} { course_code, course_tag, course_name }
+ * 1. Nhận diện môn học & gắn tag chuẩn (Hỗ trợ cả Default Courses và Dynamic Enrolled Courses từ sv.dut.udn.vn)
  */
-function detectCourseTag(rawNotification = {}, customCourses = DEFAULT_COURSES) {
-  const combined = normalizeText(
-    `${rawNotification.title || ''} ${rawNotification.content || ''} ${rawNotification.course_code || ''}`
-  );
+function detectCourseTag({ title = '', content = '', course_code = null } = {}) {
+  const fullText = `${title} ${content}`.toLowerCase();
 
-  // Nếu đầu vào đã chỉ định sẵn course_code
-  if (rawNotification.course_code) {
-    const codeUpper = String(rawNotification.course_code).toUpperCase().trim();
-    const matched = customCourses.find((c) => c.course_code.toUpperCase() === codeUpper);
+  // 0. Trích xuất nhóm lớp [23.Nh16], [23.Nh99], [24.Nh71D]... từ tiêu đề
+  const groupMatch = (title + ' ' + content).match(/\[(\d{2}\.(?:Nh)?[0-9A-Za-z]+)\]/i);
+  const rawGroup = groupMatch ? groupMatch[1] : null;
+  const notifGroupNorm = rawGroup ? rawGroup.replace(/Nh/i, '').toUpperCase() : null; // "23.16" hoặc "23.99"
+
+  // 1. So khớp mã môn truyền trực tiếp với bộ môn chuẩn
+  if (course_code) {
+    const matched = DEFAULT_COURSES.find(
+      (c) => c.course_code.toLowerCase() === course_code.toLowerCase()
+    );
     if (matched) {
       return {
         course_code: matched.course_code,
@@ -229,14 +249,11 @@ function detectCourseTag(rawNotification = {}, customCourses = DEFAULT_COURSES) 
     }
   }
 
-  // Tra khớp qua danh mục môn học
-  for (const course of customCourses) {
-    const keywords = Array.isArray(course.keywords)
-      ? course.keywords
-      : String(course.keywords).split(',').map((k) => k.trim());
-
-    for (const kw of keywords) {
-      if (kw && combined.includes(kw.toLowerCase())) {
+  // 2. So khớp từ khóa với bộ môn chuẩn DEFAULT_COURSES
+  for (const course of DEFAULT_COURSES) {
+    for (const kw of course.keywords) {
+      const regex = new RegExp(`\\b${kw}\\b`, 'i');
+      if (regex.test(fullText)) {
         return {
           course_code: course.course_code,
           course_tag: course.course_tag,
@@ -246,14 +263,95 @@ function detectCourseTag(rawNotification = {}, customCourses = DEFAULT_COURSES) 
     }
   }
 
-  // Quét nhận diện mã môn học bằng Regex (Ví dụ: IT401, IT302, MAT101...)
-  const codeRegexMatch = combined.match(/\b([a-z]{2,4}\d{3}[a-z]?)\b/i);
-  if (codeRegexMatch) {
-    const detectedCode = codeRegexMatch[1].toUpperCase();
+  // 3. So khớp với danh mục môn học động lưu trong Database (cào từ sv.dut.udn.vn)
+  try {
+    const dbStore = getDbStore();
+    if (dbStore && dbStore.courses) {
+      for (const c of dbStore.courses.values()) {
+        const cCodeLower = (c.course_code || '').toLowerCase();
+        const cNameLower = (c.course_name || '').toLowerCase();
+
+        // Ưu tiên 3.1: So khớp mã học phần đầy đủ (VD: 1023910.2610.23.16)
+        if (c.course_code && (course_code === c.course_code || fullText.includes(cCodeLower))) {
+          return {
+            course_code: c.course_code,
+            course_tag: `#${c.course_code}`,
+            course_name: c.course_name,
+          };
+        }
+
+        // Ưu tiên 3.2: So khớp theo mã chuẩn DUT <MãHP>.<Kỳ>.<Khóa>.<Lớp> kết hợp Nhóm lớp và Tên môn
+        // VD: 1023603.2610.23.99 -> Nhóm "23.99" / "23.Nh99", Tên: "Chuyên đề công nghệ"
+        const parts = (c.course_code || '').split('.');
+        if (parts.length >= 4) {
+          const hpPrefix = `${parts[0]}.${parts[1]}`.toLowerCase(); // 1023603.2610
+          const courseGroupNorm = `${parts[2]}.${parts[3]}`.toUpperCase(); // 23.99
+
+          if (notifGroupNorm && notifGroupNorm === courseGroupNorm) {
+            if (cNameLower && (fullText.includes(cNameLower) || title.toLowerCase().includes(cNameLower))) {
+              return {
+                course_code: c.course_code,
+                course_tag: `#${c.course_code}`,
+                course_name: c.course_name,
+              };
+            }
+          }
+
+          if (fullText.includes(hpPrefix) && (!notifGroupNorm || notifGroupNorm === courseGroupNorm)) {
+            return {
+              course_code: c.course_code,
+              course_tag: `#${c.course_code}`,
+              course_name: c.course_name,
+            };
+          }
+        }
+
+        // Ưu tiên 3.3: Nếu không có mã nhóm trong thông báo nhưng tên môn học dài và rất đặc thù
+        if (!notifGroupNorm && c.course_name && c.course_name.length > 8) {
+          if (fullText.includes(cNameLower)) {
+            return {
+              course_code: c.course_code,
+              course_tag: `#${c.course_code}`,
+              course_name: c.course_name,
+            };
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // 4. So khớp Regex mã lớp học phần sv.dut.udn.vn dạng số (VD: 1020503.2610.23.16 hoặc 1020503)
+  const dutCodeRegex = /\b(\d{7}(\.\d{4}\.\d{2}\.\w+)?)\b/i;
+  const dutMatch = fullText.match(dutCodeRegex);
+  if (dutMatch) {
+    const rawCode = dutMatch[1];
     return {
-      course_code: detectedCode,
-      course_tag: `#${detectedCode}`,
-      course_name: `Môn học ${detectedCode}`,
+      course_code: rawCode,
+      course_tag: `#${rawCode}`,
+      course_name: null,
+    };
+  }
+
+  // 5. So khớp mã môn dạng chữ số chuẩn (IT401, CSDL...)
+  const codeRegex = /\b([a-z]{2,4}\d{3}[a-z]?)\b/i;
+  const match = fullText.match(codeRegex);
+  if (match) {
+    const rawCode = match[1].toUpperCase();
+    return {
+      course_code: rawCode,
+      course_tag: `#${rawCode}`,
+      course_name: null,
+    };
+  }
+
+  // 6. Nếu có nhóm lớp học phần [24.Nh71D] nhưng chưa có trong DB môn học
+  if (rawGroup) {
+    const subMatch = title.match(/thông báo đến lớp:\s*([^\[]+)\[/i);
+    const subName = subMatch ? subMatch[1].trim() : null;
+    return {
+      course_code: null,
+      course_tag: `#${rawGroup}`,
+      course_name: subName,
     };
   }
 
@@ -265,178 +363,303 @@ function detectCourseTag(rawNotification = {}, customCourses = DEFAULT_COURSES) 
 }
 
 /**
- * 2. Phân loại phạm vi thông báo: GENERAL (Chung), CLASS (Lớp học phần), PERSONAL (Riêng cá nhân)
- * @param {Object} rawNotification
- * @param {Object} detectedCourse
- * @returns {string} 'PERSONAL' | 'CLASS' | 'GENERAL'
+ * 2. Phân loại phạm vi thông báo
  */
-function detectScopeType(rawNotification = {}, detectedCourse = {}) {
-  // Nếu payload đã truyền sẵn scope_type hợp lệ
+function detectScopeType(payload = {}, detectedCourse = {}) {
+  const title = (payload.title || '').toLowerCase();
+  const content = (payload.content || '').toLowerCase();
+  const fullText = `${title} ${content}`;
+  const sourceType = payload.source_channel || payload.source_type;
+
+  // Cá nhân (PERSONAL)
   if (
-    rawNotification.scope_type &&
-    ['GENERAL', 'CLASS', 'PERSONAL'].includes(rawNotification.scope_type)
+    payload.target_student_id ||
+    /\b102\d{6}\b/.test(fullText) ||
+    /mssv:\s*\d+/i.test(fullText) ||
+    /nhắc nợ học phí cá nhân|cảnh báo học vụ|kết quả phúc khảo|hồ sơ cá nhân/i.test(fullText)
   ) {
-    return rawNotification.scope_type;
-  }
-
-  const combined = normalizeText(`${rawNotification.title || ''} ${rawNotification.content || ''}`);
-
-  // Dấu hiệu nhận diện thông báo riêng cho cá nhân sinh viên
-  const personalIndicators = [
-    'mssv',
-    'mã số sinh viên',
-    'cá nhân sinh viên',
-    'của riêng bạn',
-    'nhắc nợ học phí cá nhân',
-    'cảnh báo học vụ đối với sinh viên',
-    'kết quả phúc khảo của sinh viên',
-    'hồ sơ cá nhân',
-    'khen thưởng cá nhân',
-  ];
-
-  const hasStudentId =
-    rawNotification.target_student_id ||
-    rawNotification.recipient_student_id ||
-    /\b(102\d{6,7})\b/.test(combined);
-
-  if (hasStudentId || personalIndicators.some((kw) => combined.includes(kw))) {
     return 'PERSONAL';
   }
 
-  // Dấu hiệu nhận diện thông báo theo lớp học phần
-  const classIndicators = [
-    'lớp học phần',
-    'nhóm học phần',
-    'đổi phòng học',
-    'lịch học bù',
-    'nộp bài tập lớn',
-    'báo cáo đồ án',
-    'buổi thực hành',
-    'sprint',
-    'bảo vệ đồ án',
-  ];
-
+  // Lớp học phần (CLASS / COURSE)
   if (
-    rawNotification.source_type === 'CLASS_SECTION' ||
-    rawNotification.section_id ||
+    sourceType === 'DUT_COURSE_CLASS' ||
+    sourceType === 'CLASS_SECTION' ||
     detectedCourse.course_code ||
-    classIndicators.some((kw) => combined.includes(kw))
+    /lớp học phần|đổi phòng học|học bù|bài tập lớn|nộp báo cáo đồ án|thực hành/i.test(fullText)
   ) {
-    return 'CLASS';
+    return payload.source_channel ? 'COURSE' : 'CLASS';
   }
 
-  return 'GENERAL';
+  // Khoa / Khóa
+  if (/toàn khoa|sinh viên khoa/i.test(fullText)) return 'FACULTY';
+  if (/khóa 20|k20|k21|k22|k23|k24/i.test(fullText)) return 'COHORT';
+
+  // Thông báo chung
+  return payload.source_channel ? 'GLOBAL' : 'GENERAL';
 }
 
 /**
- * 3. Thuật toán tính điểm ưu tiên đa trọng số (0 - 100) & gắn nhãn độ quan trọng
- * @param {Object} rawNotification
- * @param {Array} customCourses
- * @returns {Object} Thông tin phân loại hoàn chỉnh
+ * 3. Trích xuất hạn chót (deadline_at) bằng Regex
  */
-function classifyNotification(rawNotification = {}, customCourses = DEFAULT_COURSES) {
-  const sourceType = rawNotification.source_type || 'TRAINING_DEPT';
-  const title = String(rawNotification.title || '').trim();
-  const content = String(rawNotification.content || '').trim();
-  const combined = normalizeText(`${title} ${content}`);
+function extractDeadline(text = '') {
+  const deadlineRegex = /(?:trước ngày|hạn cuối|hạn chót|đến hết ngày|trước 17h ngày|trước 23h59 ngày)\s*(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/i;
+  const match = text.match(deadlineRegex);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = match[3];
+    return new Date(`${year}-${month}-${day}T17:00:00.000Z`).toISOString();
+  }
+  return null;
+}
 
-  // Bước 1: Nhận diện môn học & gắn tag môn học
-  const courseInfo = detectCourseTag(rawNotification, customCourses);
+/**
+ * 4. Trích xuất chi tiết lịch học bù / đổi phòng bằng Regex
+ */
+function extractRescheduleDetails(text = '') {
+  const roomMatch = text.match(/(?:phòng|chuyển sang phòng)\s*([A-Za-z0-9\-\.]+)/i);
+  const dateMatch = text.match(/(?:vào ngày|học bù vào)\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})/i);
+  const periodMatch = text.match(/(?:tiết|tiết học)\s*(\d+[\s\-\,]+\d+)/i);
+  return {
+    room: roomMatch ? roomMatch[1].replace(/[.,;:]+$/, '').toUpperCase() : null,
+    makeup_date: dateMatch ? dateMatch[1] : null,
+    periods: periodMatch ? periodMatch[1] : null,
+  };
+}
 
-  // Bước 2: Phân loại thông báo chung / lớp / riêng
-  const scopeType = detectScopeType(rawNotification, courseInfo);
+/**
+ * 5. Thuật toán tính điểm ưu tiên & gắn nhãn (Hỗ trợ cả legacy & chuẩn AGENT.md)
+ */
+function classifyNotification(payload = {}) {
+  const title = payload.title || '';
+  const content = payload.content || '';
+  const fullText = `${title} ${content}`.toLowerCase();
+  const rawSource = payload.source_channel || payload.source_type || 'DUT_GENERAL';
 
-  // Bước 3: Điểm cơ sở = Trọng số kênh nguồn + Trọng số phạm vi
-  let score = (SOURCE_BASE_WEIGHTS[sourceType] || 20) + (SCOPE_WEIGHTS[scopeType] || 5);
+  // 1. Nhận diện môn học
+  const courseInfo = detectCourseTag({
+    title,
+    content,
+    course_code: payload.course_code,
+  });
 
-  const matchedTags = new Set();
-  let primaryCategory = 'GENERAL_NEWS';
+  // 2. Nhận diện phạm vi
+  const scopeType = detectScopeType(payload, courseInfo);
+
+  // 3. Trọng số cơ sở & phạm vi
+  const baseWeight = SOURCE_BASE_WEIGHTS[rawSource] !== undefined ? SOURCE_BASE_WEIGHTS[rawSource] : 15;
+  const scopeWeight = SCOPE_WEIGHTS[scopeType] !== undefined ? SCOPE_WEIGHTS[scopeType] : 5;
+
   let highestRuleWeight = -999;
+  let ruleWeightSum = 0;
+  const tags = [];
+  let isEmergency = false;
 
-  // Gắn tag môn học vào danh sách tags
   if (courseInfo.course_tag) {
-    matchedTags.add(courseInfo.course_tag);
+    tags.push(courseInfo.course_tag);
   }
 
-  // Bước 4: Áp dụng các bộ quy tắc từ khóa (Rules)
+  // Quét từ khóa (sử dụng includes tiếng Việt an toàn)
   for (const rule of PRIORITY_RULES) {
-    const isMatched = rule.keywords.some((kw) => combined.includes(kw));
-    if (isMatched) {
-      score += rule.weight;
-      matchedTags.add(rule.tag);
-      if (rule.weight > highestRuleWeight) {
-        highestRuleWeight = rule.weight;
-        primaryCategory = rule.category;
+    const matched = rule.keywords.some((kw) => fullText.includes(kw.toLowerCase()));
+    if (matched) {
+      if (rule.weight > highestRuleWeight) highestRuleWeight = rule.weight;
+      ruleWeightSum += rule.weight;
+      if (!tags.includes(rule.tag)) {
+        tags.push(rule.tag);
+      }
+      if (rule.is_emergency) {
+        isEmergency = true;
       }
     }
   }
 
-  // Bước 5: Yếu tố thúc giục thời gian gấp rút
-  const hasUrgentTime = URGENCY_TIME_KEYWORDS.some((kw) => combined.includes(kw));
+  // Bonus yếu tố thời gian
+  let urgencyBonus = 0;
+  const hasUrgentTime = URGENCY_TIME_KEYWORDS.some((kw) => fullText.includes(kw));
   if (hasUrgentTime) {
-    score += 12;
-    matchedTags.add('#Gấp');
+    urgencyBonus += 12;
+    if (!tags.includes('#Gấp')) tags.push('#Gấp');
   }
 
-  // Bước 6: Gắn nhãn phạm vi
+  // Kiểm tra hạn chót nếu có
+  const deadlineAt = payload.deadline_at || extractDeadline(fullText);
+  if (deadlineAt) {
+    const hoursRemaining = (new Date(deadlineAt).getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursRemaining > 0 && hoursRemaining <= 24) {
+      urgencyBonus += 30;
+    } else if (hoursRemaining > 0 && hoursRemaining <= 72) {
+      urgencyBonus += 20;
+    } else if (hoursRemaining > 0 && hoursRemaining <= 168) {
+      urgencyBonus += 10;
+    }
+  }
+
+  // Gắn tag phạm vi
   if (scopeType === 'PERSONAL') {
-    matchedTags.add('#TinRiêng');
-  } else if (scopeType === 'CLASS') {
-    matchedTags.add('#LớpHọcPhần');
+    if (!tags.includes('#TinRiêng')) tags.push('#TinRiêng');
+  } else if (scopeType === 'CLASS' || scopeType === 'COURSE') {
+    if (!tags.includes('#LớpHọcPhần')) tags.push('#LớpHọcPhần');
   } else {
-    matchedTags.add('#ThôngBáoChung');
+    if (!tags.includes('#ThôngBáoChung')) tags.push('#ThôngBáoChung');
   }
 
-  // Giới hạn điểm chuẩn hóa trong khoảng [10, 100]
-  const finalScore = Math.max(10, Math.min(100, Math.round(score)));
+  // Tính điểm ưu tiên: Nếu dùng source_channel mới thì dùng ruleWeightSum, nếu legacy thì dùng highestRuleWeight
+  const ruleWeightToUse = payload.source_channel
+    ? ruleWeightSum
+    : (highestRuleWeight > -999 ? highestRuleWeight : 0);
 
-  // Bước 7: Quy đổi sang nhãn cấp độ ưu tiên (URGENT, HIGH, MEDIUM, LOW)
+  let priorityScore = baseWeight + scopeWeight + ruleWeightToUse + urgencyBonus;
+  priorityScore = Math.max(10, Math.min(100, Math.round(priorityScore)));
+
+  // Quy đổi nhãn Priority
   let priority = 'LOW';
-  if (finalScore >= 80) {
+  if (priorityScore >= 80) {
     priority = 'URGENT';
-  } else if (finalScore >= 60) {
+  } else if (priorityScore >= 60) {
     priority = 'HIGH';
-  } else if (finalScore >= 40) {
+  } else if (priorityScore >= 40) {
     priority = 'MEDIUM';
+  } else {
+    priority = 'LOW';
   }
 
-  // Tóm tắt ngắn gọn nếu chưa có
-  const summary =
-    rawNotification.summary ||
-    (content.length > 160 ? `${content.slice(0, 157).trim()}...` : content);
+  // Trích xuất MSSV nếu có
+  let targetStudentId = payload.target_student_id || null;
+  if (!targetStudentId) {
+    const mssvMatch = fullText.match(/\b(102\d{6})\b/);
+    if (mssvMatch) targetStudentId = mssvMatch[1];
+  }
 
-  // Trích xuất MSSV sinh viên cá nhân nếu có
-  const mssvMatch = combined.match(/\b(102\d{6,7})\b/);
-  const targetStudentId =
-    rawNotification.target_student_id ||
-    rawNotification.recipient_student_id ||
-    (mssvMatch ? mssvMatch[1] : null);
-
-  const tagsArray = Array.from(matchedTags);
+  const topics = detectNotificationTopics(payload);
 
   return {
-    source_type: sourceType,
-    title,
-    content,
-    summary,
     course_code: courseInfo.course_code,
     course_tag: courseInfo.course_tag,
     course_name: courseInfo.course_name,
     scope_type: scopeType,
-    category: primaryCategory,
+    scope: scopeType,
     priority,
-    priority_score: finalScore,
+    priority_score: priorityScore,
+    tags,
+    topics,
     target_student_id: targetStudentId,
-    tags: tagsArray,
-    scoring_breakdown: {
-      source_base_weight: SOURCE_BASE_WEIGHTS[sourceType] || 20,
-      scope_weight: SCOPE_WEIGHTS[scopeType] || 5,
-      matched_category: primaryCategory,
-      rule_weight: highestRuleWeight > -999 ? highestRuleWeight : 0,
-      time_urgency_bonus: hasUrgentTime ? 12 : 0,
-      final_score: finalScore,
-    },
+    is_emergency: isEmergency,
+    deadline_at: deadlineAt,
+    classified_by: 'RULE_ENGINE',
+    reschedule_details: extractRescheduleDetails(fullText),
   };
+}
+
+/**
+ * 6. Smart Router: Phối hợp Rules Engine & AI API theo AGENT.md Mục II.3.2
+ */
+async function classifySmartNotification(payload = {}) {
+  const source = payload.source_channel || payload.source_type || 'DUT_GENERAL';
+  const isFacebook = source === 'FB_CTSV' || source === 'FB_TUVAN_SV';
+  const wordCount = (payload.content || '').split(/\s+/).length;
+
+  if (isFacebook || wordCount > 150) {
+    const aiResult = await aiService.analyzeArticle(payload.content || '', payload.title || '');
+    const ruleClassification = classifyNotification({
+      ...payload,
+      scope: aiResult.scope,
+      deadline_at: aiResult.deadline_at,
+    });
+
+    const mergedTags = Array.from(new Set([
+      ...ruleClassification.tags,
+      ...(aiResult.tags || []).map(t => `#${t}`)
+    ]));
+
+    return {
+      ...ruleClassification,
+      summary: aiResult.summary,
+      action_required: aiResult.action_required,
+      deadline_at: aiResult.deadline_at || ruleClassification.deadline_at,
+      tags: mergedTags,
+      is_emergency: aiResult.is_emergency || ruleClassification.is_emergency,
+      classified_by: 'AI_API',
+    };
+  }
+
+  const result = classifyNotification(payload);
+  const sentences = (payload.content || '').split(/[.\n]+/).filter(Boolean);
+  const summary = sentences.slice(0, 2).join('. ') + (sentences.length > 0 ? '.' : '');
+
+  return {
+    ...result,
+    summary: summary || payload.title,
+    action_required: result.is_emergency ? 'Kiểm tra lịch học và cập nhật thời khóa biểu mới.' : null,
+    classified_by: 'RULE_ENGINE',
+  };
+}
+
+/**
+ * Nhận diện chủ đề thông báo phục vụ cá nhân hóa & bộ lọc thông báo đẩy (FCM)
+ * 1. hoc_vu: Học vụ (Đào tạo, Lớp học phần, Khảo thí & ĐBCL, Quy chế, Lịch thi, ...)
+ * 2. hoc_bong: Học bổng (Học bổng khuyến khích, tài trợ, khen thưởng học tập, ...)
+ * 3. hoat_dong_sv: Hoạt động sinh viên (Công tác SV, Đoàn - Hội, Điểm rèn luyện, CLB, ...)
+ * 4. tuyen_dung: Tuyển dụng / Thực tập (Thực tập tốt nghiệp, cơ hội việc làm, ...)
+ */
+function detectNotificationTopics(payload = {}) {
+  const title = (payload.title || '').toLowerCase();
+  const content = (payload.content || payload.content_summary || payload.summary || '').toLowerCase();
+  const tags = (payload.tags || []).join(' ').toLowerCase();
+  const channel = (payload.source_channel || payload.source_type || '').toUpperCase();
+  const full = `${title} ${content} ${tags}`;
+
+  const topics = [];
+
+  // 1. Học vụ (hoc_vu)
+  const hocVuChannels = ['DUT_TRAINING', 'DUT_COURSE_CLASS', 'DUT_TESTING_QA', 'DUT_REGULATIONS', 'DUT_TUITION_FEE'];
+  const hocVuKeywords = [
+    'học vụ', 'đào tạo', 'học phần', 'tín chỉ', 'lịch thi', 'thi học kỳ',
+    'hoãn thi', 'phúc khảo', 'điểm thi', 'tốt nghiệp', 'bảng điểm', 'lớp học phần',
+    'nghỉ học', 'học bù', 'đổi phòng', 'bài tập', 'đồ án', 'quy chế', 'học phí',
+    'thời khóa biểu', 'đăng ký môn', 'chứng chỉ', 'chuẩn đầu ra'
+  ];
+  if (hocVuChannels.includes(channel) || hocVuKeywords.some((kw) => full.includes(kw))) {
+    topics.push('hoc_vu');
+  }
+
+  // 2. Học bổng (hoc_bong)
+  const hocBongKeywords = [
+    'học bổng', 'khuyến khích học tập', 'trợ cấp', 'tài trợ học bổng',
+    'khen thưởng', 'scholarship', 'tài trợ', 'doanh nghiệp trao', 'trao học bổng'
+  ];
+  if (hocBongKeywords.some((kw) => full.includes(kw))) {
+    topics.push('hoc_bong');
+  }
+
+  // 3. Hoạt động sinh viên (hoat_dong_sv)
+  const hoatDongChannels = ['DUT_STUDENT_AFFAIRS', 'FB_CTSV', 'FB_TUVAN_SV'];
+  const hoatDongKeywords = [
+    'hoạt động', 'phong trào', 'tình nguyện', 'đoàn thanh niên', 'hội sinh viên',
+    'điểm rèn luyện', 'câu lạc bộ', 'hội thao', 'hiến máu', 'ngoại khóa',
+    'tư vấn', 'khen thưởng rèn luyện', 'sinh viên tiêu biểu', 'tuyên dương',
+    'hỗ trợ sinh viên', 'chính sách xã hội'
+  ];
+  if (hoatDongChannels.includes(channel) || hoatDongKeywords.some((kw) => full.includes(kw))) {
+    topics.push('hoat_dong_sv');
+  }
+
+  // 4. Tuyển dụng / Thực tập (tuyen_dung)
+  const tuyenDungKeywords = [
+    'tuyển dụng', 'thực tập', 'việc làm', 'career', 'internship',
+    'hội chợ việc làm', 'doanh nghiệp tuyển', 'job fair', 'cơ hội nghề nghiệp',
+    'ngày hội việc làm', 'tuyển sinh viên', 'job'
+  ];
+  if (tuyenDungKeywords.some((kw) => full.includes(kw))) {
+    topics.push('tuyen_dung');
+  }
+
+  if (topics.length === 0) {
+    topics.push('hoc_vu');
+  }
+
+  return topics;
 }
 
 module.exports = {
@@ -447,5 +670,9 @@ module.exports = {
   URGENCY_TIME_KEYWORDS,
   detectCourseTag,
   detectScopeType,
+  detectNotificationTopics,
   classifyNotification,
+  classifySmartNotification,
+  extractDeadline,
+  extractRescheduleDetails,
 };

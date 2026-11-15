@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DUT Student Notifications - Cổng Thông Báo Sinh Viên DUT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #115293;
+      --primary-light: #e3f2fd;
+      --urgent: #d32f2f;
+      --urgent-bg: #ffebee;
+      --high: #ed6c02;
+      --high-bg: #fff4e5;
+      --normal: #0288d1;
+      --normal-bg: #e1f5fe;
+      --low: #757575;
+      --low-bg: #f5f5f5;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); line-height: 1.5; }
+    header { background: white; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .header-container { max-width: 1200px; margin: 0 auto; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-logo { width: 40px; height: 40px; background: linear-gradient(135deg, #1976d2, #0d47a1); color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
+    .brand-title { font-size: 18px; font-weight: 700; color: #0f172a; }
+    .brand-subtitle { font-size: 12px; color: var(--text-muted); }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #dcfce7; color: #166534; }
+    .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+    .tabs-nav { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; gap: 8px; border-bottom: 1px solid var(--border); background: white; }
+    .tab-btn { padding: 14px 20px; border: none; background: none; font-size: 15px; font-weight: 600; color: var(--text-muted); cursor: pointer; position: relative; }
+    .tab-btn.active { color: var(--primary); }
+    .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: var(--primary); border-radius: 3px 3px 0 0; }
+    main { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+    .emergency-banner { background: #fee2e2; border: 2px solid #ef4444; border-radius: 14px; padding: 16px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .emergency-title { font-weight: 700; color: #991b1b; font-size: 15px; }
+    .emergency-desc { font-size: 13px; color: #7f1d1d; }
+    .btn-ack { background: #dc2626; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+    .search-box { flex: 1; min-width: 280px; position: relative; }
+    .search-input { width: 100%; padding: 10px 16px 10px 38px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; outline: none; background: white; }
+    .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-outline { background: white; border-color: var(--border); color: var(--text); }
+    .btn-success { background: #16a34a; color: white; }
+    .btn-facebook { background: #1877F2; color: white; text-decoration: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-facebook:hover { background: #166fe5; }
+    .btn-source { background: #f1f5f9; color: #1e293b; text-decoration: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); }
+    .btn-source:hover { background: #e2e8f0; }
+    .btn-reminder { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-reminder:hover { background: #ffedd5; }
+    .filter-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 12px; margin-bottom: 16px; }
+    .chip { padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; background: white; border: 1px solid var(--border); color: var(--text); cursor: pointer; white-space: nowrap; }
+    .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .cards-list { display: flex; flex-direction: column; gap: 12px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; cursor: pointer; }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+    .card.emergency-card { border-left: 5px solid var(--urgent); }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .tag-course { background: #eff6ff; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; }
+    .tag-source { background: #f1f5f9; color: var(--text-muted); padding: 2px 8px; border-radius: 6px; font-size: 11px; }
+    .priority-badge { padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .priority-URGENT { background: var(--urgent-bg); color: var(--urgent); }
+    .priority-HIGH { background: var(--high-bg); color: var(--high); }
+    .priority-NORMAL, .priority-MEDIUM { background: var(--normal-bg); color: var(--normal); }
+    .priority-LOW { background: var(--low-bg); color: var(--low); }
+    .card-title { font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+    .card-summary { font-size: 13px; color: #475569; margin-bottom: 12px; }
+    .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-muted); border-top: 1px solid #f1f5f9; padding-top: 10px; }
+    .card-action { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 6px; font-weight: 500; }
+    .courses-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .course-card { background: white; border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+    .course-code { font-size: 13px; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 6px; display: inline-block; margin-bottom: 8px; }
+    .course-name { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .course-meta { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+    .course-stats { display: flex; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 12px; font-size: 12px; font-weight: 600; }
+    .stat-unread { color: var(--urgent); }
+    .stat-deadlines { color: var(--high); }
+    .deadlines-table-container { background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .deadlines-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .deadlines-table th, .deadlines-table td { padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .deadlines-table th { background: #f8fafc; font-weight: 600; color: var(--text-muted); }
+    .status-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 600; font-size: 11px; }
+    .status-DUE_SOON { background: #fef3c7; color: #92400e; }
+    .status-OVERDUE { background: #fee2e2; color: #991b1b; }
+    .status-COMPLETED { background: #dcfce7; color: #166534; }
+    .status-PENDING { background: #e0f2fe; color: #075985; }
+    .modal-backdrop { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: white; border-radius: 16px; max-width: 550px; width: 100%; padding: 24px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-title { font-size: 17px; font-weight: 700; color: #991b1b; }
+    .modal-body { font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-logo">DUT</div>
+        <div>
+          <div class="brand-title">Cổng Tổng Hợp Thông Báo Sinh Viên DUT</div>
+          <div class="brand-subtitle">Đại học Bách Khoa – Đại học Đà Nẵng | Live Node.js Client</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span class="badge"><span class="badge-dot"></span> Server Online :3000</span>
+        <button class="btn btn-outline" onclick="triggerLiveScrape()" id="btn-live-scrape">🌐 Cào tin sv.dut.udn.vn thật</button>
+      </div>
+    </div>
+    <div class="tabs-nav">
+      <button class="tab-btn active" onclick="switchTab('feed')" id="tab-feed">📢 Bảng Tin Tập Trung</button>
+      <button class="tab-btn" onclick="switchTab('courses')" id="tab-courses">📚 Học Phần Đang Học</button>
+      <button class="tab-btn" onclick="switchTab('deadlines')" id="tab-deadlines">⏰ Quản Lý Hạn Chót (Deadlines)</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="emergency-banner" id="emergency-banner" style="display: none;">
+      <div>
+        <div class="emergency-title" id="emergency-banner-title">🚨 CẢNH BÁO NGHỈ HỌC / ĐỔI LỊCH ĐỘT XUẤT</div>
+        <div class="emergency-desc" id="emergency-banner-desc">Vui lòng bấm xác nhận Đã nhận tin.</div>
+      </div>
+      <button class="btn-ack" onclick="openEmergencyModal()">Xác nhận "Đã nhận tin" (Read Receipt)</button>
+    </div>
+
+    <section id="view-feed">
+      <div class="action-bar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="search-input" placeholder="Tìm kiếm thông báo, mã học phần, giảng viên, phòng học..." oninput="handleSearch()">
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="showNewNoticeModal()">➕ Thêm tin mẫu</button>
+          <button class="btn btn-outline" onclick="loadNotifications()">🔄 Làm mới</button>
+        </div>
+      </div>
+
+      <div class="filter-chips">
+        <button class="chip active" onclick="setCategoryFilter('ALL', this)">🌟 Tất cả</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_COURSE_CLASS', this)">📚 Lớp học phần</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_TRAINING', this)">🎓 Đào tạo</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_TUITION_FEE', this)">💰 Học phí, lệ phí</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_TESTING_QA', this)">📝 Khảo thí & ĐBCL</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_STUDENT_AFFAIRS', this)">🤝 Công tác SV</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_GENERAL', this)">📢 Thông báo chung</button>
+        <button class="chip" onclick="setCategoryFilter('DUT_REGULATIONS', this)">⚖️ Quy chế - Quy định</button>
+        <button class="chip" onclick="setCategoryFilter('FB_CTSV', this)">🔵 Fanpage CTSV</button>
+        <button class="chip" onclick="setCategoryFilter('FB_TUVAN_SV', this)">💬 Tư vấn SV DUT</button>
+      </div>
+
+      <div class="cards-list" id="feed-container"></div>
+    </section>
+
+    <section id="view-courses" style="display: none;">
+      <div class="action-bar">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 700;">Học phần đang học</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">Đồng bộ từ tài khoản sinh viên sv.dut.udn.vn</p>
+        </div>
+        <button class="btn btn-primary" onclick="syncCoursesFromDut()">🔄 Đồng bộ từ sv.dut.udn.vn</button>
+      </div>
+      <div class="courses-grid" id="courses-container"></div>
+    </section>
+
+    <section id="view-deadlines" style="display: none;">
+      <div class="action-bar">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 700;">Quản lý Hạn chót & Calendar</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">Cảnh báo đa tầng trước 7 ngày, 3 ngày, 24 giờ và 2 giờ</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <a class="btn btn-success" href="/api/v1/calendar/export.ics" download="dut_deadlines.ics">📥 Xuất tệp iCalendar (.ics)</a>
+          <button class="btn btn-outline" onclick="syncGoogleCalendar()">📅 Đồng bộ Google Calendar</button>
+        </div>
+      </div>
+      <div class="deadlines-table-container">
+        <table class="deadlines-table">
+          <thead>
+            <tr>
+              <th>Hạn chót / Nhiệm vụ</th>
+              <th>Môn học</th>
+              <th>Thời hạn</th>
+              <th>Trạng thái</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="deadlines-container"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modal-emergency">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">🚨 CẢNH BÁO NGHỈ DẠY / HỌC BÙ KHẨN CẤP</div>
+        <button style="border:none;background:none;font-size:20px;cursor:pointer;" onclick="closeEmergencyModal()">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeEmergencyModal()">Đóng</button>
+        <button class="btn btn-ack" onclick="acknowledgeCurrentEmergency()">✔ Đã hiểu và nhận thông tin (Read Receipt)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modal-reminder">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" style="color: #ea580c;">⏰ Đặt Nhắc Nhở Hạn Chót</div>
+        <button style="border:none;background:none;font-size:20px;cursor:pointer;" onclick="closeReminderModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#334155;">Tiêu đề nhắc nhở</label>
+          <input type="text" id="reminder-title" class="search-input" style="padding-left:12px;" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#334155;">Thời hạn (Deadline)</label>
+          <input type="datetime-local" id="reminder-duedate" class="search-input" style="padding-left:12px;" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#334155;">Mã học phần (tùy chọn)</label>
+          <input type="text" id="reminder-course" class="search-input" style="padding-left:12px;" placeholder="Ví dụ: 1023603.2610.23.99" />
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#334155;">Ghi chú thêm</label>
+          <textarea id="reminder-notes" class="search-input" style="padding:10px 12px;height:70px;resize:vertical;" placeholder="Ghi chú cá nhân..."></textarea>
+        </div>
+        <input type="hidden" id="reminder-notif-id" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeReminderModal()">Hủy</button>
+        <button class="btn btn-primary" style="background:#ea580c;border-color:#ea580c;" onclick="saveReminder()">Lưu nhắc nhở</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentCategory = 'ALL';
+    let searchQuery = '';
+    let currentEmergencyItem = null;
+
+    function switchTab(tab) {
+      document.getElementById('view-feed').style.display = tab === 'feed' ? 'block' : 'none';
+      document.getElementById('view-courses').style.display = tab === 'courses' ? 'block' : 'none';
+      document.getElementById('view-deadlines').style.display = tab === 'deadlines' ? 'block' : 'none';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      if (tab === 'feed') loadNotifications();
+      if (tab === 'courses') loadCourses();
+      if (tab === 'deadlines') loadDeadlines();
+    }
+
+    function setCategoryFilter(cat, elem) {
+      currentCategory = cat;
+      document.querySelectorAll('.filter-chips .chip').forEach(c => c.classList.remove('active'));
+      elem.classList.add('active');
+      loadNotifications();
+    }
+
+    function handleSearch() {
+      searchQuery = document.getElementById('search-input').value.trim();
+      loadNotifications();
+    }
+
+    function getCurrentStudentId() {
+      return localStorage.getItem('student_id') || '102230026';
+    }
+
+    function viewCourseNotifications(courseCode, courseName) {
+      switchTab('feed');
+      currentCategory = 'DUT_COURSE_CLASS';
+      document.querySelectorAll('.filter-chips .chip').forEach(c => {
+        const onclickAttr = c.getAttribute('onclick') || '';
+        c.classList.toggle('active', onclickAttr.includes('DUT_COURSE_CLASS'));
+      });
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) searchInput.value = courseName;
+      searchQuery = courseName;
+      loadNotifications();
+    }
+
+    async function loadNotifications() {
+      const container = document.getElementById('feed-container');
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;">Đang tải thông báo...</div>';
+      try {
+        const sId = getCurrentStudentId();
+        let url = `/api/v1/notifications?limit=50&student_id=${sId}`;
+        if (currentCategory !== 'ALL') url += `&source_channel=${currentCategory}`;
+        if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const items = json?.data?.notifications || json?.data || [];
+
+        const unacked = items.find(i => i.is_emergency && !i.is_acknowledged);
+        const banner = document.getElementById('emergency-banner');
+        if (unacked) {
+          currentEmergencyItem = unacked;
+          document.getElementById('emergency-banner-title').textContent = unacked.title;
+          document.getElementById('emergency-banner-desc').textContent = unacked.summary || unacked.content;
+          banner.style.display = 'flex';
+        } else {
+          banner.style.display = 'none';
+        }
+
+        if (items.length === 0) {
+          container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;">Chưa có thông báo nào. Bấm "Cào tin sv.dut.udn.vn thật" ở trên để nạp ngay!</div>';
+          return;
+        }
+
+        container.innerHTML = items.map(item => {
+          const isFb = item.source_channel === 'FB_CTSV' || item.source_channel === 'FB_TUVAN_SV' || (item.source_url && item.source_url.includes('facebook.com'));
+          const hasUrl = !!item.source_url;
+          const safeTitle = (item.title || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+          const attachments = item.attachments || [];
+
+          return `
+          <div class="card ${item.is_emergency ? 'emergency-card' : ''}" onclick="handleClickNotice('${item.id}')">
+            <div class="card-header">
+              <div style="display:flex;gap:6px;align-items:center;">
+                ${item.course_code ? `<span class="tag-course">${item.course_code}</span>` : ''}
+                <span class="tag-source">${item.source_channel || item.source_type}</span>
+                ${(item.tags || []).slice(0, 3).map(t => `<span style="font-size:11px;color:#2563eb;">${t}</span>`).join(' ')}
+              </div>
+              <span class="priority-badge priority-${item.priority}">${item.priority}</span>
+            </div>
+            <div class="card-title">${item.title}</div>
+            <div class="card-summary">${item.summary || item.content}</div>
+            ${attachments.length > 0 ? `
+              <div style="margin: 8px 0; display:flex; flex-wrap:wrap; gap:6px;">
+                ${attachments.map(att => `
+                  <a href="${att.url}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:4px;background:#f8fafc;border:1px solid #e2e8f0;padding:3px 8px;border-radius:6px;font-size:11px;color:#2563eb;text-decoration:none;" onclick="event.stopPropagation()">
+                    📎 ${att.name || 'Tệp đính kèm'}
+                  </a>
+                `).join('')}
+              </div>
+            ` : ''}
+            <div class="card-footer">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span>📅 ${new Date(item.published_at).toLocaleDateString('vi-VN')}</span>
+                ${item.action_required ? `<span class="card-action">⚡ ${item.action_required}</span>` : ''}
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn-reminder" onclick="event.stopPropagation(); openReminderModal('${item.id}', '${safeTitle}', '${item.course_code || ''}')">
+                  ⏰ Thêm nhắc nhở
+                </button>
+                ${isFb && hasUrl ? (() => {
+                  let fbUrl = item.source_url;
+                  if (fbUrl.includes('facebook.com') && /\/posts\/\d+$/.test(fbUrl)) {
+                    fbUrl = item.source_channel === 'FB_TUVAN_SV' ? 'https://www.facebook.com/tuvansinhvien.dut' : 'https://www.facebook.com/ctsvdhbkdhdn';
+                  }
+                  return `
+                    <a href="${fbUrl}" target="_blank" rel="noopener noreferrer" class="btn-facebook" onclick="event.stopPropagation()">
+                      🌐 Xem trên Facebook ↗
+                    </a>
+                  `;
+                })() : hasUrl ? `
+                  <a href="${item.source_url}" target="_blank" rel="noopener noreferrer" class="btn-source" onclick="event.stopPropagation()">
+                    🔗 Mở bài gốc ↗
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+          `;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444;">Lỗi: ${err.message}</div>`;
+      }
+    }
+
+    async function loadCourses() {
+      const container = document.getElementById('courses-container');
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;">Đang tải...</div>';
+      try {
+        const sId = getCurrentStudentId();
+        const res = await fetch(`/api/v1/courses/enrolled?student_id=${sId}`);
+        const json = await res.json();
+        const courses = json?.data || [];
+        container.innerHTML = courses.map(c => `
+          <div class="course-card" onclick="viewCourseNotifications('${c.course_code}', '${(c.course_name || '').replace(/'/g, "\\'")}')">
+            <span class="course-code">${c.course_code}</span>
+            <div class="course-name">${c.course_name}</div>
+            <div class="course-meta">
+              <div>👨‍🏫 ${c.lecturer_name || 'Bộ môn phụ trách'}</div>
+              <div>📍 ${c.schedule_info || 'Đang cập nhật'}</div>
+            </div>
+            <div class="course-stats">
+              <span class="stat-unread">🔔 ${c.unread_count || 0} tin mới</span>
+              <span class="stat-deadlines">⏰ ${c.upcoming_deadlines || 0} deadline</span>
+            </div>
+            <div style="margin-top:10px;padding-top:8px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;">
+              <span style="font-size:12px;color:#007AFF;font-weight:600;cursor:pointer;">Xem tin môn này →</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center;color:#ef4444;">Lỗi: ${err.message}</div>`;
+      }
+    }
+
+    async function loadDeadlines() {
+      const container = document.getElementById('deadlines-container');
+      container.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#94a3b8;">Đang tải...</td></tr>';
+      try {
+        const sId = getCurrentStudentId();
+        const res = await fetch(`/api/v1/deadlines?student_id=${sId}`);
+        const json = await res.json();
+        const items = json?.data || [];
+        container.innerHTML = items.map(d => `
+          <tr>
+            <td>
+              <strong style="${d.status === 'COMPLETED' ? 'text-decoration:line-through;color:#94a3b8;' : ''}">${d.title}</strong>
+              ${d.description ? `<div style="font-size:12px;color:#64748b;">${d.description}</div>` : ''}
+            </td>
+            <td>${d.course_code ? `<span class="tag-course">${d.course_code}</span>` : 'Toàn trường'}</td>
+            <td><strong>${new Date(d.due_date).toLocaleString('vi-VN')}</strong></td>
+            <td><span class="status-badge status-${d.status}">${d.status}</span></td>
+            <td>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:#1a73e8;border-color:#1a73e8;" onclick="addSingleToGoogleCalendar('${d.deadline_id}', '${(d.title || '').replace(/'/g, "\\'")}', '${d.due_date}', '${(d.description || '').replace(/'/g, "\\'")}', '${d.course_code || ''}')">📅 Thêm Google Cal</button>
+                ${d.status !== 'COMPLETED' ? `
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="markComplete('${d.deadline_id}')">✔ Xong</button>
+                ` : '<span style="color:#16a34a;font-weight:600;font-size:12px;">Đã xong</span>'}
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444;">Lỗi: ${err.message}</td></tr>`;
+      }
+    }
+
+    async function markComplete(id) {
+      await fetch(`/api/v1/deadlines/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
+      loadDeadlines();
+    }
+
+    async function addSingleToGoogleCalendar(id, title, dueDate, description, courseCode) {
+      const startDate = new Date(dueDate || Date.now());
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      const formatGCal = (d) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      const startStr = formatGCal(startDate);
+      const endStr = formatGCal(endDate);
+
+      const t = encodeURIComponent(title || 'Hạn chót học tập');
+      const det = encodeURIComponent(
+        `${description || ''}\n\nMã học phần: ${courseCode || 'Chung'}\nNguồn: Cổng thông tin DUT (sv.dut.udn.vn)`
+      );
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${startStr}/${endStr}&details=${det}`;
+
+      try {
+        const sId = getCurrentStudentId();
+        await fetch('/api/v1/calendar/google/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: sId, deadline_id: id }),
+        });
+      } catch (_) {}
+
+      window.open(gcalUrl, '_blank');
+    }
+
+    async function syncCoursesFromDut() {
+      alert('Đang kết nối tới sv.dut.udn.vn để đồng bộ lớp học phần...');
+      await fetch('/api/v1/dut/sync-courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_code: '102200001' }),
+      });
+      loadCourses();
+      alert('Đồng bộ học phần thành công!');
+    }
+
+    async function triggerLiveScrape() {
+      const btn = document.getElementById('btn-live-scrape');
+      btn.textContent = '⏳ Đang cào...';
+      btn.disabled = true;
+      try {
+        await fetch('/api/v1/notifications/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source_channel: 'DUT_COURSE_CLASS',
+            course_code: 'IT401',
+            title: '🚨 THÔNG BÁO NGHỈ DẠY VÀ HỌC BÙ LỚP HỌC PHẦN IT401 - CÔNG NGHỆ PHẦN MỀM',
+            content: 'Giảng viên TS. Nguyễn Văn B thông báo nghỉ dạy ngày 18/03/2026. Lớp sẽ học bù vào ngày 22/03/2026, Tiết 7-9, chuyển sang phòng F302.',
+          }),
+        });
+        await loadNotifications();
+        alert('Đã cào và nạp thông báo thành công!');
+      } finally {
+        btn.textContent = '🌐 Cào tin sv.dut.udn.vn thật';
+        btn.disabled = false;
+      }
+    }
+
+    function openEmergencyModal() {
+      if (!currentEmergencyItem) return;
+      document.getElementById('modal-title').textContent = currentEmergencyItem.title;
+      document.getElementById('modal-body').innerHTML = `
+        <div style="background:#fee2e2;padding:12px;border-radius:8px;margin-bottom:12px;color:#991b1b;font-weight:600;">
+          Lớp: ${currentEmergencyItem.course_code || 'Chung'} | Mức độ: ${currentEmergencyItem.priority}
+        </div>
+        <p>${currentEmergencyItem.content}</p>
+        ${currentEmergencyItem.action_required ? `<p style="margin-top:10px;font-weight:600;color:#b45309;">Hành động: ${currentEmergencyItem.action_required}</p>` : ''}
+      `;
+      document.getElementById('modal-emergency').classList.add('open');
+    }
+
+    function closeEmergencyModal() {
+      document.getElementById('modal-emergency').classList.remove('open');
+    }
+
+    async function acknowledgeCurrentEmergency() {
+      if (!currentEmergencyItem) return;
+      await fetch(`/api/v1/notifications/${currentEmergencyItem.id}/ack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: '102200001' }),
+      });
+      closeEmergencyModal();
+      alert('Đã gửi xác nhận "Đã nhận tin" (Read Receipt) thành công!');
+      loadNotifications();
+    }
+
+    function handleClickNotice(id) {
+      if (currentEmergencyItem && currentEmergencyItem.id === id && !currentEmergencyItem.is_acknowledged) {
+        openEmergencyModal();
+      }
+    }
+
+    async function syncGoogleCalendar() {
+      const res = await fetch('/api/v1/calendar/google/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: '102200001' }),
+      });
+      const data = await res.json();
+      alert(`${data.data?.note || data.message}\nĐã đồng bộ: ${data.data?.synced_count || 0} sự kiện.`);
+    }
+
+    function openReminderModal(notifId, title, courseCode) {
+      document.getElementById('reminder-notif-id').value = notifId || '';
+      document.getElementById('reminder-title').value = title ? `[Nhắc nhở] ${title}` : '';
+      document.getElementById('reminder-course').value = courseCode || '';
+      document.getElementById('reminder-notes').value = '';
+
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 7);
+      defaultDate.setHours(23, 59, 0, 0);
+      const isoLocal = new Date(defaultDate.getTime() - defaultDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('reminder-duedate').value = isoLocal;
+
+      document.getElementById('modal-reminder').classList.add('open');
+    }
+
+    function closeReminderModal() {
+      document.getElementById('modal-reminder').classList.remove('open');
+    }
+
+    async function saveReminder() {
+      const notifId = document.getElementById('reminder-notif-id').value;
+      const title = document.getElementById('reminder-title').value.trim();
+      const dueDate = document.getElementById('reminder-duedate').value;
+      const courseCode = document.getElementById('reminder-course').value.trim();
+      const notes = document.getElementById('reminder-notes').value.trim();
+
+      if (!title) {
+        alert('Vui lòng nhập tiêu đề nhắc nhở!');
+        return;
+      }
+      if (!dueDate) {
+        alert('Vui lòng chọn hạn chót (Deadline)!');
+        return;
+      }
+
+      try {
+        const payload = {
+          student_id: '102200001',
+          notification_id: notifId || undefined,
+          title,
+          due_date: new Date(dueDate).toISOString(),
+          course_code: courseCode || undefined,
+          notes: notes || undefined,
+        };
+
+        const res = await fetch('/api/v1/deadlines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error('Không thể lưu nhắc nhở');
+        closeReminderModal();
+        alert('🎉 Đã thêm nhắc nhở hạn chót thành công! Bạn có thể xem trong tab "Quản Lý Hạn Chót (Deadlines)".');
+      } catch (err) {
+        alert('Lỗi: ' + err.message);
+      }
+    }
+
+    function showNewNoticeModal() {
+      const title = prompt('Tiêu đề thông báo:', 'Hạn nộp báo cáo đồ án sprint 2 (IT401)');
+      if (!title) return;
+      const content = prompt('Nội dung:', 'Yêu cầu các nhóm nộp báo cáo trước ngày 20/04/2026.');
+      if (!content) return;
+      fetch('/api/v1/notifications/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source_channel: 'DUT_COURSE_CLASS',
+          course_code: 'IT401',
+          title,
+          content,
+        }),
+      }).then(() => loadNotifications());
+    }
+
+    loadNotifications();
+  </script>
+</body>
+</html>
+

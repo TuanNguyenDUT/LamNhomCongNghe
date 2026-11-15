@@ -18,6 +18,7 @@ dependencies:
   go_router: ^18.1.4
   intl: ^0.20.3
   material_ui: ^1.1.0
+  url_launcher: ^6.3.3
   uuid: ^4.6.0
 
 dev_dependencies:

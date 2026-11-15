@@ -1,0 +1,506 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head id="Head1"><title>
+	Hệ thống Thông tin sinh viên - Trường Đại học Bách khoa, ĐH Đà Nẵng
+</title><link href="Styles/Images/scheduled_tasks.png" rel="shortcut icon" type="image/x-icon" /><link rel="stylesheet" href="Styles/jquery-ui.css" type="text/css" /><link href="Styles/Site.css" rel="stylesheet" type="text/css" /><link href="Styles/all.min.css" rel="stylesheet" type="text/css" /><link href="Styles/jquery-ui.css" rel="stylesheet" type="text/css" /><link href="Styles/jquery.datetimepicker.css" rel="stylesheet" type="text/css" /> 
+  <script src="/Scripts/SSL_JavaScript.js" type="text/javascript"></script>
+  <script src="Scripts/jquery.js" type="text/javascript"></script>
+  <script src="Scripts/jquery-ui.js" type="text/javascript"></script>
+  <script src="Scripts/jquery-ui.min.js" type="text/javascript"></script>
+  <script src="Scripts/jquery.datetimepicker.js" type="text/javascript"></script>
+  <script src="Scripts/Function.js?v=17122024" type="text/javascript"></script>
+  <script src="Scripts/Public.js?v=20102025" type="text/javascript" ></script>
+  <script src="Scripts/NopCC.js" type="text/javascript" ></script>
+  <link href="Styles/jquery.contextMenu.css" rel="stylesheet" type="text/css" />
+  <script src="Scripts/jquery.contextMenu.js" type="text/javascript"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js" type="text/javascript"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body>
+  
+  <div class="pageHeader">
+     <div class="logoBox" style="margin: 0 auto;width:1280px; height: 80px;">
+      </div> 
+  </div>
+  
+  <div id="SVMainMenu" style="background: #4D90FE;"><ul id='menu' style='width: 1280px; margin: 0 auto; '><li><a ID= 'lPaHOME' style ='width:65px' href='Default.aspx'>Trang chủ</a><li><a ID= 'lPaCTDT' style ='width:85px' href=''>Chương trình</a><ul class='submenu'><li><a ID ='lCoCTDTC2'   style ='width:140px' href='G_ListCTDT.aspx'>Chương trình đào tạo</a></li><li><a ID ='lCoCTDTC1'   style ='width:140px' href='G_ListHocPhan.aspx'>Học phần</a></li><li><a ID ='lCoCTDTC3'   style ='width:200px' href='G_ListCTDTAnh.aspx'>Program</a></li></ul></li><li><a ID= 'lPaKHDT' style ='width:60px' href=''>Kế hoạch</a><ul class='submenu'><li><a ID ='lCoKHDTC1'   style ='width:200px' href='https://dut.udn.vn/TrangDaotao/Gioithieu/id/7395'>Kế hoạch đào tạo năm học</a></li><li><a ID ='lCoKHDTC2'   style ='width:200px' href='https://dk4.dut.udn.vn'>Đăng ký học</a></li><li><a ID ='lCoKHDTC3'   style ='width:200px' href='https://dk4.dut.udn.vn/G_LopHocPhan.aspx'>Lớp học phần - đang đăng ký</a></li><li><a ID ='lCoKHDTC4'   style ='width:200px' href='G_LopHocPhan.aspx'>Lớp học phần - chính thức</a></li><li><a ID ='lCoKHDTC5'   style ='width:200px' href='https://dk4.dut.udn.vn/G_DKyNhuCau.aspx'>Khảo sát nhu cầu mở thêm lớp</a></li><li><a ID ='lCoKHDTC6'   style ='width:200px' href='https://cb.dut.udn.vn/PageLichThiKH.aspx'>Thi cuối kỳ lớp học phần</a></li><li><a ID ='lCoKHDTC7'   style ='width:200px' href='G_DKThiNN.aspx'>Thi Tiếng Anh định kỳ, đầu ra</a></li><li><a ID ='lCoKHDTC8'   style ='width:200px' href='G_ListLichSH.aspx'>Sinh hoạt lớp định kỳ</a></li><li><a ID ='lCoKHDTC9'   style ='width:200px' href='https://fb.dut.udn.vn'>Khảo sát ý kiến sinh viên</a></li><li><a ID ='lCoKHDTC9'   style ='width:200px' href='G_DKPVCD.aspx'>Hoạt động phục vụ cộng đồng</a></li></ul></li><li><a ID= 'lPaTRACUU' style ='width:70px' href=''>Danh sách</a><ul class='submenu'><li><a ID ='lCoTRACUU01'   style ='width:240px' href='G_ListNgungHoc.aspx'>Sinh viên ngừng học</a></li><li><a ID ='lCoTRACUU04'   style ='width:240px' href='G_ListCCCNTT.aspx'>Sinh viên có chứng chỉ CNTT</a></li><li><a ID ='lCoTRACUU05'   style ='width:240px' href='G_ListCCNN.aspx'>Sinh viên có chứng chỉ ngoại ngữ</a></li><li><a ID ='lCoTRACUU14'   style ='width:240px' href='G_ListHanCheTC.aspx'>Sinh viên bị hạn chế tín chỉ đăng ký</a></li><li><a ID ='lCoTRACUU15'   style ='width:240px' href='G_ListCanhBaoKQHT.aspx'>Sinh viên bị cảnh báo kết quả học tập</a></li></ul></li><li><a ID= 'lPaCUUSV' style ='width:88px' href=''>Cựu sinh viên</a><ul class='submenu'><li><a ID ='lCoCUUSV1'   style ='width:110px' href='G_ListTNghiep.aspx'>Đã tốt nghiệp</a></li></ul></li><li><a ID= 'lPaCSVC' style ='width:145px' href=''>Phòng học & Hệ thống</a><ul class='submenu'><li><a ID ='lCoCSVC01'   style ='width:240px' href='https://cb.dut.udn.vn/PageCNPhongHoc.aspx'>Tình hình sử dụng phòng học</a></li><li><a ID ='lCoCSVC02'   style ='width:240px' href='G_ListThBiHong.aspx'>Thống kê báo thiết bị phòng học hỏng</a></li><li><a ID ='lCoCSVC09'   style ='width:240px' href='G_SysStatus.aspx'>Trạng thái hệ thống thông tin sinh viên</a></li></ul></li><li><a ID= 'lPaLIENKET' style ='width:50px' href=''>Liên kết</a><ul class='submenu'><li><a ID ='lCoLIENKET1'   style ='width:70px' href='http://lib.dut.udn.vn'>Thư viện</a></li><li><a ID ='lCoLIENKET2'   style ='width:70px' href='https://lms.dut.udn.vn'>DUT-LMS</a></li></ul></li><li><a ID= 'lPaHELP' style ='width:45px' href=''>Hỗ trợ</a><ul class='submenu'><li><a ID ='lCoHELP1'   style ='width:210px' href='https://fr.dut.udn.vn'>Cổng hỗ trợ thông tin trực tuyến</a></li><li><a ID ='lCoHELP2'   style ='width:210px' href='https://1drv.ms/u/s!AtwKlDZ6VqbtqEoEOe4DNxv5-eQ4?eUbxJnq'>Hướng dẫn Đăng ký học</a></li><li><a ID ='lCoHELP3'   style ='width:210px' href='https://1drv.ms/u/s!AtwKlDZ6VqbtqEoEOe4DNxv5-eQ4?eUbxJnq'>Hướng dẫn Sử dụng Email DUT</a></li><li><a ID ='lCoHELP7'   style ='width:210px' href='https://dutudn-my.sharepoint.com/:f:/g/personal/natuan_dut_udn_vn/IgCE0AB9N6g0SK5f72d7kETHARP-GOoqzjH8j2cAtNPBBQU?edvDHfg'>Văn bản Quy định của Trường</a></li><li><a ID ='lCoHELP8'   style ='width:210px' href='https://dutudn-my.sharepoint.com/:f:/g/personal/natuan_dut_udn_vn/IgBlP7CmJESXRJFgatN6kxIbAYsEcVol3RaZ1TVZd41u6po?ehsagAm'>Biểu mẫu thường dùng</a></li></ul></li><li><a id ='linkDangNhap' href='PageDangNhap.aspx' style ='width:80px;'> Đăng nhập </a></li><li><div class='LoginFrame'><div style ='min-width: 100px;'></div></div></li></ul></div>
+  
+  <div style="width: 100%; height: 5px;">
+  </div>
+  <div id="myDlg" style="display: none;">
+  </div>
+  <div id="myDlgH" style="display: none;">
+  </div>
+  
+  <div class="pageBody" style="margin: 0 auto;min-width:1280px;">
+    <form method="post" action="./" id="_ctl0">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKMTIxNjk2OTg0OQ8WAh4TVmFsaWRhdGVSZXF1ZXN0TW9kZQIBFgJmD2QWBAIDDxYCHglpbm5lcmh0bWwFzCQ8dWwgaWQ9J21lbnUnIHN0eWxlPSd3aWR0aDogMTI4MHB4OyBtYXJnaW46IDAgYXV0bzsgJz48bGk+PGEgSUQ9ICdsUGFIT01FJyBzdHlsZSA9J3dpZHRoOjY1cHgnIGhyZWY9J0RlZmF1bHQuYXNweCc+VHJhbmcgY2jhu6c8L2E+PGxpPjxhIElEPSAnbFBhQ1REVCcgc3R5bGUgPSd3aWR0aDo4NXB4JyBocmVmPScnPkNoxrDGoW5nIHRyw6xuaDwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb0NURFRDMicgICBzdHlsZSA9J3dpZHRoOjE0MHB4JyBocmVmPSdHX0xpc3RDVERULmFzcHgnPkNoxrDGoW5nIHRyw6xuaCDEkcOgbyB04bqhbzwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0NURFRDMScgICBzdHlsZSA9J3dpZHRoOjE0MHB4JyBocmVmPSdHX0xpc3RIb2NQaGFuLmFzcHgnPkjhu41jIHBo4bqnbjwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0NURFRDMycgICBzdHlsZSA9J3dpZHRoOjIwMHB4JyBocmVmPSdHX0xpc3RDVERUQW5oLmFzcHgnPlByb2dyYW08L2E+PC9saT48L3VsPjwvbGk+PGxpPjxhIElEPSAnbFBhS0hEVCcgc3R5bGUgPSd3aWR0aDo2MHB4JyBocmVmPScnPkvhur8gaG/huqFjaDwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb0tIRFRDMScgICBzdHlsZSA9J3dpZHRoOjIwMHB4JyBocmVmPSdodHRwczovL2R1dC51ZG4udm4vVHJhbmdEYW90YW8vR2lvaXRoaWV1L2lkLzczOTUnPkvhur8gaG/huqFjaCDEkcOgbyB04bqhbyBuxINtIGjhu41jPC9hPjwvbGk+PGxpPjxhIElEID0nbENvS0hEVEMyJyAgIHN0eWxlID0nd2lkdGg6MjAwcHgnIGhyZWY9J2h0dHBzOi8vZGs0LmR1dC51ZG4udm4nPsSQxINuZyBrw70gaOG7jWM8L2E+PC9saT48bGk+PGEgSUQgPSdsQ29LSERUQzMnICAgc3R5bGUgPSd3aWR0aDoyMDBweCcgaHJlZj0naHR0cHM6Ly9kazQuZHV0LnVkbi52bi9HX0xvcEhvY1BoYW4uYXNweCc+TOG7m3AgaOG7jWMgcGjhuqduIC0gxJFhbmcgxJHEg25nIGvDvTwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0tIRFRDNCcgICBzdHlsZSA9J3dpZHRoOjIwMHB4JyBocmVmPSdHX0xvcEhvY1BoYW4uYXNweCc+TOG7m3AgaOG7jWMgcGjhuqduIC0gY2jDrW5oIHRo4bupYzwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0tIRFRDNScgICBzdHlsZSA9J3dpZHRoOjIwMHB4JyBocmVmPSdodHRwczovL2RrNC5kdXQudWRuLnZuL0dfREt5Tmh1Q2F1LmFzcHgnPkto4bqjbyBzw6F0IG5odSBj4bqndSBt4bufIHRow6ptIGzhu5twPC9hPjwvbGk+PGxpPjxhIElEID0nbENvS0hEVEM2JyAgIHN0eWxlID0nd2lkdGg6MjAwcHgnIGhyZWY9J2h0dHBzOi8vY2IuZHV0LnVkbi52bi9QYWdlTGljaFRoaUtILmFzcHgnPlRoaSBjdeG7kWkga+G7syBs4bubcCBo4buNYyBwaOG6p248L2E+PC9saT48bGk+PGEgSUQgPSdsQ29LSERUQzcnICAgc3R5bGUgPSd3aWR0aDoyMDBweCcgaHJlZj0nR19ES1RoaU5OLmFzcHgnPlRoaSBUaeG6v25nIEFuaCDEkeG7i25oIGvhu7MsIMSR4bqndSByYTwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0tIRFRDOCcgICBzdHlsZSA9J3dpZHRoOjIwMHB4JyBocmVmPSdHX0xpc3RMaWNoU0guYXNweCc+U2luaCBob+G6oXQgbOG7m3AgxJHhu4tuaCBr4buzPC9hPjwvbGk+PGxpPjxhIElEID0nbENvS0hEVEM5JyAgIHN0eWxlID0nd2lkdGg6MjAwcHgnIGhyZWY9J2h0dHBzOi8vZmIuZHV0LnVkbi52bic+S2jhuqNvIHPDoXQgw70ga2nhur9uIHNpbmggdmnDqm48L2E+PC9saT48bGk+PGEgSUQgPSdsQ29LSERUQzknICAgc3R5bGUgPSd3aWR0aDoyMDBweCcgaHJlZj0nR19ES1BWQ0QuYXNweCc+SG/huqF0IMSR4buZbmcgcGjhu6VjIHbhu6UgY+G7mW5nIMSR4buTbmc8L2E+PC9saT48L3VsPjwvbGk+PGxpPjxhIElEPSAnbFBhVFJBQ1VVJyBzdHlsZSA9J3dpZHRoOjcwcHgnIGhyZWY9Jyc+RGFuaCBzw6FjaDwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb1RSQUNVVTAxJyAgIHN0eWxlID0nd2lkdGg6MjQwcHgnIGhyZWY9J0dfTGlzdE5ndW5nSG9jLmFzcHgnPlNpbmggdmnDqm4gbmfhu6tuZyBo4buNYzwvYT48L2xpPjxsaT48YSBJRCA9J2xDb1RSQUNVVTA0JyAgIHN0eWxlID0nd2lkdGg6MjQwcHgnIGhyZWY9J0dfTGlzdENDQ05UVC5hc3B4Jz5TaW5oIHZpw6puIGPDsyBjaOG7qW5nIGNo4buJIENOVFQ8L2E+PC9saT48bGk+PGEgSUQgPSdsQ29UUkFDVVUwNScgICBzdHlsZSA9J3dpZHRoOjI0MHB4JyBocmVmPSdHX0xpc3RDQ05OLmFzcHgnPlNpbmggdmnDqm4gY8OzIGNo4bupbmcgY2jhu4kgbmdv4bqhaSBuZ+G7rzwvYT48L2xpPjxsaT48YSBJRCA9J2xDb1RSQUNVVTE0JyAgIHN0eWxlID0nd2lkdGg6MjQwcHgnIGhyZWY9J0dfTGlzdEhhbkNoZVRDLmFzcHgnPlNpbmggdmnDqm4gYuG7iyBo4bqhbiBjaOG6vyB0w61uIGNo4buJIMSRxINuZyBrw708L2E+PC9saT48bGk+PGEgSUQgPSdsQ29UUkFDVVUxNScgICBzdHlsZSA9J3dpZHRoOjI0MHB4JyBocmVmPSdHX0xpc3RDYW5oQmFvS1FIVC5hc3B4Jz5TaW5oIHZpw6puIGLhu4sgY+G6o25oIGLDoW8ga+G6v3QgcXXhuqMgaOG7jWMgdOG6rXA8L2E+PC9saT48L3VsPjwvbGk+PGxpPjxhIElEPSAnbFBhQ1VVU1YnIHN0eWxlID0nd2lkdGg6ODhweCcgaHJlZj0nJz5D4buxdSBzaW5oIHZpw6puPC9hPjx1bCBjbGFzcz0nc3VibWVudSc+PGxpPjxhIElEID0nbENvQ1VVU1YxJyAgIHN0eWxlID0nd2lkdGg6MTEwcHgnIGhyZWY9J0dfTGlzdFROZ2hpZXAuYXNweCc+xJDDoyB04buRdCBuZ2hp4buHcDwvYT48L2xpPjwvdWw+PC9saT48bGk+PGEgSUQ9ICdsUGFDU1ZDJyBzdHlsZSA9J3dpZHRoOjE0NXB4JyBocmVmPScnPlBow7JuZyBo4buNYyAmIEjhu4cgdGjhu5FuZzwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb0NTVkMwMScgICBzdHlsZSA9J3dpZHRoOjI0MHB4JyBocmVmPSdodHRwczovL2NiLmR1dC51ZG4udm4vUGFnZUNOUGhvbmdIb2MuYXNweCc+VMOsbmggaMOsbmggc+G7rSBk4bulbmcgcGjDsm5nIGjhu41jPC9hPjwvbGk+PGxpPjxhIElEID0nbENvQ1NWQzAyJyAgIHN0eWxlID0nd2lkdGg6MjQwcHgnIGhyZWY9J0dfTGlzdFRoQmlIb25nLmFzcHgnPlRo4buRbmcga8OqIGLDoW8gdGhp4bq/dCBi4buLIHBow7JuZyBo4buNYyBo4buPbmc8L2E+PC9saT48bGk+PGEgSUQgPSdsQ29DU1ZDMDknICAgc3R5bGUgPSd3aWR0aDoyNDBweCcgaHJlZj0nR19TeXNTdGF0dXMuYXNweCc+VHLhuqFuZyB0aMOhaSBo4buHIHRo4buRbmcgdGjDtG5nIHRpbiBzaW5oIHZpw6puPC9hPjwvbGk+PC91bD48L2xpPjxsaT48YSBJRD0gJ2xQYUxJRU5LRVQnIHN0eWxlID0nd2lkdGg6NTBweCcgaHJlZj0nJz5MacOqbiBr4bq/dDwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb0xJRU5LRVQxJyAgIHN0eWxlID0nd2lkdGg6NzBweCcgaHJlZj0naHR0cDovL2xpYi5kdXQudWRuLnZuJz5UaMawIHZp4buHbjwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0xJRU5LRVQyJyAgIHN0eWxlID0nd2lkdGg6NzBweCcgaHJlZj0naHR0cHM6Ly9sbXMuZHV0LnVkbi52bic+RFVULUxNUzwvYT48L2xpPjwvdWw+PC9saT48bGk+PGEgSUQ9ICdsUGFIRUxQJyBzdHlsZSA9J3dpZHRoOjQ1cHgnIGhyZWY9Jyc+SOG7lyB0cuG7ozwvYT48dWwgY2xhc3M9J3N1Ym1lbnUnPjxsaT48YSBJRCA9J2xDb0hFTFAxJyAgIHN0eWxlID0nd2lkdGg6MjEwcHgnIGhyZWY9J2h0dHBzOi8vZnIuZHV0LnVkbi52bic+Q+G7lW5nIGjhu5cgdHLhu6MgdGjDtG5nIHRpbiB0cuG7sWMgdHV54bq/bjwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0hFTFAyJyAgIHN0eWxlID0nd2lkdGg6MjEwcHgnIGhyZWY9J2h0dHBzOi8vMWRydi5tcy91L3MhQXR3S2xEWjZWcWJ0cUVvRU9lNEROeHY1LWVRND9lVWJ4Sm5xJz5IxrDhu5tuZyBk4bqrbiDEkMSDbmcga8O9IGjhu41jPC9hPjwvbGk+PGxpPjxhIElEID0nbENvSEVMUDMnICAgc3R5bGUgPSd3aWR0aDoyMTBweCcgaHJlZj0naHR0cHM6Ly8xZHJ2Lm1zL3UvcyFBdHdLbERaNlZxYnRxRW9FT2U0RE54djUtZVE0P2VVYnhKbnEnPkjGsOG7m25nIGThuqtuIFPhu60gZOG7pW5nIEVtYWlsIERVVDwvYT48L2xpPjxsaT48YSBJRCA9J2xDb0hFTFA3JyAgIHN0eWxlID0nd2lkdGg6MjEwcHgnIGhyZWY9J2h0dHBzOi8vZHV0dWRuLW15LnNoYXJlcG9pbnQuY29tLzpmOi9nL3BlcnNvbmFsL25hdHVhbl9kdXRfdWRuX3ZuL0lnQ0UwQUI5TjZnMFNLNWY3MmQ3a0VUSEFSUC1HT29xempIOGoyY0F0TlBCQlFVP2VkdkRIZmcnPlbEg24gYuG6o24gUXV5IMSR4buLbmggY+G7p2EgVHLGsOG7nW5nPC9hPjwvbGk+PGxpPjxhIElEID0nbENvSEVMUDgnICAgc3R5bGUgPSd3aWR0aDoyMTBweCcgaHJlZj0naHR0cHM6Ly9kdXR1ZG4tbXkuc2hhcmVwb2ludC5jb20vOmY6L2cvcGVyc29uYWwvbmF0dWFuX2R1dF91ZG5fdm4vSWdCbFA3Q21KRVNYUkpGZ2F0TjZreEliQVlzRWNWb2wzUmFaMVRWWmQ0MXU2cG8/ZWhzYWdBbSc+Qmnhu4N1IG3huqt1IHRoxrDhu51uZyBkw7luZzwvYT48L2xpPjwvdWw+PC9saT48bGk+PGEgaWQgPSdsaW5rRGFuZ05oYXAnIGhyZWY9J1BhZ2VEYW5nTmhhcC5hc3B4JyBzdHlsZSA9J3dpZHRoOjgwcHg7Jz4gxJDEg25nIG5o4bqtcCA8L2E+PC9saT48bGk+PGRpdiBjbGFzcz0nTG9naW5GcmFtZSc+PGRpdiBzdHlsZSA9J21pbi13aWR0aDogMTAwcHg7Jz48L2Rpdj48L2Rpdj48L2xpPjwvdWw+ZAIFD2QWAgIBD2QWAgIFDw9kFgIeB29uY2xpY2sFImphdmFzY3JpcHQ6VEJfTG9hZCgpO3JldHVybiBmYWxzZTtkZIUbMSd95htwBn5tPmRGN1Y21gvKsk9UB22/mSeCNhZQ" />
+</div>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="CA0B0334" />
+</div>
+      
+    <style type="text/css">
+    .pageBody
+    {
+      background: #f3f3f3 !important;
+    }
+    .defaultSlideShow
+    {
+      width: 100%;    
+      border: 2px solid rgba(255, 255, 255, 0.529412); 
+      border-radius: 0px; 
+      box-shadow: rgba(0, 0, 0, 0.811765) 0px 1px 2px;
+      margin: 0 auto;
+    }
+
+    img {
+      width:100%; 
+      height:100%; 
+      object-fit:cover; 
+    } 
+    .defaultContent
+    {     
+      margin: 0 auto;
+      background: #FFF;
+    }
+    .newsOneColumn
+    {
+      width: 960px;
+      padding: 10px;
+    }
+    .newsOneColumn .newsTitle
+    {
+      color: #868686;
+      font-size: 36px;
+      padding: 10px 0;
+      font-family: Tahoma;
+    }
+    .newsOneColumn .newsWords
+    {
+      color: #868686;
+      font-size: 15px;
+      padding: 5px 0;
+    }
+    .newsTwoColumn
+    {
+      width: 900px;
+      padding: 0 20px;
+    }
+    .newsTwoColumn .newsColumn
+    {
+      width: 410px;
+      padding: 10px 20px;
+      float: left;
+    }
+    .newsTwoColumn .newsTitle
+    {
+      color: #868686;
+      font-size: 24px;
+      padding: 10px 0;
+      font-family: Tahoma;
+    }
+    .newsTwoColumn .newsWords
+    {
+      color: #868686;
+      font-size: 14px;
+      padding: 5px 0;
+    }
+    .newsWords ul
+    {
+      margin: 0;
+    }
+    .newsWords ul li
+    {
+      padding: 3px 0;
+    }
+    .highLight
+    {
+      background: #4a4a4a;
+      color: #FFF;
+      font-size: 24px;
+      padding: 30px;
+    }
+    .highLight table tr td a
+    {
+      background: #87b1cb;
+      color: #FFF;
+      padding: 10px 60px;
+      font-size: 15px;
+      text-decoration: none;
+      -webkit-border-radius: 3px;
+      -moz-border-radius: 3px;
+      border-radius: 3px;
+    }
+    .highLight table tr td a:hover
+    {
+      background: #77a3be;
+    }
+    .subInfomation
+    {
+      font-style: italic;
+      font-size: 12px;
+      text-align: right;
+      padding: 5px;
+    }
+  </style>
+  
+  <script type="text/javascript" language="javascript">
+
+    function TB_Load(sPage) {
+      var sTab = $("#tabs_PubTB").tabs('option', 'active');
+      var sCol = $('#TB_cboFilter option:selected').val();
+      var txtVal = $("#TB_txtFilter").val();
+      $('#TBStatus').html(imgLoading);
+      $.ajaxSetup({ url: "WebAjax/evLopHP_Load.aspx?E=" + ((sTab === 2) ? "CTRTBGV" : "CTRTBSV") + "&PAGETB=" + sPage + "&COL=" + sCol + "&NAME=" + txtVal + "&TAB=" + sTab, global: false, type: "POST", timeout: 100000 });
+      $.ajax({
+        success: function (data) {
+          $('#divPSTBListT' + sTab).html(data);
+          $('#TBStatus').html("");
+        },
+        complete: function (event) {
+          if (event.status !== 200) {
+            $("#TBStatus").html('<font color="red"><b>Xẩy ra lỗi vui lòng thử lại </b></font>');
+          }
+        }
+      });
+    }
+
+    $(function () {
+      $("input[type=text]").keypress(function (e) {
+        if (e.which === 13 || e.keycode === 13) e.preventDefault();
+      });
+     
+      $("#tabs_PubTB").tabs();
+      $("#tabs_PubTB").on("tabsactivate", function () {
+        TB_Load(1);
+      });
+    });
+
+    function ChageTabUiText(wi) {
+      var change = wi < 1024 ? true : false;
+      $('#tabs_PubTB > ul a:eq(0)').text(change ? "Thông báo chung" : "Thông báo chung");
+      $('#tabs_PubTB > ul a:eq(1)').text(change ? "Đào tạo" : "Đào tạo");
+      $('#tabs_PubTB > ul a:eq(2)').text(change ? "Lớp học phần":"Thông báo đến lớp học phần");
+      $('#tabs_PubTB > ul a:eq(3)').text(change ? "Sinh viên" :"Thông báo của phòng CTSV");
+      $('#tabs_PubTB > ul a:eq(4)').text(change ? "Khảo thí" :"Thông báo của phòng Khảo thí & ĐBCLGD");
+      $('#tabs_PubTB > ul a:eq(5)').text(change ? "Tài chính" : "Thông báo của phòng Kế hoạch tài chính ");
+      $('#tabs_PubTB > ul a:eq(6)').text(change ? "Quy chế - Quy định" : "Quy chế - quy định ");
+    }
+    function changeSlide() {
+      curent = $(".defaultSlideShow").attr("curentslide");      
+      if (curent == "1") {
+        $(".Slide1").hide();
+        $(".Slide2").show("fade", 500);
+        $(".defaultSlideShow").attr("curentslide", "2");
+      }
+      else if (curent == "2") {
+        $(".Slide2").hide();
+        $(".Slide3").show("fade", 500);
+        $(".defaultSlideShow").attr("curentslide", "3");
+      }
+      else if (curent == "3") {
+        $(".Slide3").hide();
+        $(".Slide4").show("fade", 500);
+        $(".defaultSlideShow").attr("curentslide", "4");
+      }
+      else if (curent == "4") {
+        $(".Slide4").hide();
+        $(".Slide5").show("fade", 500);
+        $(".defaultSlideShow").attr("curentslide", "5");
+      }
+      else {
+        $(".Slide5").hide();
+        $(".Slide1").show("fade", 500);
+        $(".defaultSlideShow").attr("curentslide", "1");
+      }
+    }
+    
+  </script>
+  
+ 
+
+   <div class="defaultSlideShow" curentslide="1">
+    <div class="Slide1" >
+      <img  alt="" src="Styles/images/SlideShow01.png" />
+    </div>     
+  </div>
+  <div class="GreyBox" style="margin-top: 5px; margin-right: auto; margin-left: auto;">
+    <div id="Div1" style="width: 100%" >
+      <div class="GreyBoxCaption"  style="height: 20px;">
+        Thông báo
+      </div>
+      <div id="LopHPdivCapQLStatus" style="margin-left: 10px; float: left;">
+      </div>
+      <div style="clear: both;">
+      </div>
+    </div>
+    <div style="margin-top: 5px">
+       <table id="Table1" width="100%">
+          <tr>
+              <td style="text-align: right; width: 80px">Tìm theo:</td>
+              <td style="width: 390px">
+                  <select name="_ctl0:MainContent:TB_cboFilter" id="TB_cboFilter" class="Combo" style="height:23px;width:90px;">
+	<option value="TieuDe">Ti&#234;u đề</option>
+	<option value="NoiDung">Nội dung</option>
+
+</select>
+                  <input name="_ctl0:MainContent:TB_txtFilter" type="text" id="TB_txtFilter" class="TextBox" style="height:19px;width:200px;" />
+                  <input type="submit" name="_ctl0:MainContent:TB_btnFilter" value="Tìm" onclick="javascript:TB_Load();return false;" language="javascript" id="MainContent_TB_btnFilter" class="tmButton" style="width:80px;" />
+              </td>
+            <td>
+              <div id="TBStatus"  style="height:15px;width:128px;"></div>
+            </td>
+          </tr>
+      </table>
+    </div>
+  </div>
+  <div id="tabs_PubTB" style="margin-top: 5px; margin-right: auto; margin-left: auto;">
+      <ul>
+        <li><a href="#tabs_PubTB-divT0">Thông báo chung</a></li>
+        <li><a href="#tabs_PubTB-divT1">Đào tạo</a></li>
+        <li><a href="#tabs_PubTB-divT2">Lớp học phần</a></li>
+        <li><a href="#tabs_PubTB-divT3">Công tác SV</a></li>
+        <li><a href="#tabs_PubTB-divT4">Khảo thí & ĐBCL </a></li>
+        <li><a href="#tabs_PubTB-divT5">Học phí, lệ phí</a></li>
+        <li><a href="#tabs_PubTB-divT6">Quy chế - Quy định</a></li>
+      </ul>
+      <div id="tabs_PubTB-divT0" style="width: 100%; padding: 5px 2px 2px 2px;">
+        <div id="divPSTBListT0" class="pageDiv">
+          <div id="MainContent_pnBody" style="width:100%;">
+	
+          <div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>13/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về Xét công nhận tốt nghiệp đợt 4 năm 2026 (TB số 4) </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch sinh vi&ecirc;n dự kiến được x&eacute;t tốt nghiệp: <a href="https://sv.dut.udn.vn/download/2026-11-DukienxetTN_v7.xlsx" target="_blank">Tại đ&acirc;y</a></p>
+
+<p>- Sinh vi&ecirc;n lưu &yacute;: phải kiểm tra v&agrave; x&aacute;c nhận số CCCD trước ng&agrave;y 19/11 để cập nhật v&agrave;o hệ thống văn bằng của Bộ GD&amp;ĐT (xem lại th&ocirc;ng b&aacute;o ng&agrave;y 02/11).</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>11/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo v/v đăng ký cấp bảng điểm cho sinh viên trên Hệ thống thông tin sinh viên </span></div><div class='tbBoxContent'><p style="text-align:justify"><span style="font-family:Arial,Helvetica,sans-serif"><span style="font-size:12px"><span style="color:black">Với mục ti&ecirc;u n&acirc;ng cao chất lượng phục vụ, tr&aacute;nh l&atilde;ng ph&iacute; trong việc in v&agrave; cấp bảng điểm miễn ph&iacute; cho sinh vi&ecirc;n, Ph&ograve;ng Đ&agrave;o tạo v&agrave; Bảo đảm chất lượng th&ocirc;ng b&aacute;o một số lưu &yacute; đối với sinh vi&ecirc;n c&oacute; nhu cầu đăng k&yacute;, nhận bảng điểm như sau:<br />
+1. Đăng k&yacute;: Mỗi sinh vi&ecirc;n chỉ được đề nghị </span><span style="color:#e74c3c">tối đa 02 lần</span><span style="color:black"> cho mỗi loại bảng điểm trong một học kỳ. </span></span></span></p>
+
+<p style="text-align:justify"><span style="font-family:Arial,Helvetica,sans-serif"><span style="font-size:12px"><span style="color:black">2. Thời hạn nhận bảng điểm: Sinh vi&ecirc;n đến khu HC1C để nhận bảng điểm </span><span style="color:#e74c3c">trong v&ograve;ng 07 ng&agrave;y kể từ ng&agrave;y đề nghị được xử l&yacute;</span><span style="color:black">. Qu&aacute; thời hạn tr&ecirc;n, sinh vi&ecirc;n kh&ocirc;ng đến nhận hệ thống sẽ tự động kh&oacute;a t&agrave;i khoản.&nbsp;Bảng điểm đ&atilde; đề nghị từ 30 ng&agrave;y trở l&ecirc;n m&agrave; sinh vi&ecirc;n kh&ocirc;ng đến nhận sẽ bị hủy. Sinh vi&ecirc;n kh&ocirc;ng được đề nghị lại trong học kỳ đ&oacute;.</span></span></span></p>
+
+<p style="text-align:justify"><span style="font-family:Arial,Helvetica,sans-serif"><span style="font-size:12px"><span style="color:black">3. Th&ocirc;ng b&aacute;o ch&iacute;nh thức &aacute;p dụng kể từ ng&agrave;y 15/11/2026.&nbsp;Đối với c&aacute;c bảng điểm đ&atilde; đề nghị trước ng&agrave;y 15/11/2026, sinh vi&ecirc;n đến nhận tại khu HC1C trước ng&agrave;y 30/11/2026. Sau thời gian tr&ecirc;n t&agrave;i khoản sẽ bị kh&oacute;a v&agrave; c&aacute;c bảng điểm đ&atilde; đề nghị sẽ bị hủy.<br />
+<br />
+Chi tiết th&ocirc;ng b&aacute;o xem&nbsp;<a href="https://drive.google.com/file/d/12Upe4bAumphP20e6LVTYZ6erH6Vnwtuy/view?usp=sharing">tại đ&acirc;y</a></span></span></span></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>11/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>THÔNG BÁO VỀ VIỆC NỘP TIỀN BẢO HIỂM Y TẾ SINH VIÊN NĂM 2027 </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n xem chi tiết th&ocirc;ng b&aacute;o: <a href="https://drive.google.com/file/d/1TL0dkZ9zkEeG8RB0Mrhd-Fkg-SqY_G5n/view?usp=sharing">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>10/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về điều chỉnh chương trình đào tạo Cử Nhân -> Kỹ sư và ngược lại </span></div><div class='tbBoxContent'><p>- Trường th&ocirc;ng b&aacute;o đến c&aacute;c sinh vi&ecirc;n kh&oacute;a 2024 về trước muốn điều chỉnh học CTĐT&nbsp;tr&igrave;nh độ đại học (cấp bằng&nbsp;cử&nbsp;nh&acirc;n) sang CTĐT chuy&ecirc;n s&acirc;u đặc th&ugrave; (cấp bằng kỹ sư) hoặc ngược lại&nbsp;th&igrave; nộp đơn xin điều chỉnh (mẫu đơn <a href="https://sv.dut.udn.vn/download/Don_chuyenCTDT_CN-KS2.pdf" target="_blank">Tại đ&acirc;y</a>) tại khu HC1C, thời hạn nộp đến ng&agrave;y 19/11. Lưu &yacute;: sinh vi&ecirc;n chỉ được điều chỉnh 01 lần trong to&agrave;n kh&oacute;a học.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>06/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về Xét công nhận tốt nghiệp đợt 4 năm 2026 (TB số 3, cập nhật ngày10/11) </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch sinh vi&ecirc;n dự kiến được x&eacute;t TN: <a href="https://sv.dut.udn.vn/download/2026-11-DukienxetTN_v5.xlsx" target="_blank">Tại đ&acirc;y</a> (cập nhật ng&agrave;y 10/11/2026).</p>
+
+<p>- Sinh vi&ecirc;n lưu &yacute;: cần thực hiện x&aacute;c nhận số Căn cước c&ocirc;ng d&acirc;n tại website Hệ thống th&ocirc;ng tin sinh vi&ecirc;n. (xem lại &nbsp;th&ocirc;ng b&aacute;o ng&agrave;y 02/11/2026 tr&ecirc;n trang sv)</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>06/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB rà soát thông tin Bảo hiểm y tế </span></div><div class='tbBoxContent'><p>- Xem th&ocirc;ng b&aacute;o: <a href="https://sv.dut.udn.vn/download/5888 TB ra soat the BHYT nam 2026 de trien khai thu BHYT nam 2027_eisgn.pdf" target="_blank">Tại đ&acirc;y</a>. Hướng dẫn thu BHYT: <a href="https://sv.dut.udn.vn/download/HD THU BHYT HSSV 2026.pdf" target="_blank">Tại đ&acirc;y</a></p>
+
+<p>- Danh s&aacute;ch sinh vi&ecirc;n cần r&agrave; so&aacute;t: <a href="https://sv.dut.udn.vn/download/Danh sach ra soat the BHYT sinh vien nam 2027.xlsx" target="_blank">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>04/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo sinh hoạt lớp chủ nhiệm lần 2, học kỳ I năm học 2026-2027 </span></div><div class='tbBoxContent'><p>Sinh vi&ecirc;n xem Th&ocirc;ng b&aacute;o: <a href="https://dutudn-my.sharepoint.com/:b:/r/personal/nmdat_dut_udn_vn/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fnmdat%5Fdut%5Fudn%5Fvn%2FDocuments%2FC%C3%A1c%20n%E1%BB%99i%20dung%20SHCN%2FSHCN%20L%E1%BA%A7n%202%2C%20HK1%2C%202026%2D2027%2F5964%20TB%20to%20chuc%20sinh%20hoat%20lop%20chu%20nhiem%20lan%202%20hoc%20ky%20I%20nam%20hoc%202026%20%2D%202027%2Epdf&amp;parent=%2Fpersonal%2Fnmdat%5Fdut%5Fudn%5Fvn%2FDocuments%2FC%C3%A1c%20n%E1%BB%99i%20dung%20SHCN%2FSHCN%20L%E1%BA%A7n%202%2C%20HK1%2C%202026%2D2027&amp;share=cQpkA%5FIyd%5FPWR5b%5FwPw%5FW%2D9pEgUDoe3hb9peeWAp0NAUd%2DNv5Q">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>04/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Nhận chứng chỉ Giáo dục Quốc phòng - An Ninh cho sinh viên Khóa 2025 học tại TTGDQPAN và TT, Đại học Đà Nẵng </span></div><div class='tbBoxContent'><p><span style="font-size:14px"><span style="font-family:Times New Roman,Times,serif">Sinh vi&ecirc;n kh&oacute;a 2025 học Gi&aacute;o dục Quốc ph&ograve;ng - An ninh tại Trung t&acirc;m GDQPAN&nbsp;v&agrave; Thể thao, Đại học Đ&agrave; Nẵng nhận chứng chỉ GDQPAN:</span></span></p>
+
+<p><span style="color:#000000"><span style="font-size:14px"><span style="font-family:Times New Roman,Times,serif"><span class="marker"><big>- Thời gian: Từ 08 giờ 00&nbsp;đến 16 giờ 30 ng&agrave;y 06/11/2026 (Thứ 6).</big></span></span></span></span></p>
+
+<p><span style="color:#000000"><span style="font-size:14px"><span style="font-family:Times New Roman,Times,serif"><big>- Địa điểm: Sảnh tự học khu A (trước Khu H&agrave;nh ch&iacute;nh 1 cửa, ph&ograve;ng A108).</big></span></span></span></p>
+
+<p>&nbsp;</p>
+
+<p><span style="font-size:14px">Lưu &yacute;:&nbsp;</span>Sinh vi&ecirc;n tra cứu tại <a href="http://gdqpantt.udn.vn">gdqpantt.udn.vn</a> bằng họ t&ecirc;n/m&atilde; sinh vi&ecirc;n v&agrave; ng&agrave;y sinh (dd/mm/yyyy), ghi nhớ 4 SỐ CUỐI số hiệu chứng chỉ.</p>
+
+<p>Thời gian v&agrave; b&agrave;n nhận &rarr; mang thẻ sinh vi&ecirc;n, đến đ&uacute;ng lịch tại sảnh tầng 1, khu A, Trường Đại học B&aacute;ch khoa &rarr; xếp h&agrave;ng, xuất tr&igrave;nh thẻ, đọc 4 SỐ CUỐI số hiệu chứng chỉ cho C&aacute;n bộ trả CC &rarr; kiểm tra th&ocirc;ng tin rồi k&yacute; nhận;</p>
+
+<p>Nếu sai th&ocirc;ng tin th&igrave; b&aacute;o c&aacute;n bộ, chưa nhận v&agrave; chưa k&yacute;;</p>
+
+<p>Nhận thay phải c&oacute; giấy ủy quyền c&oacute; x&aacute;c nhận của địa phương.</p>
+
+<p>&nbsp;</p>
+
+<p>Chi tiết Quy tr&igrave;nh nhận chứng chỉ: <a href="https://drive.google.com/file/d/1EKUR9eXt25_S35lW32_jSGhGXVWEFUjh/view?usp=sharing">Xem tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>03/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo gia hạn thời gian thu học phí đợt 2, học kỳ 1/2026-2027 </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n xem chi tiết th&ocirc;ng b&aacute;o: <a href="https://drive.google.com/file/d/1vPq0d445YtSuf0PNNcSrtysz0tBNQsXB/view?usp=sharing">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>03/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Đăng ký thi tiếng Anh TOEIC (Reading & Listening) ngày 29/11/2026 và TOEFL ITP ngày 10/12/2026 </span></div><div class='tbBoxContent'><p>- Thời gian đăng k&yacute; thi: 8h00 - 11h00 c&aacute;c ng&agrave;y Thứ Ba (10/11/2026), Thứ Tư (11/11/2026) v&agrave; Thứ Năm (12/11/2026) tại Ph&ograve;ng A138.</p>
+
+<p>- Số lượng đăng k&yacute;: 54 th&iacute; sinh thi tr&ecirc;n giấy; 54 th&iacute; sinh thi tr&ecirc;n m&aacute;y t&iacute;nh. V&igrave; số lượng th&iacute; sinh c&oacute; hạn, sinh vi&ecirc;n chỉ được xem l&agrave; đăng k&yacute; th&agrave;nh c&ocirc;ng khi ho&agrave;n th&agrave;nh việc nộp hồ sơ + chuyển khoản lệ ph&iacute;.</p>
+
+<p>- Sinh vi&ecirc;n đọc kỹ th&ocirc;ng b&aacute;o v&agrave; l&agrave;m theo hướng dẫn: <a href="https://docs.google.com/document/d/1VZDsAyxSdNtp5bMnHB9KVOAKQqM6e1Qk/edit?usp=sharing&amp;ouid=117167945970566115971&amp;rtpof=true&amp;sd=true" id="OWA54c5932d-1fa2-8722-0bcb-3e039ded84a3" rel="noer noreferrer" target="_blank" title="https://docs.google.com/document/d/1VZDsAyxSdNtp5bMnHB9KVOAKQqM6e1Qk/edit?usp=sharing&amp;ouid=117167945970566115971&amp;rtpof=true&amp;sd=true">Xem tại đ&acirc;y</a></p>
+
+<p>- Group Zalo hỗ trợ: <a href="https://zalo.me/g/hhyjjg836" id="OWA0f068d6e-aa1b-81b0-0c43-95388c364a2e" rel="noer noreferrer" target="_blank" title="https://zalo.me/g/hhyjjg836">https://zalo.me/g/hhyjjg836</a></p>
+
+<p>- Sinh vi&ecirc;n c&oacute; thắc mắc, li&ecirc;n hệ trực tiếp Trung t&acirc;m HTSV&amp;QHDN tại ph&ograve;ng A138 hoặc gửi email đến địa chỉ: <a href="mailto:sserc@dut.udn.vn" id="OWA563dc406-99da-b0ae-1d51-942912d129a3" title="mailto:sserc@dut.udn.vn">sserc@dut.udn.vn</a>.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>03/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB Về xét công nhận tốt nghiệp đợt 4 năm 2026 (TB số 2)  (cập nhật 16h ngày 04/11) </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch sinh vi&ecirc;n dự kiến được x&eacute;t c&ocirc;ng nhận tốt nghiệp: <a href="https://sv.dut.udn.vn/download/2026-11-DukienxetTN_v3.xlsx" target="_blank">Tại đ&acirc;y</a>&nbsp;<span style="background-color:#f1c40f">(cập nhật 9hh ng&agrave;y 05/11)</span></p>
+
+<p>- Danh s&aacute;ch sinh vi&ecirc;n đủ điều kiện nhưng kh&ocirc;ng nộp đơn x&eacute;t TN: <a href="https://sv.dut.udn.vn/download/2026-11-KhongDangkyxetTN_v2.xlsx" target="_blank">Tại đ&acirc;y</a>&nbsp;<span style="background-color:#f1c40f">(cập nhật 16h ng&agrave;y 04/11)</span>. Gia hạn cho sinh vi&ecirc;n nộp đơn xin x&eacute;t TN đến 16h ng&agrave;y 05/11 tại ph&ograve;ng H&agrave;nh ch&iacute;nh 1 cửa (HC1C)</p>
+
+<p>- Danh s&aacute;ch sinh vi&ecirc;n c&oacute; đăng k&yacute; x&eacute;t TN nhưng chưa đủ điều kiện tốt nghiệp: <a href="https://sv.dut.udn.vn/download/2026-11-chuaduDKxetTN_v2.xlsx" target="_blank">Tại đ&acirc;y</a>&nbsp;<span style="background-color:#f1c40f">(cập nhật 16h ng&agrave;y 04/11)</span>. Sinh vi&ecirc;n phản hồi đến hết ng&agrave;y 05/11 tại HC1C hoặc tại trang <a href="https://yeucau.dut.udn.vn" target="_blank">Https://yeucau.dut.udn.vn</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>02/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>THÔNG BÁO  Về việc đặt câu hỏi/gửi yêu cầu trên hệ thống Yêu cầu trực tuyến  (Ticket systems) của Phòng Đào tạo & Bảo đảm chất lượng) </span></div><div class='tbBoxContent'><p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">1. Trước khi gửi y&ecirc;u cầu, sinh vi&ecirc;n cần:</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">- T&igrave;m hiểu c&aacute;c quy định, quy chế, th&ocirc;ng b&aacute;o, hướng dẫn li&ecirc;n quan đ&atilde; được ban h&agrave;nh;</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">- Li&ecirc;n hệ Cố vấn học tập/ GVCN,&nbsp;Khoa&nbsp;để được hỗ trợ, giải đ&aacute;p.</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">2. Khi gửi y&ecirc;u cầu:</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">Sinh vi&ecirc;n cần x&aacute;c định r&otilde; nội dung thuộc lĩnh vực n&agrave;o của Ph&ograve;ng ĐT&amp;BĐCL v&agrave; n&ecirc;u đầy đủ th&ocirc;ng tin theo mẫu sau:</span></span></p>
+
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &ldquo;K&iacute;nh gửi Ph&ograve;ng ĐT&amp;BĐCL,</var></span></span></span></p>
+
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;</var></span></span></span><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>Em t&ecirc;n l&agrave;: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip; MSSV: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;</var></span></span></span></p>
+
+<blockquote>
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>Lớp: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip; thuộc CTĐT: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip; Khoa: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;</var></span></span></span></p>
+
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>Số điện thoại li&ecirc;n hệ: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;</var></span></span></span></p>
+
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>Nội dung cần trao đổi: &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;</var></span></span></span></p>
+
+<p><span style="color:#2ecc71"><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><var>K&iacute;nh mong Ph&ograve;ng ĐT&amp;BĐCL hỗ trợ th&ocirc;ng tin/xử l&yacute;.</var></span></span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif"><span style="color:#2ecc71"><var>Tr&acirc;n trọng c&aacute;m ơn./.&rdquo;</var></span></span></span></p>
+</blockquote>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">3. Lưu &yacute;:</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">- Ti&ecirc;u đề cần n&ecirc;u r&otilde; nội dung (v&iacute; dụ: Cập nhật điểm học phần ph&uacute;c khảo; Kết quả kiểm d&ograve; chứng chỉ ngoại ngữ,...), kh&ocirc;ng viết tắt, kh&ocirc;ng đặt ti&ecirc;u đề chung chung.&nbsp;</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">- Viết c&acirc;u đầy đủ v&agrave; lịch sự.</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">-<span style="background-color:#2ecc71"> C&aacute;c y&ecirc;u cầu thiếu th&ocirc;ng tin, nội dung đề nghị thiếu lịch sự hoặc đ&atilde; c&oacute; sẵn trong c&aacute;c th&ocirc;ng b&aacute;o, quy định đ&atilde; ban h&agrave;nh sẽ được chậm xử l&yacute; hoặc kh&ocirc;ng được xử l&yacute;.</span></span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">Tr&acirc;n trọng./.</span></span></p>
+
+<p><span style="font-size:12px"><span style="font-family:Arial,Helvetica,sans-serif">Ph&ograve;ng Đ&agrave;o tạo v&agrave; Bảo đảm chất lượng</span></span></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>02/11/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo về kiểm tra, cập nhật số Căn cước/CCCD </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n cần kiểm tra số Căn cước/Căn cước c&ocirc;ng d&acirc;n trong th&ocirc;ng tin nh&acirc;n th&acirc;n tại website hệ thống th&ocirc;ng tin sinh vi&ecirc;n:</p>
+
+<p>&nbsp;+ Sinh vi&ecirc;n X&aacute;c nhận nếu số CC/CCCD đ&atilde; đ&uacute;ng</p>
+
+<p>&nbsp;+ Chưa x&aacute;c nhận v&agrave; nộp bản photo CC/CCCD tại khu H&agrave;nh ch&iacute;nh 1 cửa để Trường cập nhật, X&aacute;c nhận khi số CC/CCCD đ&atilde; đ&uacute;ng</p>
+
+<p>* Sinh vi&ecirc;n lưu &yacute;: phải&nbsp;kiểm tra v&agrave; cập nhật ch&iacute;nh x&aacute;c số CC/CCCD v&igrave; đ&acirc;y l&agrave; dữ liệu để cập nhật l&ecirc;n hệ thống dữ liệu của Bộ GD&amp;ĐT, đồng thời để cấp văn bằng số, cập nhật v&agrave;o dữ liệu quốc gia. Nếu sinh vi&ecirc;n kh&ocirc;ng thực hiện th&igrave; sẽ ho&agrave;n to&agrave;n chịu tr&aacute;ch nhiệm.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>28/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo chuyển phòng học ngày 31/10/2026 phục vụ tổ chức Ngày hội việc làm Bách khoa -DUT Job Fair 2026 </span></div><div class='tbBoxContent'><p>Chi tiết chuyển ph&ograve;ng học&nbsp;sinh vi&ecirc;n<a href="https://drive.google.com/file/d/1uuYerP2zsHn7FPkf2tvAVnPENuHBv6mq/view?usp=drive_link" target="_blank"> xem tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>27/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Kế hoạch học Giáo dục Quốc phòng - An ninh đợt 2 cho sinh viên khóa 2026 </span></div><div class='tbBoxContent'><p>Kế hoạch học Gi&aacute;o dục Quốc ph&ograve;ng - An ninh đợt 2 cho sinh vi&ecirc;n kh&oacute;a 2026<br />
+- Ph&ograve;ng ĐT&amp;BĐCL th&ocirc;ng b&aacute;o kế hoạch học Gi&aacute;o dục Quốc ph&ograve;ng - An ninh đợt 2 cho sinh vi&ecirc;n kh&oacute;a 2026, chi tiết:<a href="https://drive.google.com/file/d/1Nhgm4Ey4VMMgj2Gr7cWM5lia27l0Tpvy/view?usp=sharing" target="_blank">Xem tại đ&acirc;y</a><br />
+- Danh s&aacute;ch PH&Acirc;N XE ĐỢT 1 tại link: <a href="https://tuyensinh.dut.udn.vn/theo-doi-xe-hoc-quan-su">https://tuyensinh.dut.udn.vn/theo-doi-xe-hoc-quan-su</a><br />
+- Chi tiết kế hoạch học tập:&nbsp; <a href="https://drive.google.com/file/d/19JsPZthx0F_H3zvUK3OLb0Br8kHx8VqC/view?usp=sharing" target="_blank">xem tại đ&acirc;y</a><br />
+- Sinh vi&ecirc;n đ&atilde; c&oacute; chứng chỉ GDQP (bậc đại học): nộp đơn xin miễn học (Theo mẫu đ&iacute;nh k&egrave;m trong th&ocirc;ng b&aacute;o) k&egrave;m bản photo chứng chỉ (sao y bản ch&iacute;nh) tại khu H&agrave;nh ch&iacute;nh 1 cửa (v&agrave;o c&aacute;c buổi s&aacute;ng), hạn nộp đến 11 giờ 00 ng&agrave;y 30/10/2026.<br />
+- Trường hợp sinh vi&ecirc;n c&oacute; l&yacute; do bất khả kh&aacute;ng kh&ocirc;ng tham gia học GDQP th&igrave; cần nộp đơn xin ho&atilde;n học GDQP (Theo mẫu đ&iacute;nh k&egrave;m trong thống b&aacute;o) tại khu H&agrave;nh ch&iacute;nh 1 cửa (v&agrave;o c&aacute;c buổi s&aacute;ng), hạn nộp đến 11 giờ 00 ng&agrave;y 30/10/2026.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>23/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Đăng ký thi tiếng Anh Chuẩn đầu ra tại Trường ĐHNN đợt thi ngày 29/11/2026 </span></div><div class='tbBoxContent'><p><span style="font-size:12px">Sinh vi&ecirc;n xem chi tiết th&ocirc;ng b&aacute;o <a href="https://dut.udn.vn/Phong/Daotao/Thongbao/id/12363"><span style="background-color:#f1c40f">TẠI Đ&Acirc;Y</span></a></span></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>23/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Đăng ký thi tiếng Anh Chuẩn đầu ra tại Trường ĐHNN đợt thi ngày 29/11/2026 </span></div><div class='tbBoxContent'><p>- Đăng k&yacute; tr&ecirc;n Hệ thống th&ocirc;ng tin sinh vi&ecirc;n từ ng&agrave;y 26/10/2026 đến ng&agrave;y 03/11/2026.</p>
+
+<p>- Kể từ th&aacute;ng 11/2025, Trường&nbsp;KH&Ocirc;NG&nbsp;thu lệ ph&iacute; tự động qua t&agrave;i khoản ng&acirc;n h&agrave;ng.</p>
+
+<p>- Sinh vi&ecirc;n phải chuyển khoản lệ ph&iacute; thi&nbsp;(450.000đ/SV/lượt thi) trong thời gian từ ng&agrave;y 26/10/2026 đến ng&agrave;y 03/11/2026. Th&ocirc;ng b&aacute;o chi tiết: <a href="https://drive.google.com/file/d/127AWeVF8i-dEbvtAUOMILWhG9wvHbteb/view" id="m_-5386420634496504866OWAc896c512-23cc-03e8-35f6-9e288e87e0b2" target="_blank" title="https://drive.google.com/file/d/127AWeVF8i-dEbvtAUOMILWhG9wvHbteb/view">Xem tại đ&acirc;y</a></p>
+
+<p>- Trang th&ocirc;ng b&aacute;o, th&ocirc;ng tin tổng hợp về Kỳ thi AVCĐR: <a href="https://docs.google.com/document/d/1Ywg2YbNsp2z4jFG7GZHPvg9ovV7UvjuHaNXim3HJnQE/edit?tab=t.0" id="m_-5386420634496504866OWA136b38f1-4602-a0aa-4a85-7b59538d9c83" target="_blank" title="https://docs.google.com/document/d/1Ywg2YbNsp2z4jFG7GZHPvg9ovV7UvjuHaNXim3HJnQE/edit?tab=t.0">Xem tại đ&acirc;y</a></p>
+
+<p>- Group Zalo hỗ trợ: <a href="https://zalo.me/g/uercal651" id="m_-5386420634496504866OWA7e865a1d-c068-0f04-560c-397d10e39d71" target="_blank" title="https://zalo.me/g/uercal651">https://zalo.me/g/uercal651</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>20/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo kết quả thi tiếng Anh đầu vào khóa 2026 ngày thi 04/10/2026 </span></div><div class='tbBoxContent'><p>Sinh vi&ecirc;n xem th&ocirc;ng b&aacute;o <a href="https://dut.udn.vn/Phong/Daotao/Thongbao/id/12350">TẠI Đ&Acirc;Y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>16/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo Danh sách sinh viên dự kiến nhận học bổng khuyến khích học tập học kỳ II năm học 2025-2026 </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch dự kiến: <a href="https://dutudn-my.sharepoint.com/:b:/g/personal/tmthang_dut_udn_vn/IQAwTSRxMX4WR45K6L1PAcjBAeMUc2-OZPrA-epwf2dj9xA?e=6CS9TN">Xem tại đ&acirc;y</a><br />
+- Sinh vi&ecirc;n xem quy định x&eacute;t học bổng: <a href="https://dutudn-my.sharepoint.com/:b:/g/personal/tmthang_dut_udn_vn/IQDo2MwjbbuwSZ68vUSj72NxAZUDVyMhdS-D6egIz1aLpu4?e=XGF9Bp">Tại đ&acirc;y</a><br />
+- Sinh vi&ecirc;n c&oacute; thắc mắc vui l&ograve;ng phản hồi trực tiếp tại Ph&ograve;ng C&ocirc;ng t&aacute;c Sinh vi&ecirc;n trong giờ h&agrave;nh ch&iacute;nh từ ng&agrave;y 19/10-20/10/2026 (ph&ograve;ng S06.09)</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>14/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>THÔNG BÁO THU HỌC PHÍ ĐỢT 2 HỌC KỲ I NĂM HỌC 2026-2027 </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n xem chi tiết th&ocirc;ng b&aacute;o: <a href="https://drive.google.com/file/d/19o4KjI920UTB0P9mL9T43gCAxhwjS3ad/view?usp=sharing">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>10/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo lịch phát thẻ sinh viên Khóa 2026 (đợt 1) </span></div><div class='tbBoxContent'><p>Nh&agrave; trường phối hợp với Ng&acirc;n h&agrave;ng Vietinbank Bắc Đ&agrave; Nẵng ph&aacute;t thẻ sinh vi&ecirc;n Kh&oacute;a 2026 (đợt 1) từ ng&agrave;y 13/10 - 15/10/2026 như sau:<br />
+- Thời gian: S&aacute;ng: 07:30 - 11:00; Chiều: 13:00 - 16:30<br />
+- Địa điểm: sảnh&nbsp;tự học khu A (trước Khu H&agrave;nh ch&iacute;nh 1 cửa, ph&ograve;ng A108)<br />
+- Lưu &yacute;:<span style="color:#e74c3c"> Sinh vi&ecirc;n đem theo bản gốc CCCD/VNeID mức 2 để k&yacute; nhận thẻ</span><br />
+- Lịch cụ thể theo lớp: Bấm&nbsp;<a href="https://dutudn-my.sharepoint.com/:b:/g/personal/tmthang_dut_udn_vn/IQAZW3GdmbBMRoSNXE8_7SmrAUoGk19d13uzsL1X_KXnDBs?e=gppbma">xem tại đ&acirc;y&nbsp;</a><br />
+&nbsp;</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>09/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về Phát chứng chỉ Giáo dục Quốc phòng - An Ninh </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n kh&oacute;a 2025 học Gi&aacute;o dục Quốc ph&ograve;ng - An ninh tại Trung t&acirc;m GDQP- An ninh, Trường Qu&acirc;n sự Qu&acirc;n khu 5: nhận chứng chỉ tại sảnh&nbsp;tự học khu A (trước Khu H&agrave;nh ch&iacute;nh 1 cửa, ph&ograve;ng A108), từ 08h-11h30 ng&agrave;y 14/10/2026</p>
+
+<p>(danh s&aacute;ch c&aacute;c lớp:&nbsp;<span style="font-size:12.0pt">25D1,25D2,25D3,25D4,25D5,25TDH1,25TDH2,25TDH3)</span></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>07/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>V/v Nhận Đồ án tốt nghiệp học kỳ 1/2026-2027 (TB số 3) </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch sinh vi&ecirc;n được nhận Đồ &aacute;n tốt nghiệp: <a href="https://sv.dut.udn.vn/download/2610_DATN_v3_2026-10-07_thongbao.xlsx" target="_blank">Tại đ&acirc;y</a> (sheet DS_nhanDATN). Sinh vi&ecirc;n li&ecirc;n hệ khoa để l&agrave;m&nbsp;Đồ &aacute;n tốt nghiệp. Sinh vi&ecirc;n c&oacute; thắc mắc cần phần hồi về Khoa trong ng&agrave;y h&ocirc;m nay (07/10)</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>03/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>V/v Nhận đồ án tốt nghiệp học kỳ 1/2026-2027 (TB số 2) </span></div><div class='tbBoxContent'><p>- Danh s&aacute;ch sinh vi&ecirc;n nhận Đồ &aacute;n tốt nghiệp : <a href="https://sv.dut.udn.vn/download/2610_DATN_v2_2026-10-03_thongbao.xlsx" target="_blank">Tại đ&acirc;y</a></p>
+
+<p>- Sinh vi&ecirc;n li&ecirc;n hệ Khoa để l&agrave;m Đồ &aacute;n tốt nghiệp. Trường hợp sinh vi&ecirc;n c&oacute; l&yacute; do ch&iacute;nh đ&aacute;ng muốn ho&atilde;n l&agrave;m ĐATN th&igrave; cần l&agrave;m đơn xin ho&atilde;n l&agrave;m ĐATN v&agrave; nộp về HC1C, hạn cuối 07/10.</p>
+
+<p>- Trường sẽ tạo dữ liệu đăng k&yacute; học phần Đồ &aacute;n tốt nghiệp cho c&aacute;c&nbsp;sinh vi&ecirc;n c&oacute; t&ecirc;n&nbsp;trong danh s&aacute;ch nhận ĐATN.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>02/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo gia hạn thời gian thu học phí học kỳ I đợt 1 năm học 2026-2027 (Áp dụng đối với sinh viên các khóa tuyển sinh 2025 trở về trước) </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n xem chi tiết th&ocirc;ng b&aacute;o: <a href="https://drive.google.com/file/d/1y3LM4h4SKtFaWqMPogVkBlnMuHcia4-k/view?usp=sharing">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>01/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về Xét công nhận tốt nghiệp đợt 4 năm 2026 </span></div><div class='tbBoxContent'><p>- Sinh vi&ecirc;n xem th&ocirc;ng b&aacute;o về x&eacute;t c&ocirc;ng nhận tốt nghiệp đợt 4 năm 2026: <a href="https://sv.dut.udn.vn/download/Tb_xetCNTN_dot4_2026.pdf" target="_blank">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>01/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>TB về đăng ký tham gia bảo hiểm thân thể tự nguyện năm 2026-2027 </span></div><div class='tbBoxContent'><p>- Th&ocirc;ng b&aacute;o về đăng k&yacute; tham gia bảo hiểm th&acirc;n thể tự nguyện năm 2026-2027: <a href="https://sv.dut.udn.vn/download/5310 Thong bao ve dang ky BHTT sinh vien nam hoc 2026-2027_esign.pdf" target="_blank">Tại đ&acirc;y</a></p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>01/10/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Danh sách sinh viên dự kiến nhận Đồ án tốt nghiệp học kỳ 1/2026-2027 </span></div><div class='tbBoxContent'><p>-&nbsp;Danh s&aacute;ch sinh vi&ecirc;n dự kiến nhận Đồ &aacute;n tốt nghiệp học kỳ 1/2026-2027: <a href="https://sv.dut.udn.vn/download/2610_DATN_v1_thongbao.xlsx" target="_blank">tại đ&acirc;y</a>. Sinh vi&ecirc;n phản hồi kết quả x&eacute;t nhận Đồ &aacute;n tốt nghiệp đến ng&agrave;y 02/10 với Khoa để Khoa v&agrave; Ph&ograve;ng Đ&agrave;o tạo xem x&eacute;t, xử l&yacute;.</p>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>30/09/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Gia hạn thời gian đăng ký lớp mở bổ sung </span></div><div class='tbBoxContent'><ul>
+	<li>Ph&ograve;ng Đ&agrave;o tạo gia hạn thời gian đăng k&yacute; lớp mở bổ sung&nbsp;từ 8:00 - 24:00 ng&agrave;y&nbsp;01/10/2026. Danh s&aacute;ch lớp mở bổ sung: xem tại th&ocirc;ng b&aacute;o ng&agrave;y 24/09</li>
+	<li>Lưu &yacute;: Sinh vi&ecirc;n chỉ được đăng k&yacute; th&ecirc;m, kh&ocirc;ng được huỷ c&aacute;c đ&atilde; đăng k&yacute;.</li>
+</ul>
+</div></div><div class='tbBox'><div class='tbBoxCaption'><b><span style='color: red;line-height:100%;font-family:times new roman,serif'>30/09/2026:</b></span>&nbsp;&nbsp;&nbsp;&nbsp; <span>Thông báo chuyển phòng học khu F ngày 04/10/2026 phục vụ thi Anh văn đầu vào khoá 2026  </span></div><div class='tbBoxContent'><p>Chi tiết chuyển ph&ograve;ng <a href="https://drive.google.com/file/d/1zlSluiUn3u3fYwiI6S0dTPEzadlNMP3u/view?usp=drive_link" target="_blank">xem tại đ&acirc;y</a></p>
+</div></div><div><div id='Paging' class='Paging'><div class='PagingCurrent'>1</div><div onclick='javascript:TB_Load(2)' class='Page' >2</div> <div onclick='javascript:TB_Load(3)' class='Page' >3</div> <div onclick='javascript:TB_Load(4)' class='Page' >4</div> <div onclick='javascript:TB_Load(5)' class='Page' >5</div> <div onclick='javascript:TB_Load(2)' class='PagingNext'></div> <div onclick='javascript:TB_Load(64)' class='PagingLast'>Trang cuối</div></div><div style='clear:both;'></div> </div>
+</div>
+        </div>
+      </div>
+      <div id="tabs_PubTB-divT1" style="width: 100%; padding: 5px 2px 2px 2px;">
+        <div id="divPSTBListT1" class="pageDiv">          
+        </div>
+      </div>
+      <div id="tabs_PubTB-divT2" style="width: 100%; padding: 5px 2px 2px 2px;">
+        <div id="divPSTBListT2" class="pageDiv">           
+        </div>
+      </div>
+      <div id="tabs_PubTB-divT3" style="width: 100%; padding: 5px 2px 2px 2px;">
+        <div id="divPSTBListT3" class="pageDiv">           
+        </div>
+      </div>
+      <div id="tabs_PubTB-divT4" style="width: 100%; padding: 5px 2px 2px 2px;">
+          <div id="divPSTBListT4" class="pageDiv">             
+          </div>
+        </div>   
+      <div id="tabs_PubTB-divT5" style="width: 100%; padding: 5px 2px 2px 2px;">
+        <div id="divPSTBListT5" class="pageDiv">         
+        </div>
+      </div>       
+     <div id="tabs_PubTB-divT6" style="width: 100%; padding: 5px 2px 2px 2px;">
+      <div id="divPSTBListT6" class="pageDiv">         
+      </div>
+     </div>  
+</div>
+   <div class="pageFooter" style="min-width:1024px;">
+    <div class="footerContent" style="width: 1024px; margin: 0 auto;">
+      <div class="footerBlock" style="width:200px">
+        <b>Phòng Tổ chức - Hành chính</b><br />
+        <span>ĐC: Phòng S01.04</span><br />
+        <b>ĐT: 0236.3842308</b><br />
+        <span><a href="https://dut.udn.vn/Phong/TCHC" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/TCHC </a></span>
+        <br />
+        <br />
+        <b>Phòng Đào tạo</b><br />
+        <span>ĐC: Phòng S05.07, S05.10</span><br />
+        <b>ĐT: 0236.3842145</b><br />
+        <span><a href="https://dut.udn.vn/Phong/DaoTao" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/DaoTao </a></span>
+      </div>
+      <div class="footerBlock" style="width:330px">
+        <b>Phòng Khoa học Công nghệ &amp; Hợp tác quốc tế</b><br />
+        <span>ĐC: Phòng S06.02</span><br />
+        <b>ĐT: 0236.841292</b><br />
+        <span><a href="https://dut.udn.vn/Phong/KhoaHoc" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/KhoaHoc </a></span>
+        <br />
+        <br />
+        <b>Phòng Quản lý Chất lượng và Pháp chế</b><br />
+        <span>ĐC: Phòng S05.03</span><br />
+        <b>ĐT: 0236.3737931</b><br />
+        <span><a href="https://dut.udn.vn/Phong/QualityAssurance" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/QualityAssurance </a></span>
+
+      </div>
+      <div class="footerBlock" style="width:200px">
+        <b>Phòng Công tác sinh viên</b><br />
+        <span>ĐC: Phòng S06.08</span><br />
+        <b>ĐT: 0236.3738268</b><br />
+        <span><a href="https://dut.udn.vn/Phong/Sinhvien" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/Sinhvien </a></span>
+        <br />
+        <br />
+        <b>Phòng Kế hoạch - Tài chính</b><br />
+        <span>ĐC: Phòng S03.11</span><br />
+        <b>ĐT: 0236.3841660</b><br />
+        <span><a href="https://dut.udn.vn/Phong/TaiChinh" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/TaiChinh </a></span>
+      </div>
+      <div class="footerBlock" style="width:200px">
+        <b>Phòng Cơ sở Vật chất</b><br />
+        <span>ĐC: Phòng S03.02, S03.05</span><br />
+        <b>ĐT: 0236.3740719</b><br />
+        <span><a href="https://dut.udn.vn/Phong/VatChat" style="color: White; text-decoration: none;" target="_blank"> https://dut.udn.vn/Phong/VatChat </a></span>         
+      </div>
+    </div>
+    <div class="footerBottom">
+      © 2014 - Trường Đại học Bách Khoa - Đại học Đà Nẵng
+    </div>
+  </div>
+
+    </form>
+  </div>
+  
+  
+</body>
+</html>
+

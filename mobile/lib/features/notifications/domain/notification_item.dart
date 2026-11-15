@@ -21,6 +21,8 @@ class NotificationItem {
     this.courseCode,
     this.courseTag,
     this.senderName,
+    this.sourceUrl,
+    this.sourceName,
   });
 
   final dynamic id;
@@ -32,6 +34,8 @@ class NotificationItem {
   final String scopeType;
   final String sourceType;
   final String? sourceChannel;
+  final String? sourceUrl;
+  final String? sourceName;
   final String? actionRequired;
   final DateTime? deadlineAt;
   final bool isEmergency;
@@ -73,6 +77,8 @@ class NotificationItem {
       courseCode: json['course_code']?.toString(),
       courseTag: json['course_tag']?.toString(),
       senderName: json['sender_name']?.toString(),
+      sourceUrl: json['source_url']?.toString(),
+      sourceName: json['source_name']?.toString(),
     );
   }
 }

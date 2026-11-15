@@ -5,6 +5,8 @@ data/*.db-wal
 data/*.db-shm
 .env
 .env.*
+client_secret*.json
+*.keystore
 *.md
 specs/
 .DS_Store

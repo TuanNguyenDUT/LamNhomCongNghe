@@ -8,17 +8,31 @@ class NotificationRepositoryImpl implements NotificationRepository {
   final NotificationApiService _apiService;
 
   @override
-  Future<NotificationPage> fetchNotifications({int page = 1, int limit = 20}) {
-    return _apiService.fetchNotifications(page: page, limit: limit);
+  Future<NotificationPage> fetchNotifications({
+    int page = 1,
+    int limit = 50,
+    String? studentId,
+    String? sourceChannel,
+  }) {
+    return _apiService.fetchNotifications(
+      page: page,
+      limit: limit,
+      studentId: studentId,
+      sourceChannel: sourceChannel,
+    );
   }
 
   @override
-  Future<NotificationItem> fetchNotification(int id) {
-    return _apiService.fetchNotification(id);
+  Future<NotificationItem> fetchNotification(dynamic id, {String? studentId}) {
+    return _apiService.fetchNotification(id, studentId: studentId);
   }
 
   @override
-  Future<void> setReadStatus(int id, {required bool isRead}) {
-    return _apiService.setReadStatus(id, isRead: isRead);
+  Future<void> setReadStatus(
+    dynamic id, {
+    required bool isRead,
+    String? studentId,
+  }) {
+    return _apiService.setReadStatus(id, isRead: isRead, studentId: studentId);
   }
 }

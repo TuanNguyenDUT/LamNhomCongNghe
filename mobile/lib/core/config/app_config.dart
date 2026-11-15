@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum AppEnvironment {
   development,
   staging,
@@ -18,10 +20,18 @@ abstract final class AppConfig {
     defaultValue: 'development',
   );
 
-  static const apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000',
-  );
+  static const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  static String get apiBaseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      return _configuredBaseUrl;
+    }
+    if (kIsWeb) return '';
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:3000';
+    }
+    return 'http://localhost:3000';
+  }
 
   static const enableFirebase = bool.fromEnvironment(
     'ENABLE_FIREBASE',

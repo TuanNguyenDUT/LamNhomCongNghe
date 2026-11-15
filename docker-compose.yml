@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 1. Cơ sở dữ liệu PostgreSQL cho DUT Notifications
+  postgres:
+    image: postgres:15-alpine
+    container_name: dut_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dut_notifications
+    ports:
+      - "5432:5432" # Mở cổng 5432 cho DBeaver kết nối trực tiếp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql # Tự động tạo bảng khi khởi chạy lần đầu
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dut_notifications"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Server Backend Node.js & Static Flutter Web
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dut_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dut_notifications
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: dut_notifications
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    ports:
+      - "3000:3000" # Mở cổng 3000 cho Web App và REST APIs
+
+volumes:
+  postgres_data:

@@ -10,18 +10,25 @@ class NotificationApiService {
 
   Future<NotificationPage> fetchNotifications({
     int page = 1,
-    int limit = 20,
+    int limit = 50,
+    String? studentId,
+    String? sourceChannel,
   }) async {
+    final query = <String, dynamic>{
+      'page': page,
+      'limit': limit,
+      'student_id': studentId ?? AppConfig.developmentStudentId,
+    };
+    if (sourceChannel != null && sourceChannel.isNotEmpty && sourceChannel != 'ALL') {
+      query['source_channel'] = sourceChannel;
+    }
+
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/v1/notifications',
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-        'student_id': AppConfig.developmentStudentId,
-      },
+      queryParameters: query,
     );
     final payload = _successData(response.data);
-    final itemsJson = payload['items'] as List<dynamic>? ?? const [];
+    final itemsJson = (payload['notifications'] ?? payload['items']) as List<dynamic>? ?? const [];
     final pagination = _asMap(payload['pagination']);
 
     return NotificationPage(
@@ -39,19 +46,30 @@ class NotificationApiService {
     );
   }
 
-  Future<NotificationItem> fetchNotification(int id) async {
+  Future<NotificationItem> fetchNotification(
+    dynamic id, {
+    String? studentId,
+  }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/v1/notifications/$id',
-      queryParameters: {'student_id': AppConfig.developmentStudentId},
+      queryParameters: {
+        'student_id': studentId ?? AppConfig.developmentStudentId,
+      },
     );
-    return NotificationItem.fromJson(_successData(response.data));
+    final data = _successData(response.data);
+    final itemData = data['notification'] is Map ? data['notification'] : data;
+    return NotificationItem.fromJson(_asMap(itemData));
   }
 
-  Future<void> setReadStatus(int id, {required bool isRead}) async {
+  Future<void> setReadStatus(
+    dynamic id, {
+    required bool isRead,
+    String? studentId,
+  }) async {
     await _dio.patch<void>(
       '/api/v1/notifications/$id/read',
       data: {
-        'student_id': AppConfig.developmentStudentId,
+        'student_id': studentId ?? AppConfig.developmentStudentId,
         'is_read': isRead,
       },
     );

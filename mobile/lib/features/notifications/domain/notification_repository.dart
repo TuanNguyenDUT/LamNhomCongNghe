@@ -1,9 +1,18 @@
 import 'notification_item.dart';
 
 abstract interface class NotificationRepository {
-  Future<NotificationPage> fetchNotifications({int page = 1, int limit = 20});
+  Future<NotificationPage> fetchNotifications({
+    int page = 1,
+    int limit = 50,
+    String? studentId,
+    String? sourceChannel,
+  });
 
-  Future<NotificationItem> fetchNotification(int id);
+  Future<NotificationItem> fetchNotification(dynamic id, {String? studentId});
 
-  Future<void> setReadStatus(int id, {required bool isRead});
+  Future<void> setReadStatus(
+    dynamic id, {
+    required bool isRead,
+    String? studentId,
+  });
 }
