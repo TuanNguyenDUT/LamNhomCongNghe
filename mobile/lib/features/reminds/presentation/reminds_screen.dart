@@ -401,7 +401,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                   ],
                                 ),
 
-                                // Nút Thêm vào Google Calendar dành riêng cho Remind
+                                // Nút Tự động thêm vào Google Calendar dành riêng cho Remind (Không chuyển trang)
                                 const SizedBox(height: 10),
                                 Container(
                                   padding: const EdgeInsets.only(top: 8),
@@ -417,15 +417,15 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                     onTap: () => _addToGoogleCalendar(item),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                       decoration: BoxDecoration(
                                         color: item.googleEventId != null
-                                            ? const Color(0xFF34C759).withValues(alpha: 0.1)
+                                            ? const Color(0xFFE8F5E9)
                                             : const Color(0xFF4285F4).withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: item.googleEventId != null
-                                              ? const Color(0xFF34C759).withValues(alpha: 0.3)
+                                              ? const Color(0xFF34C759).withValues(alpha: 0.4)
                                               : const Color(0xFF4285F4).withValues(alpha: 0.25),
                                         ),
                                       ),
@@ -434,7 +434,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                         children: [
                                           Icon(
                                             item.googleEventId != null
-                                                ? Icons.event_available_rounded
+                                                ? Icons.check_circle_rounded
                                                 : Icons.edit_calendar_rounded,
                                             size: 16,
                                             color: item.googleEventId != null
@@ -444,8 +444,8 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                           const SizedBox(width: 6),
                                           Text(
                                             item.googleEventId != null
-                                                ? 'Đã thêm vào Google Calendar • Mở xem ↗'
-                                                : 'Thêm vào Google Calendar ↗',
+                                                ? 'Đã tự động lưu vào Google Calendar'
+                                                : 'Thêm vào Google Calendar',
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
@@ -572,38 +572,12 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
     }
   }
 
-  String _formatGCalDate(DateTime dt) {
-    final utc = dt.toUtc();
-    return DateFormat("yyyyMMdd'T'HHmmss'Z'").format(utc);
-  }
-
   Future<void> _addToGoogleCalendar(DeadlineItem item) async {
-    final startDate = item.dueDate;
-    final endDate = startDate.add(const Duration(hours: 1));
-    final startStr = _formatGCalDate(startDate);
-    final endStr = _formatGCalDate(endDate);
-
-    final details = StringBuffer();
-    if (item.description != null && item.description!.isNotEmpty) {
-      details.writeln(item.description);
-      details.writeln();
-    }
-    if (item.courseCode != null && item.courseCode!.isNotEmpty) {
-      details.writeln('Mã học phần: ${item.courseCode}');
-    }
-    details.writeln('Hệ thống Thông báo Sinh viên DUT (sv.dut.udn.vn)');
-
-    final gcalUri = Uri.https('calendar.google.com', '/calendar/render', {
-      'action': 'TEMPLATE',
-      'text': item.title,
-      'dates': '$startStr/$endStr',
-      'details': details.toString(),
-    });
-
     try {
       final dio = ref.read(dioProvider);
       final authState = ref.read(authControllerProvider);
       final studentCode = authState.session?.studentCode ?? item.studentId;
+
       await dio.post(
         '/api/v1/calendar/google/sync',
         data: {
@@ -611,25 +585,35 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
           'deadline_id': item.deadlineId,
         },
       );
+
       ref.invalidate(deadlinesListProvider);
-    } catch (_) {}
 
-    try {
-      await launchUrl(gcalUri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank');
-    } catch (_) {
-      try {
-        await launchUrl(gcalUri);
-      } catch (_) {}
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đang mở Google Calendar để thêm: ${item.title}'),
-          backgroundColor: const Color(0xFF1A73E8),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Đã tự động lưu vào Google Calendar: "${item.title}"'),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2E7D32),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi thêm vào Google Calendar: $err'),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
     }
   }
 

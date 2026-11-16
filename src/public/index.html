@@ -488,7 +488,11 @@
                 <td><span class="status-badge status-${d.status}">${d.status}</span></td>
                 <td>
                   <div style="display:flex;gap:6px;align-items:center;">
-                    <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:#1a73e8;border-color:#1a73e8;" onclick="addSingleToGoogleCalendar('${d.deadline_id}', '${(d.title || '').replace(/'/g, "\\'")}', '${d.due_date}', '${(d.description || '').replace(/'/g, "\\'")}', '${d.course_code || ''}')">📅 Thêm Google Cal ↗</button>
+                    ${d.google_event_id ? `
+                      <span style="color:#16a34a;font-weight:600;font-size:11px;padding:4px 8px;background:#e8f5e9;border-radius:6px;border:1px solid #a7f3d0;">✔ Đã thêm Google Cal</span>
+                    ` : `
+                      <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:#1a73e8;border-color:#1a73e8;" onclick="addSingleToGoogleCalendar('${d.deadline_id}', '${(d.title || '').replace(/'/g, "\\'")}')">📅 Thêm Google Cal</button>
+                    `}
                     ${d.status !== 'COMPLETED' ? `
                       <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="markComplete('${d.deadline_id}')">✔ Xong</button>
                     ` : '<span style="color:#16a34a;font-weight:600;font-size:12px;">Đã xong</span>'}
@@ -519,29 +523,20 @@
       loadDeadlines();
     }
 
-    async function addSingleToGoogleCalendar(id, title, dueDate, description, courseCode) {
-      const startDate = new Date(dueDate || Date.now());
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-      const formatGCal = (d) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
-      const startStr = formatGCal(startDate);
-      const endStr = formatGCal(endDate);
-
-      const t = encodeURIComponent(title || 'Hạn chót học tập');
-      const det = encodeURIComponent(
-        `${description || ''}\n\nMã học phần: ${courseCode || 'Chung'}\nNguồn: Cổng thông tin DUT (sv.dut.udn.vn)`
-      );
-      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${t}&dates=${startStr}/${endStr}&details=${det}`;
-
+    async function addSingleToGoogleCalendar(id, title) {
       try {
         const sId = getCurrentStudentId();
-        await fetch('/api/v1/calendar/google/sync', {
+        const res = await fetch('/api/v1/calendar/google/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ student_id: sId, deadline_id: id }),
         });
-      } catch (_) {}
-
-      window.open(gcalUrl, '_blank');
+        const data = await res.json();
+        alert(`✅ Đã tự động thêm vào Google Calendar thành công!\nTiêu đề: ${title}`);
+        loadDeadlines();
+      } catch (err) {
+        alert('Lỗi thêm Google Calendar: ' + err.message);
+      }
     }
 
     async function syncCoursesFromDut() {
