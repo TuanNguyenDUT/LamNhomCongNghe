@@ -86,6 +86,19 @@ class FbCrawlerService {
   }
 
   /**
+   * Chuẩn hóa tiêu đề bài viết (loại bỏ emoji, ký tự đặc biệt, ngoặc) để so khớp chính xác
+   */
+  _normalizePostTitle(str) {
+    return String(str || '')
+      .normalize('NFKC')
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+      .replace(/[«»“”"''\[\]【】–—\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  /**
    * Trích xuất các liên kết thực sự xuất hiện trong nội dung bài viết
    * Nếu không có liên kết nào, trả về mảng rỗng [] (TUYỆT ĐỐI KHÔNG TỰ BỊA LINK)
    * Tự động nhận diện ngữ cảnh tiêu đề liên kết theo dòng văn bản
@@ -276,10 +289,16 @@ class FbCrawlerService {
                 // 3. Đối chiếu danh sách bài viết chuẩn (fallback list) theo ngữ nghĩa tiêu đề
                 if (!postUrl) {
                   const curated = this._getCuratedFallbackNotices(pageCode);
-                  const firstLine = fullMsg.split('\n')[0].normalize('NFKC').toLowerCase();
+                  const normFirstLine = this._normalizePostTitle(fullMsg.split('\n')[0]);
                   for (const c of curated) {
-                    const cTitleNorm = (c.title || '').normalize('NFKC').toLowerCase();
-                    if (firstLine.includes(cTitleNorm) || cTitleNorm.includes(firstLine.slice(0, 30))) {
+                    const cTitleNorm = this._normalizePostTitle(c.title);
+                    if (
+                      normFirstLine.length > 10 &&
+                      (normFirstLine === cTitleNorm ||
+                       normFirstLine.includes(cTitleNorm) ||
+                       cTitleNorm.includes(normFirstLine) ||
+                       (cTitleNorm.length > 20 && normFirstLine.slice(0, 30) === cTitleNorm.slice(0, 30)))
+                    ) {
                       postUrl = c.source_url;
                       break;
                     }
@@ -476,8 +495,8 @@ class FbCrawlerService {
         if (p.source_url && c.source_url && (p.source_url === c.source_url || p.source_url.includes(c.source_url) || c.source_url.includes(p.source_url))) {
           return true;
         }
-        const normP = (p.title || '').normalize('NFKC').replace(/[\s\W]+/g, '').toLowerCase();
-        const normC = (c.title || '').normalize('NFKC').replace(/[\s\W]+/g, '').toLowerCase();
+        const normP = this._normalizePostTitle(p.title);
+        const normC = this._normalizePostTitle(c.title);
         return normP.length > 10 && normC.length > 10 && (normP === normC || normP.includes(normC) || normC.includes(normP));
       });
       if (!exists) {

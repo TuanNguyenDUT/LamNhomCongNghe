@@ -166,3 +166,54 @@ test('FB-FIX-04: Reload qua CrawlerManagerService hoàn tất thu thập toàn b
   assert.equal(stats2.inserted_count, 0, 'Lần 2 reload không được nhân bản thêm bài viết');
   assert.equal(stats2.duplicate_count, stats1.total_scraped, 'Toàn bộ bài viết phải được nhận diện và đồng bộ');
 });
+
+test('FB-FIX-05: repairAndDeduplicateFacebookNotices hợp nhất nội dung phong phú và kế thừa attachments khi dọn trùng', async () => {
+  const store = new InMemoryDbStore();
+  const notifSvc = new NotificationService(store);
+
+  // Bản ghi cũ: có link generic, nội dung ngắn (15 ký tự), không attachments
+  const oldGeneric = {
+    id: 'old-generic-robot-id',
+    title: 'TỰ HÀO SINH VIÊN BÁCH KHOA! ROBOT TỰ HÀNH CHINH PHỤC GIẢI NHẤT AIoT DEVELOPER INNOWORKS 2026',
+    content: 'Nội dung ngắn cũ...',
+    source_channel: 'FB_CTSV',
+    source_name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
+    source_url: 'https://www.facebook.com/ctsvdhbkdhdn',
+    published_at: '2026-11-16T01:01:06.000Z',
+    attachments: [],
+  };
+
+  // Bản ghi mới: có link posts cụ thể, nội dung chi tiết đầy đủ (200 ký tự), có attachments
+  const newDetailed = {
+    id: 'new-detailed-robot-id',
+    title: 'TỰ HÀO SINH VIÊN BÁCH KHOA! ROBOT TỰ HÀNH CHINH PHỤC GIẢI NHẤT AIoT DEVELOPER INNOWORKS 2026 🤖🌱',
+    content: 'Một lần nữa, sinh viên Trường Đại học Bách khoa, Đại học Đà Nẵng khẳng định bản lĩnh, trí tuệ và sự sáng tạo tại đấu trường công nghệ quốc tế với giải Nhất cuộc thi AIoT Developer Innoworks 2026 chi tiết đầy đủ.',
+    source_channel: 'FB_CTSV',
+    source_name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
+    source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1824646392020124',
+    published_at: '2026-11-16T01:01:06.000Z',
+    attachments: [{ title: 'Xem chi tiết giải thưởng', url: 'https://dut.udn.vn/innoworks2026' }],
+  };
+
+  await notifSvc.ingestNotification(oldGeneric);
+  // Cố tình thêm trực tiếp vào store để giả lập dữ liệu lịch sử bị trùng trong CSDL
+  store.notifications.set(newDetailed.id, { ...newDetailed });
+
+  assert.equal(store.notifications.size, 2, 'Trước khi dọn dẹp, store phải có 2 bản ghi');
+
+  const result = await notifSvc.repairAndDeduplicateFacebookNotices();
+  assert.equal(result.deletedDuplicates, 1, 'Phải xóa 1 bản ghi trùng lặp');
+
+  // Kiểm tra bản ghi còn lại trong store:
+  let remaining = null;
+  for (const n of store.notifications.values()) {
+    if (n.source_channel === 'FB_CTSV') {
+      remaining = n;
+      break;
+    }
+  }
+  assert.ok(remaining, 'Phải còn lại 1 bản ghi duy nhất');
+  assert.equal(remaining.source_url, 'https://www.facebook.com/ctsvdhbkdhdn/posts/1824646392020124', 'source_url phải là URL bài viết cụ thể');
+  assert.ok(remaining.content.length > 50, 'Nội dung phải được giữ lại bản đầy đủ phong phú');
+  assert.ok(remaining.attachments && remaining.attachments.length > 0, 'Attachments phải được kế thừa đầy đủ');
+});

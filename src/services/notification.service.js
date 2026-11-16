@@ -203,11 +203,14 @@ class NotificationService {
             if ((!n.attachments || n.attachments.length === 0) && c.attachments && c.attachments.length > 0) {
               n.attachments = c.attachments;
             }
+            if ((!n.content || n.content.length < (c.content || '').length) && c.content) {
+              n.content = c.content;
+            }
             this.dbStore.saveNotification(n);
             if (this.dbStore.pool) {
-              this.dbStore.pool.query(
-                'UPDATE notifications SET source_url = $1, attachments = $2::jsonb WHERE id = $3',
-                [n.source_url, JSON.stringify(n.attachments || []), n.id]
+              await this.dbStore.pool.query(
+                'UPDATE notifications SET source_url = $1, attachments = $2::jsonb, content = $3 WHERE id = $4',
+                [n.source_url, JSON.stringify(n.attachments || []), n.content || '', n.id]
               ).catch(() => {});
             }
             repairedCount++;
@@ -219,15 +222,46 @@ class NotificationService {
       // 2. Kiểm tra trùng lặp
       if (seenByChannelAndTitle.has(key)) {
         const first = seenByChannelAndTitle.get(key);
-        // Ưu tiên giữ lại bản ghi có link cụ thể (/posts/)
-        if (first.source_url && first.source_url.includes('/posts/')) {
-          toDeleteIds.push(id);
-        } else if (n.source_url && n.source_url.includes('/posts/')) {
-          toDeleteIds.push(first.id);
+        const firstIsSpecific = first.source_url && first.source_url.includes('/posts/');
+        const nIsSpecific = n.source_url && n.source_url.includes('/posts/');
+
+        let keepRecord = first;
+        let deleteRecord = n;
+
+        if (!firstIsSpecific && nIsSpecific) {
+          keepRecord = n;
+          deleteRecord = first;
           seenByChannelAndTitle.set(key, n);
-        } else {
-          toDeleteIds.push(id);
+        } else if (firstIsSpecific && nIsSpecific) {
+          // Ưu tiên bản ghi có nội dung đầy đủ hơn
+          if ((n.content || '').length > (first.content || '').length) {
+            keepRecord = n;
+            deleteRecord = first;
+            seenByChannelAndTitle.set(key, n);
+          }
         }
+
+        // Kế thừa dữ liệu attachments và content nếu bản ghi bị xóa có nội dung đầy đủ hơn
+        let keepUpdated = false;
+        if ((!keepRecord.attachments || keepRecord.attachments.length === 0) && deleteRecord.attachments && deleteRecord.attachments.length > 0) {
+          keepRecord.attachments = deleteRecord.attachments;
+          keepUpdated = true;
+        }
+        if ((!keepRecord.content || keepRecord.content.length < 50) && deleteRecord.content && deleteRecord.content.length > 50) {
+          keepRecord.content = deleteRecord.content;
+          keepUpdated = true;
+        }
+        if (keepUpdated) {
+          this.dbStore.saveNotification(keepRecord);
+          if (this.dbStore.pool) {
+            await this.dbStore.pool.query(
+              'UPDATE notifications SET attachments = $1::jsonb, content = $2 WHERE id = $3',
+              [JSON.stringify(keepRecord.attachments || []), keepRecord.content || '', keepRecord.id]
+            ).catch(() => {});
+          }
+        }
+
+        toDeleteIds.push(deleteRecord.id);
       } else {
         seenByChannelAndTitle.set(key, n);
       }
@@ -242,7 +276,7 @@ class NotificationService {
         );
       }
       if (this.dbStore.pool) {
-        this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [delId]).catch(() => {});
+        await this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [delId]).catch(() => {});
       }
     }
 
@@ -342,12 +376,18 @@ class NotificationService {
         isUpdated = true;
       }
 
+      // Cập nhật content nếu payload có nội dung dài hơn nội dung cũ
+      if (isFb && payload.content && (!existing.content || existing.content.length < payload.content.length)) {
+        existing.content = payload.content;
+        isUpdated = true;
+      }
+
       if (isUpdated) {
         this.dbStore.saveNotification(existing);
         if (this.dbStore.pool) {
-          this.dbStore.pool.query(
-            'UPDATE notifications SET source_url = $1, attachments = $2::jsonb, published_at = $3 WHERE id = $4',
-            [existing.source_url, JSON.stringify(existing.attachments || []), existing.published_at, existing.id]
+          await this.dbStore.pool.query(
+            'UPDATE notifications SET source_url = $1, attachments = $2::jsonb, published_at = $3, content = $4 WHERE id = $5',
+            [existing.source_url, JSON.stringify(existing.attachments || []), existing.published_at, existing.content || '', existing.id]
           ).catch((e) => console.warn('Failed to update FB existing notice in DB:', e.message));
         }
       }
@@ -373,7 +413,7 @@ class NotificationService {
             );
           }
           if (this.dbStore.pool) {
-            this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [dupId]).catch(() => {});
+            await this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [dupId]).catch(() => {});
           }
         }
       }
