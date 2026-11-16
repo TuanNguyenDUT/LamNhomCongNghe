@@ -320,6 +320,115 @@ class NotificationController {
   // ==========================================
   // 4. GOOGLE CALENDAR SYNC & ICS (FR-09)
   // ==========================================
+  async getGoogleAuthUrl(queryParams = {}) {
+    const studentId = queryParams.student_id || queryParams.student_code || '102230026';
+    const redirectUri = queryParams.redirect_uri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
+    const authData = googleCalendarService.getOAuthConsentUrl(redirectUri, studentId);
+    return {
+      statusCode: 200,
+      body: {
+        status: 'success',
+        data: {
+          ...authData,
+          student_id: studentId,
+          redirect_uri: redirectUri,
+        },
+      },
+    };
+  }
+
+  async getGoogleCalendarStatus(queryParams = {}) {
+    const studentId = queryParams.student_id || queryParams.student_code || '102230026';
+    const statusData = googleCalendarService.getGoogleCalendarStatus(studentId);
+    return {
+      statusCode: 200,
+      body: {
+        status: 'success',
+        data: statusData,
+      },
+    };
+  }
+
+  async handleGoogleCallback(queryParams = {}) {
+    const code = queryParams.code;
+    const error = queryParams.error;
+    const studentId = queryParams.state || '102230026';
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
+
+    if (error) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        rawBody: `<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><title>Lỗi ủy quyền Google Calendar</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}.card{background:#fff;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.08);max-width:440px;text-align:center;}.btn{display:inline-block;margin-top:20px;padding:10px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;}</style></head>
+<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">⚠️</div><h2>Cấp quyền không thành công</h2><p style="color:#64748b;font-size:14px;">Google từ chối hoặc bạn đã hủy ủy quyền: <strong>${error}</strong></p><a href="/" class="btn">Quay lại ứng dụng</a></div></body></html>`,
+      };
+    }
+
+    if (!code) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: 'Thiếu Authorization Code từ Google Callback' },
+      };
+    }
+
+    try {
+      const tokens = await googleCalendarService.exchangeAuthCodeForTokens(code, redirectUri);
+      await googleCalendarService.connectGoogleAccount(studentId, {
+        refresh_token: tokens.refresh_token || tokens.access_token || 'real_google_oauth2_authorized',
+        calendar_id: 'primary',
+      });
+      const syncResult = await googleCalendarService.syncDeadlinesToCalendar(studentId);
+
+      const html = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="4;url=/deadlines">
+  <title>Ủy quyền Google Calendar thành công</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: linear-gradient(135deg, #eef2ff, #f8fafc); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #ffffff; padding: 36px 32px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); max-width: 460px; text-align: center; border: 1px solid rgba(0,0,0,0.05); }
+    .icon { width: 72px; height: 72px; background: #e8f5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; font-size: 36px; color: #2e7d32; }
+    h2 { margin: 0 0 10px; color: #0f172a; font-size: 22px; font-weight: 700; }
+    p { color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+    .badge { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 24px; }
+    .btn { display: inline-block; width: 100%; box-sizing: border-box; padding: 12px 24px; background: #1a73e8; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 15px; transition: background 0.2s; }
+    .btn:hover { background: #1557b0; }
+    .hint { font-size: 12px; color: #94a3b8; margin-top: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✓</div>
+    <h2>Kết nối Google Calendar thành công!</h2>
+    <div class="badge">Sinh viên: ${studentId} • Đã đồng bộ ${syncResult.synced_count} hạn chót</div>
+    <p>Tài khoản Google Calendar của bạn đã được liên kết chính thức. Tất cả hạn chót và thông báo học tập quan trọng sẽ được cập nhật tự động vào Lịch Google của bạn.</p>
+    <a href="/deadlines" class="btn">Quay lại ứng dụng DUT ngay</a>
+    <div class="hint">Hệ thống sẽ tự động chuyển trang sau vài giây...</div>
+  </div>
+</body>
+</html>`;
+
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        rawBody: html,
+      };
+    } catch (err) {
+      console.error('Lỗi khi đổi token Google OAuth2:', err);
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        rawBody: `<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"><title>Lỗi kết nối</title><style>body{font-family:sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}.card{background:#fff;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.08);max-width:440px;text-align:center;}</style></head>
+<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">❌</div><h2>Đổi mã Token thất bại</h2><p style="color:#64748b;font-size:14px;">${err.message}</p><a href="/" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:10px;">Quay lại</a></div></body></html>`,
+      };
+    }
+  }
+
   async connectGoogleCalendar(payload = {}) {
     const studentId = payload.student_id || '102200001';
     const result = await googleCalendarService.connectGoogleAccount(studentId, payload);

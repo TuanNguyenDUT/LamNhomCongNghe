@@ -615,77 +615,172 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
     }
   }
 
+  Future<void> _connectGoogleCalendar() async {
+    final authState = ref.read(authControllerProvider);
+    final studentCode = authState.session?.studentCode ?? '102230026';
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get(
+        '/api/v1/calendar/google/auth-url',
+        queryParameters: {'student_id': studentCode},
+      );
+      final url = res.data['data']?['url']?.toString();
+      if (url != null && url.isNotEmpty) {
+        final uri = Uri.parse(url);
+        try {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } catch (_) {
+          await launchUrl(uri);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không thể tạo URL ủy quyền Google Calendar')),
+          );
+        }
+      }
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi kết nối Google: $err')),
+        );
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchGoogleStatus() async {
+    final authState = ref.read(authControllerProvider);
+    final studentCode = authState.session?.studentCode ?? '102230026';
+    try {
+      final dio = ref.read(dioProvider);
+      final res = await dio.get(
+        '/api/v1/calendar/google/status',
+        queryParameters: {'student_id': studentCode},
+      );
+      return (res.data['data'] as Map<String, dynamic>?) ?? {};
+    } catch (_) {
+      return {};
+    }
+  }
+
   void _showGoogleCalendarModal() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.calendar_month_rounded, color: Color(0xFF1A73E8), size: 24),
-            SizedBox(width: 10),
-            Text('Google Calendar (OAuth 2.0)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Trạng thái tích hợp:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+      builder: (ctx) => FutureBuilder<Map<String, dynamic>>(
+        future: _fetchGoogleStatus(),
+        builder: (context, snapshot) {
+          final isConnected = snapshot.data?['is_connected'] == true;
+          final isConfigured = snapshot.data?['configured'] ?? true;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.calendar_month_rounded, color: Color(0xFF1A73E8), size: 24),
+                SizedBox(width: 10),
+                Text('Google Calendar (OAuth 2.0)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
             ),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F0FE),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF1A73E8).withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.check_circle_rounded, color: Color(0xFF1A73E8), size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Sẵn sàng tiếp nhận Google Authentication (Client ID / Secret).',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF174EA6), fontWeight: FontWeight.w500),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Trạng thái tích hợp:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isConnected ? const Color(0xFFE8F5E9) : const Color(0xFFE8F0FE),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isConnected
+                          ? const Color(0xFF34C759).withValues(alpha: 0.3)
+                          : const Color(0xFF1A73E8).withValues(alpha: 0.3),
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isConnected ? Icons.check_circle_rounded : Icons.lock_open_rounded,
+                        color: isConnected ? const Color(0xFF2E7D32) : const Color(0xFF1A73E8),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isConnected
+                              ? 'Đã liên kết Google Calendar thành công! Các sự kiện sẽ tự động đồng bộ.'
+                              : (isConfigured
+                                  ? 'Đã cấu hình Google OAuth Client. Nhấn nút bên dưới để ủy quyền tài khoản Google.'
+                                  : 'Chưa cấu hình Google Client Credentials.'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isConnected ? const Color(0xFF1B5E20) : const Color(0xFF174EA6),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (!isConnected && isConfigured) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A73E8),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.login_rounded, size: 18),
+                      label: const Text(
+                        'Ủy quyền tài khoản Google',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _connectGoogleCalendar();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                 ],
+                const Text(
+                  'Tính năng thêm vào Google Calendar:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '• Mỗi nhắc việc trên danh sách đều có nút "Thêm vào Google Calendar" để thêm nhanh 1-chạm vào lịch Google cá nhân.\n• Sau khi ủy quyền OAuth 2.0, bạn có thể đồng bộ tức thời mọi hạn chót học tập vào tài khoản Google.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.4),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Đóng'),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Tính năng thêm vào Google Calendar:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '• Mỗi nhắc việc trên danh sách đều có nút "Thêm vào Google Calendar" để thêm nhanh 1-chạm vào lịch Google cá nhân.\n• Khi cung cấp Google Authentication, hệ thống sẽ tự động đồng bộ hóa đa thiết bị qua Google Calendar API.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng'),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A73E8),
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.sync_rounded, size: 16),
-            label: const Text('Đồng bộ tất cả'),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _syncAllToGoogleCalendar();
-            },
-          ),
-        ],
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A73E8),
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.sync_rounded, size: 16),
+                label: const Text('Đồng bộ tất cả'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _syncAllToGoogleCalendar();
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }

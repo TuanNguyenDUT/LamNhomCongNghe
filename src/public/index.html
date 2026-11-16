@@ -183,6 +183,7 @@
         </div>
         <div style="display:flex;gap:10px;">
           <a class="btn btn-success" href="/api/v1/calendar/export.ics" download="dut_deadlines.ics">📥 Xuất tệp iCalendar (.ics)</a>
+          <button class="btn btn-primary" onclick="connectGoogleOAuth()">🔗 Liên kết Google</button>
           <button class="btn btn-outline" onclick="syncGoogleCalendar()">📅 Đồng bộ Google Calendar</button>
         </div>
       </div>
@@ -548,14 +549,46 @@
       }
     }
 
+    async function connectGoogleOAuth() {
+      try {
+        const res = await fetch('/api/v1/calendar/google/auth-url?student_id=102200001');
+        const data = await res.json();
+        if (data.data?.url) {
+          window.location.href = data.data.url;
+        } else {
+          alert('Không tạo được URL kết nối Google Calendar.');
+        }
+      } catch (e) {
+        alert('Lỗi: ' + e.message);
+      }
+    }
+
     async function syncGoogleCalendar() {
-      const res = await fetch('/api/v1/calendar/google/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: '102200001' }),
-      });
-      const data = await res.json();
-      alert(`${data.data?.note || data.message}\nĐã đồng bộ: ${data.data?.synced_count || 0} sự kiện.`);
+      try {
+        const statusRes = await fetch('/api/v1/calendar/google/status?student_id=102200001');
+        const statusData = await statusRes.json();
+        const info = statusData.data || {};
+
+        if (!info.is_connected && info.configured) {
+          const wantConnect = confirm(
+            'Tài khoản Google Calendar chưa được liên kết trực tiếp (OAuth 2.0).\n\nBạn có muốn mở trang ủy quyền Google Calendar ngay bây giờ không?'
+          );
+          if (wantConnect) {
+            connectGoogleOAuth();
+            return;
+          }
+        }
+
+        const res = await fetch('/api/v1/calendar/google/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: '102200001' }),
+        });
+        const data = await res.json();
+        alert(`${data.data?.note || data.message}\nĐã đồng bộ: ${data.data?.synced_count || 0} sự kiện.`);
+      } catch (err) {
+        alert('Lỗi đồng bộ: ' + err.message);
+      }
     }
 
     function openReminderModal(notifId, title, courseCode) {

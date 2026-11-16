@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node --no-warnings src/server.js",
-    "test": "node --no-warnings --test tests/classifier.test.js tests/push-notification.test.js tests/agent-fr-all.test.js tests/crawler-multi-source.test.js tests/personalization.test.js",
+    "test": "node --no-warnings --test tests/classifier.test.js tests/push-notification.test.js tests/agent-fr-all.test.js tests/crawler-multi-source.test.js tests/personalization.test.js tests/google-oauth.test.js",
     "test:business": "node --no-warnings scripts/test-e2e-business.js",
     "test:live": "node --no-warnings scripts/test-live-real.js",
     "flutter:build": "cd mobile && flutter build web --dart-define=API_BASE_URL=http://localhost:3000",

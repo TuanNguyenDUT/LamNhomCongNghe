@@ -25,17 +25,24 @@ class GoogleCalendarService {
     try {
       const fs = require('node:fs');
       const path = require('node:path');
-      const rootDir = path.join(__dirname, '../../');
-      const files = fs.readdirSync(rootDir);
-      const secretFile = files.find((f) => f.startsWith('client_secret') && f.endsWith('.json'));
-      if (secretFile) {
-        const content = JSON.parse(fs.readFileSync(path.join(rootDir, secretFile), 'utf8'));
-        const creds = content.web || content.installed || {};
-        if (creds.client_id && creds.client_secret) {
-          process.env.GOOGLE_CLIENT_ID = creds.client_id;
-          process.env.GOOGLE_CLIENT_SECRET = creds.client_secret;
-          if (creds.redirect_uris && creds.redirect_uris.length > 0) {
-            process.env.GOOGLE_REDIRECT_URI = creds.redirect_uris[0];
+      const candidateDirs = [
+        path.join(__dirname, '../../'),
+        process.cwd(),
+      ];
+      for (const rootDir of candidateDirs) {
+        if (!fs.existsSync(rootDir)) continue;
+        const files = fs.readdirSync(rootDir);
+        const secretFile = files.find((f) => f.startsWith('client_secret') && f.endsWith('.json'));
+        if (secretFile) {
+          const content = JSON.parse(fs.readFileSync(path.join(rootDir, secretFile), 'utf8'));
+          const creds = content.web || content.installed || {};
+          if (creds.client_id && creds.client_secret) {
+            process.env.GOOGLE_CLIENT_ID = creds.client_id;
+            process.env.GOOGLE_CLIENT_SECRET = creds.client_secret;
+            if (creds.redirect_uris && creds.redirect_uris.length > 0) {
+              process.env.GOOGLE_REDIRECT_URI = creds.redirect_uris[0];
+            }
+            break;
           }
         }
       }
@@ -53,7 +60,10 @@ class GoogleCalendarService {
   /**
    * Sinh URL ủy quyền Google OAuth2 để người dùng cấp quyền truy cập Calendar
    */
-  getOAuthConsentUrl(redirectUri = 'http://localhost:3000/api/v1/calendar/google/callback') {
+  getOAuthConsentUrl(
+    redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback',
+    state = ''
+  ) {
     if (!this.hasGoogleCredentials()) {
       return {
         configured: false,
@@ -65,19 +75,24 @@ class GoogleCalendarService {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events');
     const redirect = encodeURIComponent(redirectUri);
+    const stateParam = state ? `&state=${encodeURIComponent(state)}` : '';
 
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}&access_type=offline&prompt=consent${stateParam}`;
 
     return {
       configured: true,
       url,
+      redirect_uri: redirectUri,
     };
   }
 
   /**
    * Đổi Authorization Code lấy Access Token và Refresh Token từ Google Server
    */
-  async exchangeAuthCodeForTokens(code, redirectUri = 'http://localhost:3000/api/v1/calendar/google/callback') {
+  async exchangeAuthCodeForTokens(
+    code,
+    redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback'
+  ) {
     if (!this.hasGoogleCredentials()) {
       throw new Error('Chưa cấu hình GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET để kết nối Google OAuth2.');
     }
@@ -91,6 +106,28 @@ class GoogleCalendarService {
     });
 
     return this._postHttps('oauth2.googleapis.com', '/token', payload);
+  }
+
+  /**
+   * Lấy trạng thái cấu hình và kết nối Google Calendar của sinh viên
+   */
+  getGoogleCalendarStatus(studentId) {
+    const isConfigured = this.hasGoogleCredentials();
+    const student = this.dbStore.findStudentByCodeOrId(studentId);
+    const hasRealToken = Boolean(student?.google_refresh_token && !student.google_refresh_token.startsWith('mock_'));
+    const isMock = Boolean(student?.google_refresh_token?.startsWith('mock_'));
+
+    return {
+      configured: isConfigured,
+      client_id_preview: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 15)}...` : null,
+      redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback',
+      is_connected: hasRealToken,
+      mode: hasRealToken ? 'REAL_GOOGLE_API' : (isMock ? 'MOCK_SIMULATION' : 'NOT_CONNECTED'),
+      student_id: student?.id || studentId,
+      student_code: student?.student_code || studentId,
+      google_calendar_id: student?.google_calendar_id || 'primary',
+      is_calendar_sync_enabled: Boolean(student?.is_calendar_sync_enabled),
+    };
   }
 
   /**

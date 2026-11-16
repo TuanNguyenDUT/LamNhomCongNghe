@@ -366,6 +366,28 @@ async function notificationRouter(req, res, controller) {
     }
 
     // 4. Google Calendar (FR-09)
+    if (req.method === 'GET' && pathname === '/api/v1/calendar/google/auth-url') {
+      const result = await controller.getGoogleAuthUrl(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/calendar/google/status') {
+      const result = await controller.getGoogleCalendarStatus(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && (pathname === '/auth/google/callback' || pathname === '/api/v1/calendar/google/callback')) {
+      const result = await controller.handleGoogleCallback(queryParams);
+      if (result.rawBody) {
+        sendRaw(res, result.statusCode, result.rawBody, result.headers);
+      } else {
+        sendJson(res, result.statusCode, result.body);
+      }
+      return;
+    }
+
     if (req.method === 'POST' && pathname === '/api/v1/calendar/google/connect') {
       const body = await readJsonBody(req);
       const result = await controller.connectGoogleCalendar(body);
