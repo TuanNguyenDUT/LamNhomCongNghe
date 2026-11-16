@@ -289,11 +289,13 @@ class NotificationService {
       scope_type: classified.scope_type || classified.scope || 'GLOBAL',
       priority: classified.priority || 'NORMAL',
       priority_score: classified.priority_score || 0,
-      course_code: classified.course_code || null,
+      course_code: (sourceChannel === 'FB_CTSV' || sourceChannel === 'FB_TUVAN_SV') ? null : (classified.course_code || null),
       target_faculty: payload.target_faculty || null,
       target_cohort: payload.target_cohort || null,
       is_emergency: Boolean(classified.is_emergency),
-      tags: classified.tags || [],
+      tags: (sourceChannel === 'FB_CTSV' || sourceChannel === 'FB_TUVAN_SV')
+        ? (classified.tags || []).filter(t => !t.includes('LớpHọcPhần') && !t.includes('IT408') && !t.includes('SSH101'))
+        : (classified.tags || []),
       attachments: payload.attachments || [],
       source_url: payload.source_url || null,
       deadline_at: classified.deadline_at || null,

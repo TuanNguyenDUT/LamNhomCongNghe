@@ -323,6 +323,108 @@ class GoogleCalendarService {
   }
 
   /**
+   * Helper gửi HTTPS DELETE qua native node:https
+   */
+  _deleteHttps(hostname, path, extraHeaders = {}) {
+    return new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          hostname,
+          path,
+          method: 'DELETE',
+          headers: {
+            ...extraHeaders,
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              return resolve({ success: true, statusCode: res.statusCode });
+            }
+            if (res.statusCode === 404 || res.statusCode === 410) {
+              return resolve({ success: true, statusCode: res.statusCode });
+            }
+            try {
+              const parsed = JSON.parse(data);
+              reject(new Error(parsed.error?.message || `HTTP ${res.statusCode}`));
+            } catch {
+              reject(new Error(`HTTP ${res.statusCode}`));
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  /**
+   * Xóa một sự kiện Remind khỏi Google Calendar
+   * @param {string} studentId
+   * @param {string} deadlineId
+   */
+  async deleteEventFromCalendar(studentId, deadlineId) {
+    if (!deadlineId) {
+      return { success: false, message: 'Thiếu deadline_id' };
+    }
+
+    let deadline = null;
+    if (this.dbStore && this.dbStore.deadlines) {
+      deadline = this.dbStore.deadlines.get(deadlineId);
+      if (!deadline) {
+        const all = Array.from(this.dbStore.deadlines.values());
+        deadline = all.find((d) => d.deadline_id === deadlineId || d.id === deadlineId);
+      }
+    }
+
+    if (!deadline) {
+      return { success: false, message: 'Không tìm thấy nhắc việc' };
+    }
+
+    const eventId = deadline.google_event_id;
+    if (!eventId) {
+      return { success: true, message: 'Nhắc việc chưa được lưu trên Google Calendar' };
+    }
+
+    const targetStudentId = studentId || deadline.student_id || '102230026';
+    const student = this.dbStore.findStudentByCodeOrId(targetStudentId);
+    const isConfigured = this.hasGoogleCredentials();
+    const refreshToken = student?.google_refresh_token;
+    const canCallRealGoogle = isConfigured && refreshToken && !refreshToken.startsWith('mock_');
+
+    if (canCallRealGoogle && !eventId.startsWith('mock_')) {
+      try {
+        const accessToken = await this.refreshAccessToken(refreshToken);
+        if (accessToken) {
+          const calendarId = student.google_calendar_id || 'primary';
+          await this._deleteHttps(
+            'www.googleapis.com',
+            `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+            { Authorization: `Bearer ${accessToken}` }
+          );
+        }
+      } catch (err) {
+        console.warn(`Lỗi khi xóa event trên Google Calendar (${eventId}):`, err.message);
+      }
+    }
+
+    // Xóa liên kết Google Calendar trên bản ghi Remind
+    deadline.google_event_id = null;
+    deadline.last_synced_at = null;
+    deadline.updated_at = new Date().toISOString();
+    this.dbStore.saveDeadline(deadline);
+
+    return {
+      success: true,
+      deleted: true,
+      deadline_id: deadlineId,
+      message: 'Đã xóa sự kiện khỏi Google Calendar thành công',
+    };
+  }
+
+  /**
    * Helper gửi HTTPS POST qua native node:https
    */
   _postHttps(hostname, path, payload, extraHeaders = {}) {

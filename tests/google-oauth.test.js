@@ -56,3 +56,51 @@ test('Google OAuth2 - handleGoogleCallback xử lý thiếu code', async () => {
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.status, 'error');
 });
+
+test('Google OAuth2 - Xóa sự kiện khỏi Google Calendar qua API deleteGoogleCalendarEvent', async () => {
+  const { deadlineService } = require('../src/services/deadline.service');
+  const d = await deadlineService.createDeadline({
+    title: '[Nhắc nhở] Kiểm tra tính năng xóa lịch',
+    due_date: new Date(Date.now() + 86400000).toISOString(),
+    student_id: '102230026',
+    notification_id: 'test_notif_delete_gcal',
+    item_type: 'REMINDER',
+  });
+  d.google_event_id = 'mock_gcal_event_123';
+  deadlineService.dbStore.saveDeadline(d);
+
+  assert.equal(d.google_event_id, 'mock_gcal_event_123');
+
+  const res = await notificationController.deleteGoogleCalendarEvent({
+    student_id: '102230026',
+    deadline_id: d.deadline_id,
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.status, 'success');
+  assert.equal(res.body.data.deleted, true);
+
+  const updated = deadlineService.dbStore.deadlines.get(d.deadline_id);
+  assert.equal(updated.google_event_id, null, 'google_event_id phải được xóa về null');
+});
+
+test('Google OAuth2 - Hoàn thành nhắc việc tự động xóa sự kiện khỏi Google Calendar', async () => {
+  const { deadlineService } = require('../src/services/deadline.service');
+  const d = await deadlineService.createDeadline({
+    title: '[Nhắc nhở] Bài tập hoàn thành tự xóa lịch',
+    due_date: new Date(Date.now() + 86400000).toISOString(),
+    student_id: '102230026',
+    notification_id: 'test_notif_complete_gcal',
+    item_type: 'REMINDER',
+  });
+  d.google_event_id = 'mock_gcal_complete_456';
+  deadlineService.dbStore.saveDeadline(d);
+
+  // Đánh dấu hoàn thành qua controller
+  const res = await notificationController.updateDeadline(d.deadline_id, { status: 'COMPLETED' });
+  assert.equal(res.statusCode, 200);
+
+  const updated = deadlineService.dbStore.deadlines.get(d.deadline_id);
+  assert.equal(updated.status, 'COMPLETED');
+  assert.equal(updated.google_event_id, null, 'Nhắc việc hoàn thành phải tự động xóa khỏi Google Calendar');
+});

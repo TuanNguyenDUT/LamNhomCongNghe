@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../../core/presentation/liquid_glass.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/notification_item.dart';
 import 'notification_providers.dart';
@@ -78,7 +77,12 @@ class NotificationDetailPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (notif.courseCode != null) ...[
+                if (notif.courseCode != null &&
+                    notif.courseCode!.trim().isNotEmpty &&
+                    notif.sourceChannel != 'FB_CTSV' &&
+                    notif.sourceChannel != 'FB_TUVAN_SV' &&
+                    notif.sourceChannel != 'DUT_GENERAL' &&
+                    notif.sourceChannel != 'DUT_STUDENT_AFFAIRS') ...[
                   TextField(
                     controller: courseCtrl,
                     decoration: InputDecoration(
@@ -262,7 +266,12 @@ class NotificationDetailPage extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    if (item.courseCode != null) ...[
+                    if (item.courseCode != null &&
+                        item.courseCode!.trim().isNotEmpty &&
+                        item.sourceChannel != 'FB_CTSV' &&
+                        item.sourceChannel != 'FB_TUVAN_SV' &&
+                        item.sourceChannel != 'DUT_GENERAL' &&
+                        item.sourceChannel != 'DUT_STUDENT_AFFAIRS') ...[
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

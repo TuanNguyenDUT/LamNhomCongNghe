@@ -227,7 +227,24 @@ const URGENCY_TIME_KEYWORDS = [
 /**
  * 1. Nhận diện môn học & gắn tag chuẩn (Hỗ trợ cả Default Courses và Dynamic Enrolled Courses từ sv.dut.udn.vn)
  */
-function detectCourseTag({ title = '', content = '', course_code = null } = {}) {
+function detectCourseTag({ title = '', content = '', course_code = null, source_channel = null, source_type = null } = {}) {
+  const channel = source_channel || source_type;
+  // Các kênh Fanpage và các kênh thông báo chung tuyệt đối không bao giờ là Lớp học phần
+  if (
+    channel === 'FB_CTSV' ||
+    channel === 'FB_TUVAN_SV' ||
+    channel === 'DUT_GENERAL' ||
+    channel === 'DUT_STUDENT_AFFAIRS' ||
+    channel === 'DUT_REGULATIONS' ||
+    channel === 'DUT_TUITION_FEE'
+  ) {
+    return {
+      course_code: null,
+      course_tag: null,
+      course_name: null,
+    };
+  }
+
   const fullText = `${title} ${content}`.toLowerCase();
 
   // 0. Trích xuất nhóm lớp [23.Nh16], [23.Nh99], [24.Nh71D]... từ tiêu đề
@@ -370,6 +387,7 @@ function detectScopeType(payload = {}, detectedCourse = {}) {
   const content = (payload.content || '').toLowerCase();
   const fullText = `${title} ${content}`;
   const sourceType = payload.source_channel || payload.source_type;
+  const isFbChannel = sourceType === 'FB_CTSV' || sourceType === 'FB_TUVAN_SV';
 
   // Cá nhân (PERSONAL)
   if (
@@ -381,12 +399,13 @@ function detectScopeType(payload = {}, detectedCourse = {}) {
     return 'PERSONAL';
   }
 
-  // Lớp học phần (CLASS / COURSE)
+  // Lớp học phần (CLASS / COURSE) - Tuyệt đối không áp dụng cho Fanpage
   if (
-    sourceType === 'DUT_COURSE_CLASS' ||
-    sourceType === 'CLASS_SECTION' ||
-    detectedCourse.course_code ||
-    /lớp học phần|đổi phòng học|học bù|bài tập lớn|nộp báo cáo đồ án|thực hành/i.test(fullText)
+    !isFbChannel &&
+    (sourceType === 'DUT_COURSE_CLASS' ||
+      sourceType === 'CLASS_SECTION' ||
+      detectedCourse.course_code ||
+      /lớp học phần|đổi phòng học|học bù|bài tập lớn|nộp báo cáo đồ án|thực hành/i.test(fullText))
   ) {
     return payload.source_channel ? 'COURSE' : 'CLASS';
   }
@@ -442,6 +461,8 @@ function classifyNotification(payload = {}) {
     title,
     content,
     course_code: payload.course_code,
+    source_channel: rawSource,
+    source_type: rawSource,
   });
 
   // 2. Nhận diện phạm vi
@@ -456,7 +477,9 @@ function classifyNotification(payload = {}) {
   const tags = [];
   let isEmergency = false;
 
-  if (courseInfo.course_tag) {
+  const isFb = rawSource === 'FB_CTSV' || rawSource === 'FB_TUVAN_SV';
+
+  if (courseInfo.course_tag && !isFb) {
     tags.push(courseInfo.course_tag);
   }
 
@@ -499,7 +522,7 @@ function classifyNotification(payload = {}) {
   // Gắn tag phạm vi
   if (scopeType === 'PERSONAL') {
     if (!tags.includes('#TinRiêng')) tags.push('#TinRiêng');
-  } else if (scopeType === 'CLASS' || scopeType === 'COURSE') {
+  } else if ((scopeType === 'CLASS' || scopeType === 'COURSE') && !isFb) {
     if (!tags.includes('#LớpHọcPhần')) tags.push('#LớpHọcPhần');
   } else {
     if (!tags.includes('#ThôngBáoChung')) tags.push('#ThôngBáoChung');
@@ -535,9 +558,9 @@ function classifyNotification(payload = {}) {
   const topics = detectNotificationTopics(payload);
 
   return {
-    course_code: courseInfo.course_code,
-    course_tag: courseInfo.course_tag,
-    course_name: courseInfo.course_name,
+    course_code: isFb ? null : courseInfo.course_code,
+    course_tag: isFb ? null : courseInfo.course_tag,
+    course_name: isFb ? null : courseInfo.course_name,
     scope_type: scopeType,
     scope: scopeType,
     priority,
@@ -568,13 +591,20 @@ async function classifySmartNotification(payload = {}) {
       deadline_at: aiResult.deadline_at,
     });
 
-    const mergedTags = Array.from(new Set([
+    let mergedTags = Array.from(new Set([
       ...ruleClassification.tags,
       ...(aiResult.tags || []).map(t => `#${t}`)
     ]));
 
+    if (isFacebook) {
+      mergedTags = mergedTags.filter(t => !t.includes('LớpHọcPhần') && !t.includes('IT408') && !t.includes('SSH101') && !t.includes('IT302') && !t.includes('IT401'));
+    }
+
     return {
       ...ruleClassification,
+      course_code: isFacebook ? null : ruleClassification.course_code,
+      course_tag: isFacebook ? null : ruleClassification.course_tag,
+      course_name: isFacebook ? null : ruleClassification.course_name,
       summary: aiResult.summary,
       action_required: aiResult.action_required,
       deadline_at: aiResult.deadline_at || ruleClassification.deadline_at,

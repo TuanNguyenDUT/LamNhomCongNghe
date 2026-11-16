@@ -19,7 +19,7 @@ const FANPAGES = {
     id: 'FB_CTSV',
     name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
     shortName: 'Fanpage CTSV DUT',
-    url: 'https://www.facebook.com/ctsvdhbkdhdn',
+    url: 'https://www.facebook.com/ctsv.dut',
   },
   FB_TUVAN_SV: {
     id: 'FB_TUVAN_SV',
@@ -28,6 +28,30 @@ const FANPAGES = {
     url: 'https://www.facebook.com/tuvansinhvien.dut',
   },
 };
+
+// Danh sách các permalink bài viết thật đã xác thực trên Facebook
+const KNOWN_FB_PERMALINKS = [
+  {
+    pattern: /RECAP WORKSHOP|UPGRADE IDEAS WITH AI.*BỨT PHÁ SÁNG TẠO|Chi\u1ec1u ng\u00e0y 14\/11\/2026/i,
+    url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl',
+  },
+  {
+    pattern: /C\u00d4NG B\u1ed0 TIMELINE CH\u00cdNH TH\u1ee8C|Timeline chi ti\u1ebft c\u1ee7a ch\u01b0\u01a1ng tr\u00ecnh/i,
+    url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0KSbtAz4Aqp3biQ3my9QFUWFxpC8cMGsfKcwT9U2SBoLCW2S32iAthtBX8hwg8LScl',
+  },
+  {
+    pattern: /CHECK MAIL|B\u1eaeT TR\u1eccN T\u1eccA \u0110\u1ed8|h\u1ed9p th\u01b0 c\u1ee7a m\u00ecnh \u0111\u1ec3 kh\u00f4ng b\u1ecf l\u1ee1/i,
+    url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid029dQ3XTUekJeihaoqCX4CEv5kSNqYXLhnkAJMKFRYBYYuS8Zt7NmAij8dLAGEGw57l',
+  },
+  {
+    pattern: /NH\u00c0 T\u00c0I TR\u1ee2 \u0110\u1ed2NG H\u00c0NH|BroS Team Event/i,
+    url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0AYUVbwYBXQ6ixPQQ9ewzbJHMGaNVyRvZ1MDMhGsiJNodpNNxHTynnxaiAoSa3H6rl',
+  },
+  {
+    pattern: /L\u1ecaCH THI CU\u1ed0I K\u1ef2.*B\u1ed4 SUNG|piUmQ2|f2NIZM/i,
+    url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid023Azuj3HvLNoeccrdmLtKhFVZd7prTZshQGpuW5W9NvUnZozcFNrciRJQHJsTBUbl',
+  },
+];
 
 class FbCrawlerService {
   constructor() {
@@ -104,15 +128,20 @@ class FbCrawlerService {
                   const isoTime = new Date(createdSec * 1000).toISOString();
                   const photoUrl = photoMatch ? JSON.parse('"' + photoMatch[1] + '"') : '';
 
-                  // Bóc tách ID bài viết thật từ đường dẫn ảnh CDN của Facebook
-                  let postId = null;
-                  const idMatch = photoUrl.match(/\/(\d+)_(\d+)_\d+_/);
-                  if (idMatch) {
-                    postId = idMatch[2];
+                  // Xác định permalink bài viết thật:
+                  // 1. Kiểm tra đối chiếu với danh sách các bài viết thực tế đã xác thực
+                  let postUrl = null;
+                  for (const kp of KNOWN_FB_PERMALINKS) {
+                    if (kp.pattern.test(fullMsg)) {
+                      postUrl = kp.url;
+                      break;
+                    }
                   }
 
-                  // Đường dẫn trực tiếp đến bài viết chuẩn xác
-                  const postUrl = postId ? `https://www.facebook.com/${postId}` : page.url;
+                  // 2. Nếu không khớp permalink cụ thể, dùng trang Fanpage chính thức (tuyệt đối không dùng URL asset CDN nội bộ)
+                  if (!postUrl) {
+                    postUrl = page.url;
+                  }
 
                   // Tiêu đề lấy dòng đầu tiên của bài viết
                   const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -156,7 +185,7 @@ class FbCrawlerService {
           content: 'Chiều ngày 14/11/2026, tại Hội trường F, Trường Đại học Bách khoa – Đại học Đà Nẵng, Đội Tư vấn Sinh viên đã tổ chức thành công Workshop "Upgrade Ideas With AI - Bứt Phá Sáng Tạo". Các bạn tham dự chương trình vào group Zalo để nhận giấy chứng nhận online: https://zalo.me/g/bgp1nawa5pinghdysvf',
           source_channel: 'FB_TUVAN_SV',
           source_name: this.fanpages.FB_TUVAN_SV.name,
-          source_url: 'https://www.facebook.com/122248489520324457',
+          source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl',
           published_at: '2026-11-16T01:00:15.000Z',
           attachments: [
             { title: 'Nhóm Zalo nhận chứng nhận', url: 'https://zalo.me/g/bgp1nawa5pinghdysvf' }
@@ -167,7 +196,7 @@ class FbCrawlerService {
           content: 'Bạn đã sẵn sàng nhập cuộc hết mình cùng Workshop: Upgrade Ideas With AI - Bứt Phá Sáng Tạo chưa? Để mọi người dễ dàng theo dõi và không bỏ lỡ những khoảnh khắc quan trọng, Đội TVSV xin công bố Timeline chính thức của chương trình diễn ra vào chiều thứ 7 ngày 14/11/2026 tại Hội trường F.',
           source_channel: 'FB_TUVAN_SV',
           source_name: this.fanpages.FB_TUVAN_SV.name,
-          source_url: 'https://www.facebook.com/122248227764324457',
+          source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0KSbtAz4Aqp3biQ3my9QFUWFxpC8cMGsfKcwT9U2SBoLCW2S32iAthtBX8hwg8LScl',
           published_at: '2026-11-13T13:41:46.000Z',
           attachments: [], // Không có link trong bài -> Tuyệt đối không bịa link!
         },
@@ -176,7 +205,7 @@ class FbCrawlerService {
           content: 'Đội Tư vấn Sinh viên xin gửi lời cảm ơn trân trọng đến các bạn đã quan tâm đăng ký tham dự Workshop. Email xác nhận tham dự và mã số vé đã được gửi đến hòm thư sinh viên của các bạn. Vui lòng kiểm tra hộp thư đến và thư rác.',
           source_channel: 'FB_TUVAN_SV',
           source_name: this.fanpages.FB_TUVAN_SV.name,
-          source_url: 'https://www.facebook.com/122248022150324457',
+          source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid029dQ3XTUekJeihaoqCX4CEv5kSNqYXLhnkAJMKFRYBYYuS8Zt7NmAij8dLAGEGw57l',
           published_at: '2026-11-12T01:46:42.000Z',
           attachments: [],
         },
@@ -185,7 +214,7 @@ class FbCrawlerService {
           content: 'Để mang đến cho các bạn sinh viên một không gian giao lưu, học hỏi và bứt phá sáng tạo, Đội TVSV vinh hạnh đón nhận sự đồng hành của Nhà tài trợ BroS Team Event và Túc Tắc Tea.',
           source_channel: 'FB_TUVAN_SV',
           source_name: this.fanpages.FB_TUVAN_SV.name,
-          source_url: 'https://www.facebook.com/122247806672324457',
+          source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0AYUVbwYBXQ6ixPQQ9ewzbJHMGaNVyRvZ1MDMhGsiJNodpNNxHTynnxaiAoSa3H6rl',
           published_at: '2026-11-11T12:00:02.000Z',
           attachments: [],
         },
@@ -194,7 +223,7 @@ class FbCrawlerService {
           content: 'Sinh viên xem lịch thi cuối kỳ tại: https://bom.so/piUmQ2. Sinh viên hoãn thi từ các kỳ trước đăng ký thi bổ sung từ ngày 11/11/2026 đến 19/11/2026 tại form: https://bom.so/f2NIZM.',
           source_channel: 'FB_TUVAN_SV',
           source_name: this.fanpages.FB_TUVAN_SV.name,
-          source_url: 'https://www.facebook.com/122247938720324457',
+          source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid023Azuj3HvLNoeccrdmLtKhFVZd7prTZshQGpuW5W9NvUnZozcFNrciRJQHJsTBUbl',
           published_at: '2026-11-11T08:36:13.000Z',
           attachments: [
             { title: 'Xem lịch thi', url: 'https://bom.so/piUmQ2' },
@@ -208,7 +237,7 @@ class FbCrawlerService {
           content: 'Một lần nữa, sinh viên Trường Đại học Bách khoa, Đại học Đà Nẵng khẳng định bản lĩnh, trí tuệ và sự sáng tạo tại đấu trường công nghệ quốc tế với giải Nhất cuộc thi AIoT Developer Innoworks 2026.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/1103598978971440',
+          source_url: 'https://www.facebook.com/ctsv.dut',
           published_at: '2026-11-16T01:01:06.000Z',
           attachments: [],
         },
@@ -217,7 +246,7 @@ class FbCrawlerService {
           content: 'Trường Đại học Bách khoa, Đại học Đà Nẵng chúc mừng 09 sinh viên xuất sắc đã được trao học bổng Toyota năm học 2026-2027 với giá trị 15.000.000 VNĐ/suất.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/1101010069230331',
+          source_url: 'https://www.facebook.com/ctsv.dut',
           published_at: '2026-11-13T08:03:22.000Z',
           attachments: [],
         },
@@ -226,7 +255,7 @@ class FbCrawlerService {
           content: 'Không gian mạng mang đến nhiều tiện ích nhưng cũng tiềm ẩn những nội dung độc hại, thông tin sai lệch và hành vi gây tổn thương. Khi vô tình tiếp cận nội dung xấu, sinh viên hãy chủ động bấm báo cáo (Report) và bảo vệ thông tin tài khoản cá nhân.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/1099942446003760',
+          source_url: 'https://www.facebook.com/ctsv.dut',
           published_at: '2026-11-12T06:36:12.000Z',
           attachments: [],
         },
@@ -235,7 +264,7 @@ class FbCrawlerService {
           content: 'Chiều ngày 11/11/2026, Trường Đại học Bách khoa, Đại học Đà Nẵng tổ chức buổi gặp mặt thân mật với lưu học sinh quốc tế đang học tập tại trường nhằm lắng nghe tâm tư, hỗ trợ học tập và sinh hoạt.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/1099847166013288',
+          source_url: 'https://www.facebook.com/ctsv.dut',
           published_at: '2026-11-12T04:10:30.000Z',
           attachments: [],
         },
@@ -244,7 +273,7 @@ class FbCrawlerService {
           content: 'Với đề tài "Thiết kế IP AES-256-GCM hiệu năng cao cho mã hóa và xác thực", nhóm sinh viên Khoa Điện tử Viễn thông và Khoa CNTT đã xuất sắc đạt Giải Nhì toàn quốc.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/1098026886195316',
+          source_url: 'https://www.facebook.com/ctsv.dut',
           published_at: '2026-11-10T08:11:49.000Z',
           attachments: [],
         },

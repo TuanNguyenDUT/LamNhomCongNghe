@@ -416,6 +416,13 @@ async function notificationRouter(req, res, controller) {
       return;
     }
 
+    if ((req.method === 'POST' || req.method === 'DELETE') && pathname === '/api/v1/calendar/google/delete-event') {
+      const body = await readJsonBody(req);
+      const result = await controller.deleteGoogleCalendarEvent(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
     if (req.method === 'GET' && pathname === '/api/v1/calendar/export.ics') {
       const result = await controller.exportIcsCalendar(queryParams);
       sendRaw(res, result.statusCode, result.rawBody, result.headers);

@@ -401,7 +401,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                   ],
                                 ),
 
-                                // Nút Tự động thêm vào Google Calendar dành riêng cho Remind (Không chuyển trang)
+                                // Nút Tự động thêm vào Google Calendar & Xóa khỏi Google Calendar
                                 const SizedBox(height: 10),
                                 Container(
                                   padding: const EdgeInsets.only(top: 8),
@@ -413,51 +413,133 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
                                       ),
                                     ),
                                   ),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: () => _addToGoogleCalendar(item),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: item.googleEventId != null
-                                            ? const Color(0xFFE8F5E9)
-                                            : const Color(0xFF4285F4).withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: item.googleEventId != null
-                                              ? const Color(0xFF34C759).withValues(alpha: 0.4)
-                                              : const Color(0xFF4285F4).withValues(alpha: 0.25),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            item.googleEventId != null
-                                                ? Icons.check_circle_rounded
-                                                : Icons.edit_calendar_rounded,
-                                            size: 16,
-                                            color: item.googleEventId != null
-                                                ? const Color(0xFF2E7D32)
-                                                : const Color(0xFF1A73E8),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            item.googleEventId != null
-                                                ? 'Đã tự động lưu vào Google Calendar'
-                                                : 'Thêm vào Google Calendar',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: item.googleEventId != null
-                                                  ? const Color(0xFF2E7D32)
-                                                  : const Color(0xFF1A73E8),
+                                  child: item.googleEventId != null
+                                      ? Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE8F5E9),
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(
+                                              color: const Color(0xFF34C759).withValues(alpha: 0.4),
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.check_circle_rounded,
+                                                size: 16,
+                                                color: Color(0xFF2E7D32),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              const Expanded(
+                                                child: Text(
+                                                  'Đã lưu Google Calendar',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF2E7D32),
+                                                  ),
+                                                ),
+                                              ),
+                                              InkWell(
+                                                borderRadius: BorderRadius.circular(8),
+                                                onTap: () => _removeFromGoogleCalendar(item),
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFFEE2E2),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                                                    ),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.event_busy_rounded,
+                                                        size: 14,
+                                                        color: Color(0xFFDC2626),
+                                                      ),
+                                                      SizedBox(width: 4),
+                                                      Text(
+                                                        'Xóa khỏi lịch',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(0xFFDC2626),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      : (item.status == 'COMPLETED'
+                                          ? Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFF8FAFC),
+                                                borderRadius: BorderRadius.circular(10),
+                                                border: Border.all(
+                                                  color: const Color(0xFFE2E8F0),
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.event_available_rounded,
+                                                    size: 14,
+                                                    color: Color(0xFF64748B),
+                                                  ),
+                                                  SizedBox(width: 6),
+                                                  Text(
+                                                    'Đã hoàn thành • Đã gỡ khỏi lịch Google Calendar',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Color(0xFF64748B),
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          : InkWell(
+                                              borderRadius: BorderRadius.circular(10),
+                                              onTap: () => _addToGoogleCalendar(item),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF4285F4).withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(
+                                                    color: const Color(0xFF4285F4).withValues(alpha: 0.25),
+                                                  ),
+                                                ),
+                                                child: const Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.edit_calendar_rounded,
+                                                      size: 16,
+                                                      color: Color(0xFF1A73E8),
+                                                    ),
+                                                    SizedBox(width: 6),
+                                                    Text(
+                                                      'Thêm vào Google Calendar',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: Color(0xFF1A73E8),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            )),
                                 ),
                               ],
                             ),
@@ -539,7 +621,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã hoàn thành nhắc việc: $title'),
+            content: Text('Đã hoàn thành: $title (Tự động gỡ khỏi Google Calendar nếu có)'),
             backgroundColor: const Color(0xFF34C759),
           ),
         );
@@ -553,6 +635,51 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
     }
   }
 
+  Future<void> _removeFromGoogleCalendar(DeadlineItem item) async {
+    try {
+      final dio = ref.read(dioProvider);
+      final authState = ref.read(authControllerProvider);
+      final studentCode = authState.session?.studentCode ?? item.studentId;
+
+      await dio.post(
+        '/api/v1/calendar/google/delete-event',
+        data: {
+          'student_id': studentCode,
+          'deadline_id': item.deadlineId,
+        },
+      );
+
+      ref.invalidate(deadlinesListProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Đã xóa sự kiện khỏi Google Calendar: "${item.title}"'),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi xóa khỏi Google Calendar: $err'),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteDeadline(String deadlineId) async {
     try {
       final dio = ref.read(dioProvider);
@@ -560,7 +687,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       ref.invalidate(deadlinesListProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa nhắc việc thành công')),
+          const SnackBar(content: Text('Đã xóa nhắc việc (và đã gỡ khỏi Google Calendar)')),
         );
       }
     } catch (err) {

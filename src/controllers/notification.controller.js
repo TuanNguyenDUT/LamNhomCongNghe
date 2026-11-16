@@ -298,6 +298,18 @@ class NotificationController {
 
   async updateDeadline(id, payload = {}) {
     try {
+      if (payload.status === 'COMPLETED') {
+        // Tự động xóa khỏi Google Calendar nếu nhắc việc này được đánh dấu đã xong
+        try {
+          const dl = deadlineService.dbStore?.deadlines?.get(id);
+          if (dl && dl.google_event_id) {
+            await googleCalendarService.deleteEventFromCalendar(dl.student_id, id);
+          }
+        } catch (err) {
+          console.warn('Lỗi tự động xóa khỏi Google Calendar khi hoàn thành nhắc việc:', err.message);
+        }
+      }
+
       const updated = await deadlineService.updateDeadline(id, payload);
       return {
         statusCode: 200,
@@ -310,6 +322,16 @@ class NotificationController {
 
   async deleteDeadline(id) {
     try {
+      // Tự động xóa khỏi Google Calendar nếu nhắc việc này bị xóa
+      try {
+        const dl = deadlineService.dbStore?.deadlines?.get(id);
+        if (dl && dl.google_event_id) {
+          await googleCalendarService.deleteEventFromCalendar(dl.student_id, id);
+        }
+      } catch (err) {
+        console.warn('Lỗi tự động xóa khỏi Google Calendar khi xóa nhắc việc:', err.message);
+      }
+
       const res = await deadlineService.deleteDeadline(id);
       return { statusCode: 200, body: { status: 'success', message: res.message } };
     } catch (e) {
@@ -442,6 +464,16 @@ class NotificationController {
     return {
       statusCode: 200,
       body: { status: 'success', message: `Đã đồng bộ ${result.synced_count} sự kiện lên Google Calendar`, data: result },
+    };
+  }
+
+  async deleteGoogleCalendarEvent(payload = {}) {
+    const studentId = payload.student_id || payload.student_code || '102200001';
+    const deadlineId = payload.deadline_id || null;
+    const result = await googleCalendarService.deleteEventFromCalendar(studentId, deadlineId);
+    return {
+      statusCode: 200,
+      body: { status: 'success', message: result.message || 'Đã xóa sự kiện khỏi Google Calendar', data: result },
     };
   }
 

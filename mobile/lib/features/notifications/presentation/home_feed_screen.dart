@@ -526,7 +526,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                       text: _getChannelLabel(notif.sourceChannel ?? ''),
                                       color: _getChannelColor(notif.sourceChannel ?? ''),
                                     ),
-                                    if (notif.courseCode != null) ...[
+                                    if (notif.courseCode != null &&
+                                        notif.courseCode!.trim().isNotEmpty &&
+                                        notif.sourceChannel != 'FB_CTSV' &&
+                                        notif.sourceChannel != 'FB_TUVAN_SV' &&
+                                        notif.sourceChannel != 'DUT_GENERAL' &&
+                                        notif.sourceChannel != 'DUT_STUDENT_AFFAIRS') ...[
                                       const SizedBox(width: 6),
                                       LiquidGlassBadge(
                                         text: notif.courseCode!,
@@ -687,10 +692,23 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                         child: InkWell(
                                           borderRadius: BorderRadius.circular(12),
                                           onTap: () {
-                                            final fbUrl = notif.sourceUrl ??
-                                                (notif.sourceChannel == 'FB_TUVAN_SV'
-                                                    ? 'https://www.facebook.com/tuvansinhvien.dut'
-                                                    : 'https://www.facebook.com/ctsvdhbkdhdn');
+                                            String fbUrl = notif.sourceUrl ?? '';
+                                            if (fbUrl.isEmpty ||
+                                                fbUrl.contains('/12224') ||
+                                                fbUrl.contains('/1103') ||
+                                                fbUrl.contains('/1098') ||
+                                                fbUrl.contains('/1099') ||
+                                                fbUrl.contains('/1101')) {
+                                              if (notif.sourceChannel == 'FB_TUVAN_SV') {
+                                                if (notif.title.toUpperCase().contains('RECAP')) {
+                                                  fbUrl = 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl';
+                                                } else {
+                                                  fbUrl = 'https://www.facebook.com/tuvansinhvien.dut';
+                                                }
+                                              } else {
+                                                fbUrl = 'https://www.facebook.com/ctsv.dut';
+                                              }
+                                            }
                                             _openSourceUrl(fbUrl);
                                           },
                                           child: Container(
@@ -897,7 +915,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (notif.courseCode != null) ...[
+                if (notif.courseCode != null &&
+                    notif.courseCode!.trim().isNotEmpty &&
+                    notif.sourceChannel != 'FB_CTSV' &&
+                    notif.sourceChannel != 'FB_TUVAN_SV' &&
+                    notif.sourceChannel != 'DUT_GENERAL' &&
+                    notif.sourceChannel != 'DUT_STUDENT_AFFAIRS') ...[
                   TextField(
                     controller: courseCtrl,
                     decoration: InputDecoration(
