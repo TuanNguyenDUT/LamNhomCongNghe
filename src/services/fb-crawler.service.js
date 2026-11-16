@@ -113,7 +113,7 @@ class FbCrawlerService {
       const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
       let match;
       while ((match = urlRegex.exec(line)) !== null) {
-        let u = match[1].replace(/[.,;:)\]]+$/, '');
+        let u = match[1].replace(/[.,;:!?)\"'\]>]+$/, '');
         if (seen.has(u)) continue;
         seen.add(u);
 
