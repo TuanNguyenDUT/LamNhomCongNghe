@@ -55,16 +55,11 @@ class NotificationDetailPage extends ConsumerWidget {
             final isFb = item.sourceChannel == 'FB_CTSV' ||
                 item.sourceChannel == 'FB_TUVAN_SV' ||
                 (item.sourceUrl != null && item.sourceUrl!.contains('facebook.com'));
-            String fbUrl = item.sourceUrl ??
-                (item.sourceChannel == 'FB_TUVAN_SV'
+            final fbUrl = (item.sourceUrl != null && item.sourceUrl!.trim().startsWith('http'))
+                ? item.sourceUrl!.trim()
+                : (item.sourceChannel == 'FB_TUVAN_SV'
                     ? 'https://www.facebook.com/tuvansinhvien.dut'
                     : 'https://www.facebook.com/ctsvdhbkdhdn');
-            // Chuẩn hóa link Facebook: Tránh lỗi 500 do post ID số không tồn tại
-            if (fbUrl.contains('facebook.com') && RegExp(r'/posts/\d+$').hasMatch(fbUrl)) {
-              fbUrl = item.sourceChannel == 'FB_TUVAN_SV'
-                  ? 'https://www.facebook.com/tuvansinhvien.dut'
-                  : 'https://www.facebook.com/ctsvdhbkdhdn';
-            }
 
             return ListView(
               padding: const EdgeInsets.all(20),

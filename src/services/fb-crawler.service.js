@@ -19,7 +19,7 @@ const FANPAGES = {
     id: 'FB_CTSV',
     name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
     shortName: 'Fanpage CTSV DUT',
-    url: 'https://www.facebook.com/ctsv.dut',
+    url: 'https://www.facebook.com/ctsvdhbkdhdn',
   },
   FB_TUVAN_SV: {
     id: 'FB_TUVAN_SV',
@@ -31,25 +31,52 @@ const FANPAGES = {
 
 // Danh sách các permalink bài viết thật đã xác thực trên Facebook
 const KNOWN_FB_PERMALINKS = [
+  // 1. Fanpage Tư vấn Sinh viên DUT (facebook.com/tuvansinhvien.dut)
   {
-    pattern: /RECAP WORKSHOP|UPGRADE IDEAS WITH AI.*BỨT PHÁ SÁNG TẠO|Chi\u1ec1u ng\u00e0y 14\/11\/2026/i,
+    pattern: /RECAP WORKSHOP/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl',
   },
   {
-    pattern: /C\u00d4NG B\u1ed0 TIMELINE CH\u00cdNH TH\u1ee8C|Timeline chi ti\u1ebft c\u1ee7a ch\u01b0\u01a1ng tr\u00ecnh/i,
+    pattern: /TIMELINE CH\u00cdNH TH\u1ee8C/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0KSbtAz4Aqp3biQ3my9QFUWFxpC8cMGsfKcwT9U2SBoLCW2S32iAthtBX8hwg8LScl',
   },
   {
-    pattern: /CHECK MAIL|B\u1eaeT TR\u1eccN T\u1eccA \u0110\u1ed8|h\u1ed9p th\u01b0 c\u1ee7a m\u00ecnh \u0111\u1ec3 kh\u00f4ng b\u1ecf l\u1ee1/i,
+    pattern: /CHECK MAIL|B\u1eaeT TR\u1eccN T\u1eccA \u0110\u1ed8/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid029dQ3XTUekJeihaoqCX4CEv5kSNqYXLhnkAJMKFRYBYYuS8Zt7NmAij8dLAGEGw57l',
   },
   {
-    pattern: /NH\u00c0 T\u00c0I TR\u1ee2 \u0110\u1ed2NG H\u00c0NH|BroS Team Event/i,
+    pattern: /NH\u00c0 T\u00c0I TR\u1ee2 \u0110\u1ed2NG H\u00c0NH/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0AYUVbwYBXQ6ixPQQ9ewzbJHMGaNVyRvZ1MDMhGsiJNodpNNxHTynnxaiAoSa3H6rl',
   },
   {
-    pattern: /L\u1ecaCH THI CU\u1ed0I K\u1ef2.*B\u1ed4 SUNG|piUmQ2|f2NIZM/i,
+    pattern: /L\u1ecaCH THI CU\u1ed0I K\u1ef2/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid023Azuj3HvLNoeccrdmLtKhFVZd7prTZshQGpuW5W9NvUnZozcFNrciRJQHJsTBUbl',
+  },
+
+  // 2. Fanpage Phòng Công tác Sinh viên ĐHBK - ĐHĐN (facebook.com/ctsvdhbkdhdn)
+  {
+    pattern: /CH\u1ee6 \u0110\u1ed8NG PH\u00d2NG B\u1ec6NH/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1103839028947435',
+  },
+  {
+    pattern: /ROBOT T\u1ef0 H\u00c0NH|INNOWORKS 2026/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1824646392020124',
+  },
+  {
+    pattern: /H\u1eccC B\u1ed4NG TOYOTA/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1101010069230331',
+  },
+  {
+    pattern: /N\u1ed8I DUNG KH\u00d4NG PH\u00d9 H\u1ee2P/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099942446003760',
+  },
+  {
+    pattern: /L\u01afU H\u1eccC SINH/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099847166013288',
+  },
+  {
+    pattern: /THI\u1ebfT K\u1ebf VI M\u1ea0CH/i,
+    url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1098254897839181',
   },
 ];
 
@@ -61,32 +88,52 @@ class FbCrawlerService {
   /**
    * Trích xuất các liên kết thực sự xuất hiện trong nội dung bài viết
    * Nếu không có liên kết nào, trả về mảng rỗng [] (TUYỆT ĐỐI KHÔNG TỰ BỊA LINK)
+   * Tự động nhận diện ngữ cảnh tiêu đề liên kết theo dòng văn bản
    */
   _extractRealLinksFromText(text) {
     if (!text || typeof text !== 'string') return [];
-    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
-    const matches = text.match(urlRegex) || [];
+    const lines = text.split('\n');
     const attachments = [];
     const seen = new Set();
 
-    for (let u of matches) {
-      // Loại bỏ dấu câu ở cuối URL nếu có
-      u = u.replace(/[.,;:)\]]+$/, '');
-      if (seen.has(u)) continue;
-      seen.add(u);
+    for (const line of lines) {
+      const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+      let match;
+      while ((match = urlRegex.exec(line)) !== null) {
+        let u = match[1].replace(/[.,;:)\]]+$/, '');
+        if (seen.has(u)) continue;
+        seen.add(u);
 
-      let title = 'Liên kết trong bài viết';
-      if (u.includes('zalo.me')) title = 'Nhóm Zalo hỗ trợ';
-      else if (u.includes('bom.so') || u.includes('forms') || u.includes('docs.google.com')) title = 'Biểu mẫu đăng ký';
-      else if (u.includes('sv.dut.udn.vn') || u.includes('dut.udn.vn')) title = 'Trang thông tin DUT';
-      else {
-        try {
-          const parsed = new URL(u);
-          title = `Liên kết (${parsed.hostname})`;
-        } catch (_) {}
+        // Lấy đoạn văn bản đứng trước URL trên cùng dòng để làm ngữ cảnh
+        const beforeUrl = line.substring(0, match.index).replace(/[:\-–—]+$/, '').trim();
+        const cleanBefore = beforeUrl.replace(/^[\s✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝✍️🔹🔸▪️▫️•\d.)-]+/, '').trim();
+
+        let title = '';
+        if (/lịch thi/i.test(cleanBefore)) {
+          title = 'Xem lịch thi';
+        } else if (/đăng ký thi|thi bổ sung|hoãn thi/i.test(cleanBefore)) {
+          title = 'Đăng ký thi bổ sung';
+        } else if (/biểu mẫu|form/i.test(cleanBefore)) {
+          title = cleanBefore.length <= 40 ? cleanBefore : 'Biểu mẫu đăng ký';
+        } else if (/zalo/i.test(cleanBefore) || u.includes('zalo.me')) {
+          title = /chứng nhận/i.test(line) ? 'Nhóm Zalo nhận chứng nhận' : 'Nhóm Zalo hỗ trợ';
+        } else if (cleanBefore.length > 3 && cleanBefore.length <= 35) {
+          title = cleanBefore;
+        } else if (u.includes('sv.dut.udn.vn') || u.includes('dut.udn.vn')) {
+          title = 'Trang thông tin DUT';
+        } else if (u.includes('forms') || u.includes('docs.google.com')) {
+          title = 'Biểu mẫu trực tuyến';
+        } else {
+          try {
+            const parsed = new URL(u);
+            title = `Liên kết (${parsed.hostname})`;
+          } catch (_) {
+            title = 'Liên kết trong bài viết';
+          }
+        }
+
+        attachments.push({ title, url: u });
       }
-
-      attachments.push({ title, url: u });
     }
 
     return attachments;
@@ -138,7 +185,15 @@ class FbCrawlerService {
                     }
                   }
 
-                  // 2. Nếu không khớp permalink cụ thể, dùng trang Fanpage chính thức (tuyệt đối không dùng URL asset CDN nội bộ)
+                  // 2. Nếu không khớp permalink cụ thể, trích xuất ID từ photoURL/album
+                  if (!postUrl && photoUrl) {
+                    const m = photoUrl.match(/_(\d{10,20})_/);
+                    if (m) {
+                      postUrl = `${page.url}/posts/${m[1]}`;
+                    }
+                  }
+
+                  // 3. Fallback cuối cùng là trang chủ Fanpage chính thức
                   if (!postUrl) {
                     postUrl = page.url;
                   }
@@ -198,7 +253,7 @@ class FbCrawlerService {
           source_name: this.fanpages.FB_TUVAN_SV.name,
           source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0KSbtAz4Aqp3biQ3my9QFUWFxpC8cMGsfKcwT9U2SBoLCW2S32iAthtBX8hwg8LScl',
           published_at: '2026-11-13T13:41:46.000Z',
-          attachments: [], // Không có link trong bài -> Tuyệt đối không bịa link!
+          attachments: [],
         },
         {
           title: '[CHECK MAIL & BẮT TRỌN TỌA ĐỘ WORKSHOP: UPGRADE IDEAS WITH AI - BỨT PHÁ SÁNG TẠO]',
@@ -227,17 +282,26 @@ class FbCrawlerService {
           published_at: '2026-11-11T08:36:13.000Z',
           attachments: [
             { title: 'Xem lịch thi', url: 'https://bom.so/piUmQ2' },
-            { title: 'Form đăng ký thi bổ sung', url: 'https://bom.so/f2NIZM' }
+            { title: 'Đăng ký thi bổ sung', url: 'https://bom.so/f2NIZM' }
           ],
         },
       ],
       FB_CTSV: [
         {
+          title: 'CHỦ ĐỘNG PHÒNG BỆNH – VÌ MỘT VIỆT NAM KHỎE MẠNH',
+          content: 'Sức khỏe là nền tảng để học tập, làm việc và phát triển. Chủ động phòng bệnh không chỉ là cách bảo vệ bản thân mà còn thể hiện trách nhiệm với gia đình và cộng đồng. Hưởng ứng Ngày Thế giới phòng, chống dịch bệnh 27/12/2026, Trường Đại học Bách khoa, Đại học Đà Nẵng kêu gọi toàn thể viên chức, người lao động và sinh viên nâng cao ý thức phòng bệnh.',
+          source_channel: 'FB_CTSV',
+          source_name: this.fanpages.FB_CTSV.name,
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1103839028947435',
+          published_at: '2026-11-16T07:32:33.000Z',
+          attachments: [],
+        },
+        {
           title: 'TỰ HÀO SINH VIÊN BÁCH KHOA! ROBOT TỰ HÀNH CHINH PHỤC GIẢI NHẤT AIoT DEVELOPER INNOWORKS 2026',
           content: 'Một lần nữa, sinh viên Trường Đại học Bách khoa, Đại học Đà Nẵng khẳng định bản lĩnh, trí tuệ và sự sáng tạo tại đấu trường công nghệ quốc tế với giải Nhất cuộc thi AIoT Developer Innoworks 2026.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/ctsv.dut',
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1824646392020124',
           published_at: '2026-11-16T01:01:06.000Z',
           attachments: [],
         },
@@ -246,7 +310,7 @@ class FbCrawlerService {
           content: 'Trường Đại học Bách khoa, Đại học Đà Nẵng chúc mừng 09 sinh viên xuất sắc đã được trao học bổng Toyota năm học 2026-2027 với giá trị 15.000.000 VNĐ/suất.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/ctsv.dut',
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1101010069230331',
           published_at: '2026-11-13T08:03:22.000Z',
           attachments: [],
         },
@@ -255,7 +319,7 @@ class FbCrawlerService {
           content: 'Không gian mạng mang đến nhiều tiện ích nhưng cũng tiềm ẩn những nội dung độc hại, thông tin sai lệch và hành vi gây tổn thương. Khi vô tình tiếp cận nội dung xấu, sinh viên hãy chủ động bấm báo cáo (Report) và bảo vệ thông tin tài khoản cá nhân.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/ctsv.dut',
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099942446003760',
           published_at: '2026-11-12T06:36:12.000Z',
           attachments: [],
         },
@@ -264,7 +328,7 @@ class FbCrawlerService {
           content: 'Chiều ngày 11/11/2026, Trường Đại học Bách khoa, Đại học Đà Nẵng tổ chức buổi gặp mặt thân mật với lưu học sinh quốc tế đang học tập tại trường nhằm lắng nghe tâm tư, hỗ trợ học tập và sinh hoạt.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/ctsv.dut',
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099847166013288',
           published_at: '2026-11-12T04:10:30.000Z',
           attachments: [],
         },
@@ -273,7 +337,7 @@ class FbCrawlerService {
           content: 'Với đề tài "Thiết kế IP AES-256-GCM hiệu năng cao cho mã hóa và xác thực", nhóm sinh viên Khoa Điện tử Viễn thông và Khoa CNTT đã xuất sắc đạt Giải Nhì toàn quốc.',
           source_channel: 'FB_CTSV',
           source_name: this.fanpages.FB_CTSV.name,
-          source_url: 'https://www.facebook.com/ctsv.dut',
+          source_url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1098254897839181',
           published_at: '2026-11-10T08:11:49.000Z',
           attachments: [],
         },

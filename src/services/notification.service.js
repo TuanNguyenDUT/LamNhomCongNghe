@@ -226,6 +226,12 @@ class NotificationService {
         if (payload.source_url) fbExisting.source_url = payload.source_url;
         if (payload.attachments !== undefined) fbExisting.attachments = payload.attachments;
         this.dbStore.saveNotification(fbExisting);
+        if (this.dbStore.pool) {
+          this.dbStore.pool.query(
+            'UPDATE notifications SET source_url = $1, attachments = $2::jsonb, published_at = $3 WHERE id = $4',
+            [fbExisting.source_url, JSON.stringify(fbExisting.attachments || []), fbExisting.published_at, fbExisting.id]
+          ).catch((e) => console.warn('Failed to update FB existing notice in DB:', e.message));
+        }
         return {
           status: 'DUPLICATE',
           message: 'Bài viết Facebook đã tồn tại (đã cập nhật dữ liệu chuẩn)',

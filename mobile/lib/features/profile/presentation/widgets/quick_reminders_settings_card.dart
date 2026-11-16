@@ -244,7 +244,7 @@ class _QuickRemindersSettingsCardState extends ConsumerState<QuickRemindersSetti
                               enabledOptionIds: _selectedOptions,
                               autoSyncGoogleCalendarByDefault: _autoSyncGoogle,
                             );
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         setState(() {
                           _isSaving = false;
                         });

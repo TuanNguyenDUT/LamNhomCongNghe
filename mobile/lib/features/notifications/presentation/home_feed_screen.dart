@@ -6,8 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/presentation/app_toast.dart';
 import '../../../core/presentation/liquid_glass.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../deadlines/presentation/deadlines_screen.dart';
 import '../../reminds/presentation/add_reminder_modal.dart';
 import 'emergency_alert_modal.dart';
 import 'notification_providers.dart';
@@ -151,16 +153,19 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           icon: const Icon(Icons.refresh_rounded, color: Color(0xFF007AFF), size: 22),
                           tooltip: 'Làm mới & Đồng bộ thông báo mới nhất',
                           onPressed: () async {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('🔄 Đang đồng bộ thông báo mới từ sv.dut.udn.vn & Fanpage...'),
-                                duration: Duration(milliseconds: 1500),
-                              ),
-                            );
+                            AppToast.showInfo(context, '🔄 Đang đồng bộ thông báo mới từ sv.dut.udn.vn & Fanpage...');
                             try {
                               await ref.read(dioProvider).post('/api/v1/crawler/trigger');
-                            } catch (_) {}
+                              if (context.mounted) {
+                                AppToast.showSuccess(context, 'Đã cập nhật thông báo mới nhất thành công!');
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                AppToast.showError(context, 'Không thể kết nối đến máy chủ cào dữ liệu.');
+                              }
+                            }
                             ref.invalidate(notificationFeedProvider);
+                            ref.invalidate(deadlinesListProvider);
                           },
                         ),
 
@@ -505,9 +510,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           final validAttachments = notif.attachments.where((att) {
                             if (att == null) return false;
                             final url = (att is Map ? att['url'] : att.toString())?.toString().trim() ?? '';
-                            if (!url.startsWith('http')) return false;
-                            if (url.contains('bieu-mau/vay-von') || url.contains('workshop-ai')) return false;
-                            return true;
+                            return url.startsWith('http');
                           }).toList();
 
                           return LiquidGlassCard(
@@ -693,24 +696,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                         child: InkWell(
                                           borderRadius: BorderRadius.circular(12),
                                           onTap: () {
-                                            String fbUrl = notif.sourceUrl ?? '';
-                                            if (fbUrl.isEmpty ||
-                                                fbUrl.contains('/12224') ||
-                                                fbUrl.contains('/1103') ||
-                                                fbUrl.contains('/1098') ||
-                                                fbUrl.contains('/1099') ||
-                                                fbUrl.contains('/1101')) {
-                                              if (notif.sourceChannel == 'FB_TUVAN_SV') {
-                                                if (notif.title.toUpperCase().contains('RECAP')) {
-                                                  fbUrl = 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl';
-                                                } else {
-                                                  fbUrl = 'https://www.facebook.com/tuvansinhvien.dut';
-                                                }
-                                              } else {
-                                                fbUrl = 'https://www.facebook.com/ctsv.dut';
-                                              }
+                                            final url = notif.sourceUrl;
+                                            if (url != null && url.trim().isNotEmpty && url.startsWith('http')) {
+                                              _openSourceUrl(url.trim());
+                                            } else {
+                                              final fallbackUrl = notif.sourceChannel == 'FB_CTSV'
+                                                  ? 'https://www.facebook.com/ctsvdhbkdhdn'
+                                                  : 'https://www.facebook.com/tuvansinhvien.dut';
+                                              _openSourceUrl(fallbackUrl);
                                             }
-                                            _openSourceUrl(fbUrl);
                                           },
                                           child: Container(
                                             height: 36,
