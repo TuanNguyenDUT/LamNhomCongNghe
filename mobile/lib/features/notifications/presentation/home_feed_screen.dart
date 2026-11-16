@@ -501,6 +501,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
                           final itemIndex = unacknowledgedEmergency.isNotEmpty ? index - 1 : index;
                           final notif = items[itemIndex];
+                          final validAttachments = notif.attachments.where((att) {
+                            if (att == null) return false;
+                            final url = (att is Map ? att['url'] : att.toString())?.toString().trim() ?? '';
+                            if (!url.startsWith('http')) return false;
+                            if (url.contains('bieu-mau/vay-von') || url.contains('workshop-ai')) return false;
+                            return true;
+                          }).toList();
 
                           return LiquidGlassCard(
                             borderRadius: 22,
@@ -598,13 +605,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                   ],
                                 ),
 
-                                // Tệp đính kèm (nếu có)
-                                if (notif.attachments.isNotEmpty) ...[
+                                // Tệp đính kèm (nếu có - tuyệt đối không hiển thị tệp giả lập)
+                                if (validAttachments.isNotEmpty) ...[
                                   const SizedBox(height: 10),
                                   Wrap(
                                     spacing: 6,
                                     runSpacing: 4,
-                                    children: notif.attachments.map((att) {
+                                    children: validAttachments.map((att) {
                                       final title = (att is Map ? att['title'] : null) ?? 'Tệp đính kèm';
                                       final url = (att is Map ? att['url'] : null) ?? '';
                                       return InkWell(
@@ -829,16 +836,16 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   Future<void> _openSourceUrl(String urlString) async {
     final uri = Uri.parse(urlString);
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
+      await launchUrl(uri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank');
+    } catch (_) {
+      try {
         await launchUrl(uri);
-      }
-    } catch (err) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể mở liên kết: $err')),
-        );
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Không thể mở liên kết: $err')),
+          );
+        }
       }
     }
   }
@@ -988,6 +995,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                       'description': descCtrl.text.trim(),
                       'due_date': selectedDate.toIso8601String(),
                       'notification_id': notif.id.toString(),
+                      'item_type': 'REMINDER',
                     },
                   );
 

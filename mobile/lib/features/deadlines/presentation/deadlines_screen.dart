@@ -24,20 +24,7 @@ final deadlinesListProvider = FutureProvider<List<DeadlineItem>>((ref) async {
     final rawList = res.data['data'] as List<dynamic>? ?? [];
     if (rawList.isNotEmpty) {
       return rawList.map((item) {
-        final m = item as Map<String, dynamic>;
-        return DeadlineItem(
-          deadlineId: (m['deadline_id'] ?? m['id'] ?? '').toString(),
-          studentId: (m['student_id'] ?? studentCode).toString(),
-          notificationId: m['notification_id']?.toString(),
-          courseCode: m['course_code']?.toString(),
-          title: (m['title'] ?? 'Hạn chót học tập').toString(),
-          description: m['description']?.toString(),
-          dueDate: m['due_date'] != null
-              ? DateTime.parse(m['due_date'].toString())
-              : DateTime.now().add(const Duration(days: 3)),
-          status: (m['status'] ?? 'PENDING').toString(),
-          googleEventId: m['google_event_id']?.toString(),
-        );
+        return DeadlineItem.fromJson(item as Map<String, dynamic>);
       }).toList();
     }
   } catch (_) {}
@@ -55,19 +42,19 @@ class DeadlinesScreen extends ConsumerStatefulWidget {
 }
 
 class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
+  // Tab quản lý: 'DEADLINES' (Hạn chót học vụ) hoặc 'REMINDS' (Quản lý Nhắc việc)
+  String _activeTab = 'DEADLINES';
   String _selectedFilter = 'ALL';
 
   @override
   Widget build(BuildContext context) {
     final deadlinesAsync = ref.watch(deadlinesListProvider);
-    final authState = ref.watch(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '';
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          // Background Gradient
+          // Background Gradient Apple Wallpaper style
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -85,7 +72,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
           SafeArea(
             child: Column(
               children: [
-                // Header Bar Liquid Glass
+                // 1. Header Bar Liquid Glass
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                   child: LiquidGlassContainer(
@@ -122,7 +109,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.calendar_month_rounded, color: Color(0xFF1A73E8), size: 22),
-                              tooltip: 'Đồng bộ Google Calendar (OAuth 2.0)',
+                              tooltip: 'Google Calendar OAuth 2.0',
                               onPressed: () => _showGoogleCalendarModal(),
                             ),
                             IconButton(
@@ -137,7 +124,167 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                   ),
                 ),
 
-                // Bộ lọc trạng thái Liquid Glass
+                // 2. Liquid Glass Segmented Tab Control: Hạn chót học vụ vs Quản lý Nhắc việc
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: LiquidGlassContainer(
+                    borderRadius: 16,
+                    blurSigma: 16,
+                    opacity: 0.85,
+                    padding: const EdgeInsets.all(4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _activeTab = 'DEADLINES'),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              decoration: BoxDecoration(
+                                color: _activeTab == 'DEADLINES' ? const Color(0xFF007AFF) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: _activeTab == 'DEADLINES'
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.school_rounded,
+                                      size: 16,
+                                      color: _activeTab == 'DEADLINES' ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Hạn chót học vụ',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: _activeTab == 'DEADLINES' ? Colors.white : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _activeTab = 'REMINDS'),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              decoration: BoxDecoration(
+                                color: _activeTab == 'REMINDS' ? const Color(0xFFFF9500) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: _activeTab == 'REMINDS'
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFFFF9500).withValues(alpha: 0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.alarm_on_rounded,
+                                      size: 16,
+                                      color: _activeTab == 'REMINDS' ? Colors.white : const Color(0xFF64748B),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Quản lý Nhắc việc',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: _activeTab == 'REMINDS' ? Colors.white : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 2b. Nếu ở Tab REMINDS: Hiển thị Toolbar Google Calendar đồng bộ
+                if (_activeTab == 'REMINDS')
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+                    child: LiquidGlassContainer(
+                      borderRadius: 16,
+                      blurSigma: 16,
+                      opacity: 0.9,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A73E8).withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF1A73E8), size: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Google Calendar Sync',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                ),
+                                Text(
+                                  'OAuth 2.0 • Tự động đồng bộ các Remind cá nhân',
+                                  style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              backgroundColor: const Color(0xFF1A73E8).withValues(alpha: 0.1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: const Icon(Icons.sync_rounded, size: 14, color: Color(0xFF1A73E8)),
+                            label: const Text(
+                              'Đồng bộ tất cả',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1A73E8)),
+                            ),
+                            onPressed: () => _syncAllToGoogleCalendar(),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.settings_outlined, size: 18, color: Color(0xFF64748B)),
+                            tooltip: 'Cài đặt liên kết Google',
+                            onPressed: () => _showGoogleCalendarModal(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // 3. Bộ lọc trạng thái Liquid Glass
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: Row(
@@ -153,13 +300,22 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                   ),
                 ),
 
-                // Danh sách Deadlines
+                // 4. Danh sách nội dung theo Tab
                 Expanded(
                   child: deadlinesAsync.when(
                     loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Center(child: Text('Lỗi tải deadlines: $err')),
+                    error: (err, stack) => Center(child: Text('Lỗi tải dữ liệu: $err')),
                     data: (deadlines) {
-                      var filtered = deadlines.where((d) => d.notificationId != null && d.notificationId!.isNotEmpty).toList();
+                      // Phân loại danh sách theo Tab
+                      List<DeadlineItem> listForTab;
+                      if (_activeTab == 'DEADLINES') {
+                        listForTab = deadlines.where((d) => d.isAcademicDeadline).toList();
+                      } else {
+                        listForTab = deadlines.where((d) => d.isReminder).toList();
+                      }
+
+                      // Áp dụng bộ lọc trạng thái
+                      var filtered = listForTab;
                       if (_selectedFilter == 'DUE_SOON') {
                         filtered = filtered.where((d) => d.status == 'DUE_SOON').toList();
                       } else if (_selectedFilter == 'PENDING') {
@@ -168,6 +324,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                         filtered = filtered.where((d) => d.status == 'COMPLETED').toList();
                       }
 
+                      // Giao diện khi danh sách trống
                       if (filtered.isEmpty) {
                         return Center(
                           child: Padding(
@@ -184,19 +341,19 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                     width: 64,
                                     height: 64,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF007AFF).withValues(alpha: 0.12),
+                                      color: (_activeTab == 'DEADLINES' ? const Color(0xFF007AFF) : const Color(0xFFFF9500)).withValues(alpha: 0.12),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(
-                                      Icons.notifications_active_outlined,
+                                    child: Icon(
+                                      _activeTab == 'DEADLINES' ? Icons.school_outlined : Icons.alarm_on_rounded,
                                       size: 34,
-                                      color: Color(0xFF007AFF),
+                                      color: _activeTab == 'DEADLINES' ? const Color(0xFF007AFF) : const Color(0xFFFF9500),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
-                                  const Text(
-                                    'Chưa có nhắc việc nào',
-                                    style: TextStyle(
+                                  Text(
+                                    _activeTab == 'DEADLINES' ? 'Chưa có hạn chót học vụ nào' : 'Chưa có nhắc việc nào',
+                                    style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                       color: Color(0xFF0F172A),
@@ -204,20 +361,24 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  const Text(
-                                    'Mỗi nhắc việc và hạn chót phải luôn gắn liền với một thông báo từ nhà trường, khoa hoặc lớp học phần.\n\nHãy vào tab "Bảng tin", chọn thông báo cần lưu và bấm nút "⏰ Thêm nhắc nhở".',
+                                  Text(
+                                    _activeTab == 'DEADLINES'
+                                        ? 'Hệ thống tự động bóc tách từ thông báo học vụ của nhà trường và giảng viên. Khi có bài thông báo có hạn nộp hoặc lịch thi, hạn chót sẽ xuất hiện tại đây.'
+                                        : 'Mỗi nhắc việc phải luôn gắn liền với một thông báo gốc từ nhà trường hoặc giảng viên.\n\nHãy vào tab "Bảng tin", chọn thông báo cần lưu và bấm nút "⏰ Thêm nhắc nhở".',
                                     textAlign: TextAlign.center,
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 13,
                                       color: Color(0xFF64748B),
                                       height: 1.4,
                                     ),
                                   ),
-                                  const SizedBox(height: 18),
-                                  LiquidGlassButton(
-                                    label: '📢 Đi đến Bảng tin thông báo',
-                                    onPressed: () => context.go('/notifications'),
-                                  ),
+                                  if (_activeTab == 'REMINDS') ...[
+                                    const SizedBox(height: 18),
+                                    LiquidGlassButton(
+                                      label: '📢 Đi đến Bảng tin thông báo',
+                                      onPressed: () => context.go('/notifications'),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -250,6 +411,12 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                         text: item.courseCode!,
                                         icon: Icons.school_rounded,
                                         color: const Color(0xFF5856D6),
+                                      )
+                                    else
+                                      LiquidGlassBadge(
+                                        text: item.isReminder ? 'Nhắc việc cá nhân' : 'Học vụ DUT',
+                                        icon: item.isReminder ? Icons.alarm_rounded : Icons.account_balance_rounded,
+                                        color: item.isReminder ? const Color(0xFFFF9500) : const Color(0xFF007AFF),
                                       ),
                                     const Spacer(),
                                     Container(
@@ -269,7 +436,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFF94A3B8)),
-                                      tooltip: 'Xóa hạn chót',
+                                      tooltip: item.isReminder ? 'Xóa nhắc việc' : 'Xóa hạn chót',
                                       onPressed: () => _deleteDeadline(item.deadlineId),
                                     ),
                                   ],
@@ -277,10 +444,11 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                 const SizedBox(height: 10),
                                 Text(
                                   item.title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
+                                    decoration: item.isCompleted ? TextDecoration.lineThrough : null,
+                                    color: item.isCompleted ? const Color(0xFF94A3B8) : const Color(0xFF0F172A),
                                   ),
                                 ),
                                 if (item.description != null && item.description!.isNotEmpty) ...[
@@ -338,7 +506,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          'Hạn: ${DateFormat('dd/MM/yyyy HH:mm').format(item.dueDate)}',
+                                          '${item.isReminder ? "Nhắc vào" : "Hạn"}: ${DateFormat('dd/MM/yyyy HH:mm').format(item.dueDate)}',
                                           style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -355,66 +523,82 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                                           style: TextStyle(color: Color(0xFF34C759), fontWeight: FontWeight.bold),
                                         ),
                                         onPressed: () => _markCompleted(item.deadlineId, item.title),
+                                      )
+                                    else
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF34C759)),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Đã hoàn thành',
+                                            style: TextStyle(color: Color(0xFF34C759), fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
                                       ),
                                   ],
                                 ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(
-                                        color: Colors.black.withValues(alpha: 0.06),
-                                        width: 1,
-                                      ),
-                                    ),
-                                  ),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: () => _addToGoogleCalendar(item),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        color: item.googleEventId != null
-                                            ? const Color(0xFF34C759).withValues(alpha: 0.1)
-                                            : const Color(0xFF4285F4).withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: item.googleEventId != null
-                                              ? const Color(0xFF34C759).withValues(alpha: 0.3)
-                                              : const Color(0xFF4285F4).withValues(alpha: 0.25),
+
+                                // CHỈ HIỂN THỊ NÚT THÊM VÀO GOOGLE CALENDAR CHO CÁC MỤC REMIND (NHẮC VIỆC CÁ NHÂN)!
+                                // Tuyệt đối KHÔNG hiển thị cho Hạn chót học vụ theo đúng yêu cầu người dùng.
+                                if (item.isReminder) ...[
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(
+                                          color: Colors.black.withValues(alpha: 0.06),
+                                          width: 1,
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            item.googleEventId != null
-                                                ? Icons.event_available_rounded
-                                                : Icons.edit_calendar_rounded,
-                                            size: 16,
+                                    ),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () => _addToGoogleCalendar(item),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                        decoration: BoxDecoration(
+                                          color: item.googleEventId != null
+                                              ? const Color(0xFF34C759).withValues(alpha: 0.1)
+                                              : const Color(0xFF4285F4).withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
                                             color: item.googleEventId != null
-                                                ? const Color(0xFF2E7D32)
-                                                : const Color(0xFF1A73E8),
+                                                ? const Color(0xFF34C759).withValues(alpha: 0.3)
+                                                : const Color(0xFF4285F4).withValues(alpha: 0.25),
                                           ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            item.googleEventId != null
-                                                ? 'Đã thêm vào Google Calendar • Mở xem ↗'
-                                                : 'Thêm vào Google Calendar ↗',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              item.googleEventId != null
+                                                  ? Icons.event_available_rounded
+                                                  : Icons.edit_calendar_rounded,
+                                              size: 16,
                                               color: item.googleEventId != null
                                                   ? const Color(0xFF2E7D32)
                                                   : const Color(0xFF1A73E8),
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              item.googleEventId != null
+                                                  ? 'Đã thêm vào Google Calendar • Mở xem ↗'
+                                                  : 'Thêm vào Google Calendar ↗',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: item.googleEventId != null
+                                                    ? const Color(0xFF2E7D32)
+                                                    : const Color(0xFF1A73E8),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           );
@@ -516,7 +700,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
       ref.invalidate(deadlinesListProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa hạn chót thành công')),
+          const SnackBar(content: Text('Đã xóa thành công')),
         );
       }
     } catch (err) {
@@ -571,9 +755,11 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
     } catch (_) {}
 
     try {
-      await launchUrl(gcalUri, mode: LaunchMode.externalApplication);
+      await launchUrl(gcalUri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank');
     } catch (_) {
-      await launchUrl(gcalUri);
+      try {
+        await launchUrl(gcalUri);
+      } catch (_) {}
     }
 
     if (mounted) {
@@ -601,7 +787,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Đã đồng bộ $count sự kiện với Google Calendar'),
+            content: Text('Đã đồng bộ $count sự kiện Remind với Google Calendar'),
             backgroundColor: const Color(0xFF1A73E8),
           ),
         );
@@ -628,7 +814,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
       if (url != null && url.isNotEmpty) {
         final uri = Uri.parse(url);
         try {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          await launchUrl(uri, mode: LaunchMode.externalApplication, webOnlyWindowName: '_blank');
         } catch (_) {
           await launchUrl(uri);
         }
@@ -712,7 +898,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                       Expanded(
                         child: Text(
                           isConnected
-                              ? 'Đã liên kết Google Calendar thành công! Các sự kiện sẽ tự động đồng bộ.'
+                              ? 'Đã liên kết Google Calendar thành công! Các sự kiện Remind sẽ tự động đồng bộ.'
                               : (isConfigured
                                   ? 'Đã cấu hình Google OAuth Client. Nhấn nút bên dưới để ủy quyền tài khoản Google.'
                                   : 'Chưa cấu hình Google Client Credentials.'),
@@ -751,12 +937,12 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                   const SizedBox(height: 12),
                 ],
                 const Text(
-                  'Tính năng thêm vào Google Calendar:',
+                  'Quy tắc đồng bộ Google Calendar:',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  '• Mỗi nhắc việc trên danh sách đều có nút "Thêm vào Google Calendar" để thêm nhanh 1-chạm vào lịch Google cá nhân.\n• Sau khi ủy quyền OAuth 2.0, bạn có thể đồng bộ tức thời mọi hạn chót học tập vào tài khoản Google.',
+                  '• CHỈ các mục Remind (Nhắc việc cá nhân) mới có nút "Thêm vào Google Calendar" và được phép đồng bộ lên tài khoản Google.\n• Hạn chót học vụ của nhà trường là thông tin chính quy phục vụ theo dõi học tập, không đồng bộ tràn lan vào lịch cá nhân.',
                   style: TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.4),
                 ),
               ],
@@ -772,7 +958,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                   foregroundColor: Colors.white,
                 ),
                 icon: const Icon(Icons.sync_rounded, size: 16),
-                label: const Text('Đồng bộ tất cả'),
+                label: const Text('Đồng bộ Reminds'),
                 onPressed: () {
                   Navigator.pop(ctx);
                   _syncAllToGoogleCalendar();

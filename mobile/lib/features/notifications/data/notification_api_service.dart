@@ -31,18 +31,27 @@ class NotificationApiService {
     final itemsJson = (payload['notifications'] ?? payload['items']) as List<dynamic>? ?? const [];
     final pagination = _asMap(payload['pagination']);
 
+    final seenKeys = <String>{};
+    final dedupedItems = <NotificationItem>[];
+    for (final item in itemsJson) {
+      final notif = NotificationItem.fromJson(_asMap(item));
+      final cleanTitle = notif.title.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+      final key = '${notif.sourceChannel ?? ''}|$cleanTitle';
+      if (seenKeys.add(key)) {
+        dedupedItems.add(notif);
+      }
+    }
+
     return NotificationPage(
-      items: itemsJson
-          .map((item) => NotificationItem.fromJson(_asMap(item)))
-          .toList(growable: false),
+      items: dedupedItems,
       page: (pagination['page'] as num?)?.toInt() ?? page,
       totalPages:
           (pagination['total_pages'] as num?)?.toInt() ??
-          (((pagination['total'] as num?)?.toInt() ?? itemsJson.length) /
+          (((pagination['total'] as num?)?.toInt() ?? dedupedItems.length) /
                   limit)
               .ceil()
               .clamp(1, 1 << 31),
-      total: (pagination['total'] as num?)?.toInt() ?? itemsJson.length,
+      total: (pagination['total'] as num?)?.toInt() ?? dedupedItems.length,
     );
   }
 

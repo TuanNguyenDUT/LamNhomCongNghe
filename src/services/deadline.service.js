@@ -22,7 +22,10 @@ class DeadlineService {
     const cleanTitle = (data.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
     const formattedTitle = (data.title || 'Hạn chót học tập').replace(/\s+/g, ' ').trim();
 
-    // 1. Kiểm tra xem hạn chót này đã tồn tại cho sinh viên hay chưa
+    const isReminder = data.item_type === 'REMINDER' || formattedTitle.startsWith('[Nhắc nhở]');
+    const itemType = data.item_type || (isReminder ? 'REMINDER' : 'DEADLINE');
+
+    // 1. Kiểm tra xem hạn chót/nhắc việc này đã tồn tại cho sinh viên hay chưa
     for (const d of this.dbStore.deadlines.values()) {
       if (d.student_id === targetStudentId) {
         const dCleanTitle = (d.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
@@ -35,6 +38,7 @@ class DeadlineService {
           if (data.description && !d.description) d.description = data.description;
           if (data.notification_id && !d.notification_id) d.notification_id = data.notification_id;
           if (data.course_code && !d.course_code) d.course_code = data.course_code;
+          if (!d.item_type) d.item_type = itemType;
           d.updated_at = new Date().toISOString();
           this._updateDeadlineStatus(d);
           this.dbStore.saveDeadline(d);
@@ -52,6 +56,7 @@ class DeadlineService {
       description: data.description || '',
       due_date: data.due_date ? new Date(data.due_date).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
       status: data.status || 'PENDING',
+      item_type: itemType,
       google_event_id: data.google_event_id || null,
       last_synced_at: data.last_synced_at || null,
       reminder_stage_sent: 0,
@@ -72,10 +77,19 @@ class DeadlineService {
     const student = this.dbStore.findStudentByCodeOrId(studentId);
     const targetStudentId = student ? student.id : (studentId || 'a0000000-0000-0000-0000-000000000001');
 
-    const list = this.dbStore.getDeadlinesByStudent(targetStudentId, filters);
+    let list = this.dbStore.getDeadlinesByStudent(targetStudentId, filters);
     // Tự động kiểm tra và cập nhật trạng thái PENDING / DUE_SOON / OVERDUE
     for (const d of list) {
       this._updateDeadlineStatus(d);
+    }
+
+    // Lọc theo item_type nếu có: 'DEADLINE' vs 'REMINDER'
+    if (filters.item_type) {
+      if (filters.item_type === 'REMINDER') {
+        list = list.filter((d) => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]')));
+      } else if (filters.item_type === 'DEADLINE') {
+        list = list.filter((d) => d.item_type !== 'REMINDER' && !(d.title && d.title.startsWith('[Nhắc nhở]')));
+      }
     }
 
     // Khử trùng lặp trên tầng đọc (Deduplicate on read)
@@ -83,7 +97,8 @@ class DeadlineService {
     const deduped = [];
     for (const d of list) {
       const cleanTitle = (d.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
-      const key = cleanTitle || d.deadline_id;
+      const typeKey = d.item_type || (d.title && d.title.startsWith('[Nhắc nhở]') ? 'REMINDER' : 'DEADLINE');
+      const key = `${cleanTitle}|${typeKey}`;
       if (seen.has(key)) {
         continue;
       }

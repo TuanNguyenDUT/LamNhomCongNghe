@@ -335,9 +335,15 @@ async function notificationRouter(req, res, controller) {
       return;
     }
 
-    // 3. Quản lý hạn chót (Deadlines) (FR-06, FR-07)
+    // 3. Quản lý hạn chót (Deadlines) & Nhắc việc (Reminds) (FR-06, FR-07)
     if (req.method === 'GET' && pathname === '/api/v1/deadlines') {
       const result = await controller.listDeadlines(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/reminds') {
+      const result = await controller.listDeadlines({ ...queryParams, item_type: 'REMINDER' });
       sendJson(res, result.statusCode, result.body);
       return;
     }
@@ -345,6 +351,13 @@ async function notificationRouter(req, res, controller) {
     if (req.method === 'POST' && pathname === '/api/v1/deadlines') {
       const body = await readJsonBody(req);
       const result = await controller.createDeadline(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/v1/reminds') {
+      const body = await readJsonBody(req);
+      const result = await controller.createDeadline({ ...body, item_type: 'REMINDER' });
       sendJson(res, result.statusCode, result.body);
       return;
     }

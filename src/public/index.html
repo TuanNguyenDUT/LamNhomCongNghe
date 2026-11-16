@@ -176,29 +176,51 @@
     </section>
 
     <section id="view-deadlines" style="display: none;">
-      <div class="action-bar">
+      <!-- BẢNG 1: HẠN CHÓT HỌC VỤ (KHÔNG CÓ GOOGLE CALENDAR) -->
+      <div class="action-bar" style="margin-bottom:12px;">
         <div>
-          <h2 style="font-size: 18px; font-weight: 700;">Quản lý Hạn chót & Calendar</h2>
-          <p style="font-size: 13px; color: var(--text-muted);">Cảnh báo đa tầng trước 7 ngày, 3 ngày, 24 giờ và 2 giờ</p>
+          <h2 style="font-size: 18px; font-weight: 700; color:#0f172a;">📅 Hạn Chót Học Vụ (Academic Deadlines)</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">Bóc tách tự động từ thông báo có thật của nhà trường và giảng viên • Dữ liệu học vụ chính quy</p>
+        </div>
+      </div>
+      <div class="deadlines-table-container" style="margin-bottom:28px;">
+        <table class="deadlines-table">
+          <thead>
+            <tr>
+              <th>Hạn chót học vụ</th>
+              <th>Học phần</th>
+              <th>Thời hạn</th>
+              <th>Trạng thái</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="deadlines-academic-container"></tbody>
+        </table>
+      </div>
+
+      <!-- BẢNG 2: MỤC QUẢN LÝ REMIND (CÓ GOOGLE CALENDAR) -->
+      <div class="action-bar" style="margin-bottom:12px; padding-top:16px; border-top: 1px dashed #cbd5e1;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 700; color:#ea580c;">⏰ Quản Lý Nhắc Việc Cá Nhân (Reminds)</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">Nhắc nhở do sinh viên chủ động tạo gắn liền với thông báo • Tích hợp Google Calendar (OAuth 2.0)</p>
         </div>
         <div style="display:flex;gap:10px;">
-          <a class="btn btn-success" href="/api/v1/calendar/export.ics" download="dut_deadlines.ics">📥 Xuất tệp iCalendar (.ics)</a>
-          <button class="btn btn-primary" onclick="connectGoogleOAuth()">🔗 Liên kết Google</button>
-          <button class="btn btn-outline" onclick="syncGoogleCalendar()">📅 Đồng bộ Google Calendar</button>
+          <button class="btn btn-primary" onclick="connectGoogleOAuth()">🔗 Liên kết Google Calendar</button>
+          <button class="btn btn-outline" style="color:#1a73e8;border-color:#1a73e8;" onclick="syncGoogleCalendar()">📅 Đồng bộ tất cả Reminds</button>
         </div>
       </div>
       <div class="deadlines-table-container">
         <table class="deadlines-table">
           <thead>
             <tr>
-              <th>Hạn chót / Nhiệm vụ</th>
-              <th>Môn học</th>
-              <th>Thời hạn</th>
+              <th>Nhắc việc / Ghi chú</th>
+              <th>Học phần</th>
+              <th>Thời gian nhắc</th>
               <th>Trạng thái</th>
-              <th>Thao tác</th>
+              <th>Thao tác Google Calendar</th>
             </tr>
           </thead>
-          <tbody id="deadlines-container"></tbody>
+          <tbody id="reminds-container"></tbody>
         </table>
       </div>
     </section>
@@ -415,35 +437,77 @@
     }
 
     async function loadDeadlines() {
-      const container = document.getElementById('deadlines-container');
-      container.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:#94a3b8;">Đang tải...</td></tr>';
+      const acadContainer = document.getElementById('deadlines-academic-container');
+      const remindContainer = document.getElementById('reminds-container');
+      if (acadContainer) acadContainer.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">Đang tải hạn chót học vụ...</td></tr>';
+      if (remindContainer) remindContainer.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8;">Đang tải nhắc việc cá nhân...</td></tr>';
       try {
         const sId = getCurrentStudentId();
         const res = await fetch(`/api/v1/deadlines?student_id=${sId}`);
         const json = await res.json();
         const items = json?.data || [];
-        container.innerHTML = items.map(d => `
-          <tr>
-            <td>
-              <strong style="${d.status === 'COMPLETED' ? 'text-decoration:line-through;color:#94a3b8;' : ''}">${d.title}</strong>
-              ${d.description ? `<div style="font-size:12px;color:#64748b;">${d.description}</div>` : ''}
-            </td>
-            <td>${d.course_code ? `<span class="tag-course">${d.course_code}</span>` : 'Toàn trường'}</td>
-            <td><strong>${new Date(d.due_date).toLocaleString('vi-VN')}</strong></td>
-            <td><span class="status-badge status-${d.status}">${d.status}</span></td>
-            <td>
-              <div style="display:flex;gap:6px;align-items:center;">
-                <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:#1a73e8;border-color:#1a73e8;" onclick="addSingleToGoogleCalendar('${d.deadline_id}', '${(d.title || '').replace(/'/g, "\\'")}', '${d.due_date}', '${(d.description || '').replace(/'/g, "\\'")}', '${d.course_code || ''}')">📅 Thêm Google Cal</button>
-                ${d.status !== 'COMPLETED' ? `
-                  <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="markComplete('${d.deadline_id}')">✔ Xong</button>
-                ` : '<span style="color:#16a34a;font-weight:600;font-size:12px;">Đã xong</span>'}
-              </div>
-            </td>
-          </tr>
-        `).join('');
+
+        const academicItems = items.filter(d => d.item_type !== 'REMINDER' && !(d.title && d.title.startsWith('[Nhắc nhở]')));
+        const remindItems = items.filter(d => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]')));
+
+        if (acadContainer) {
+          if (academicItems.length === 0) {
+            acadContainer.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">Chưa có hạn chót học vụ nào từ nhà trường hoặc giảng viên.</td></tr>';
+          } else {
+            acadContainer.innerHTML = academicItems.map(d => `
+              <tr>
+                <td>
+                  <strong style="${d.status === 'COMPLETED' ? 'text-decoration:line-through;color:#94a3b8;' : ''}">${d.title}</strong>
+                  ${d.description ? `<div style="font-size:12px;color:#64748b;">${d.description}</div>` : ''}
+                </td>
+                <td>${d.course_code ? `<span class="tag-course">${d.course_code}</span>` : 'Toàn trường'}</td>
+                <td><strong>${new Date(d.due_date).toLocaleString('vi-VN')}</strong></td>
+                <td><span class="status-badge status-${d.status}">${d.status}</span></td>
+                <td>
+                  ${d.status !== 'COMPLETED' ? `
+                    <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="markComplete('${d.deadline_id}')">✔ Xong</button>
+                  ` : '<span style="color:#16a34a;font-weight:600;font-size:12px;">Đã xong</span>'}
+                </td>
+              </tr>
+            `).join('');
+          }
+        }
+
+        if (remindContainer) {
+          if (remindItems.length === 0) {
+            remindContainer.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">Chưa có nhắc việc nào. Hãy vào tab "Bảng Tin Thông Báo", chọn thông báo và bấm "⏰ Thêm nhắc nhở".</td></tr>';
+          } else {
+            remindContainer.innerHTML = remindItems.map(d => `
+              <tr>
+                <td>
+                  <strong style="${d.status === 'COMPLETED' ? 'text-decoration:line-through;color:#94a3b8;' : ''}">${d.title}</strong>
+                  ${d.description ? `<div style="font-size:12px;color:#64748b;">${d.description}</div>` : ''}
+                </td>
+                <td>${d.course_code ? `<span class="tag-course">${d.course_code}</span>` : 'Cá nhân'}</td>
+                <td><strong>${new Date(d.due_date).toLocaleString('vi-VN')}</strong></td>
+                <td><span class="status-badge status-${d.status}">${d.status}</span></td>
+                <td>
+                  <div style="display:flex;gap:6px;align-items:center;">
+                    <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;color:#1a73e8;border-color:#1a73e8;" onclick="addSingleToGoogleCalendar('${d.deadline_id}', '${(d.title || '').replace(/'/g, "\\'")}', '${d.due_date}', '${(d.description || '').replace(/'/g, "\\'")}', '${d.course_code || ''}')">📅 Thêm Google Cal ↗</button>
+                    ${d.status !== 'COMPLETED' ? `
+                      <button class="btn btn-outline" style="padding:4px 10px;font-size:12px;" onclick="markComplete('${d.deadline_id}')">✔ Xong</button>
+                    ` : '<span style="color:#16a34a;font-weight:600;font-size:12px;">Đã xong</span>'}
+                    <button class="btn btn-outline" style="padding:4px 8px;font-size:12px;color:#ef4444;border-color:#ef4444;" onclick="deleteDeadlineItem('${d.deadline_id}')" title="Xóa nhắc việc">🗑</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('');
+          }
+        }
       } catch (err) {
-        container.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444;">Lỗi: ${err.message}</td></tr>`;
+        if (acadContainer) acadContainer.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444;">Lỗi: ${err.message}</td></tr>`;
       }
+    }
+
+    async function deleteDeadlineItem(id) {
+      if (!confirm('Bạn có chắc chắn muốn xóa nhắc việc này?')) return;
+      await fetch(`/api/v1/deadlines/${id}`, { method: 'DELETE' });
+      loadDeadlines();
     }
 
     async function markComplete(id) {
@@ -627,13 +691,15 @@
       }
 
       try {
+        const sId = getCurrentStudentId();
         const payload = {
-          student_id: '102200001',
+          student_id: sId,
           notification_id: notifId || undefined,
           title,
           due_date: new Date(dueDate).toISOString(),
           course_code: courseCode || undefined,
-          notes: notes || undefined,
+          description: notes || undefined,
+          item_type: 'REMINDER',
         };
 
         const res = await fetch('/api/v1/deadlines', {
@@ -644,7 +710,8 @@
 
         if (!res.ok) throw new Error('Không thể lưu nhắc nhở');
         closeReminderModal();
-        alert('🎉 Đã thêm nhắc nhở hạn chót thành công! Bạn có thể xem trong tab "Quản Lý Hạn Chót (Deadlines)".');
+        alert('🎉 Đã thêm nhắc việc thành công! Bạn có thể xem trong mục "Quản Lý Nhắc Việc Cá Nhân (Reminds)".');
+        loadDeadlines();
       } catch (err) {
         alert('Lỗi: ' + err.message);
       }

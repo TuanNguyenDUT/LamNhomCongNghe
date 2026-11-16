@@ -224,6 +224,10 @@ class GoogleCalendarService {
       studentDeadlines = this.dbStore.getDeadlinesByStudent(targetStudentId, {
         status: 'PENDING',
       });
+      // QUY TẮC CỐT LÕI: Chỉ đồng bộ Nhắc việc (REMINDER) do sinh viên tạo, không tự ý đẩy Hạn chót học vụ vào Google Calendar
+      studentDeadlines = studentDeadlines.filter(
+        (d) => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]'))
+      );
     }
 
     const isConfigured = this.hasGoogleCredentials();
