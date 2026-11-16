@@ -336,6 +336,7 @@ class InMemoryDbStore {
   }
 
   saveNotification(notification) {
+    const isExisting = notification.id && this.notifications.has(notification.id);
     if (!notification.id) notification.id = crypto.randomUUID();
     notification.created_at = notification.created_at || new Date().toISOString();
     notification.published_at = notification.published_at || new Date().toISOString();
@@ -354,52 +355,89 @@ class InMemoryDbStore {
         ? notification.priority
         : (notification.priority === 'MEDIUM' ? 'NORMAL' : 'NORMAL');
 
-      this.pool
-        .query(
-          `INSERT INTO notifications (
-             id, title, summary, action_required, content, source_channel,
-             classified_by, scope, priority, priority_score, course_code,
-             target_faculty, target_cohort, is_emergency, tags, attachments,
-             source_url, deadline_at, content_hash, published_at, created_at
-           ) VALUES (
-             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-             $15::jsonb, $16::jsonb, $17, $18, $19, $20, $21
-           )
-           ON CONFLICT (content_hash) DO UPDATE SET
-             title = EXCLUDED.title,
-             summary = EXCLUDED.summary,
-             action_required = EXCLUDED.action_required,
-             content = EXCLUDED.content,
-             published_at = EXCLUDED.published_at,
-             tags = EXCLUDED.tags,
-             attachments = EXCLUDED.attachments,
-             source_url = EXCLUDED.source_url,
-             deadline_at = EXCLUDED.deadline_at`,
-          [
-            notification.id,
-            notification.title,
-            notification.summary || '',
-            notification.action_required || null,
-            notification.content || '',
-            notification.source_channel || 'DUT_GENERAL',
-            notification.classified_by || 'RULE_ENGINE',
-            notification.scope || 'GLOBAL',
-            validPriority,
-            notification.priority_score || 0,
-            notification.course_code || null,
-            notification.target_faculty || null,
-            notification.target_cohort || null,
-            !!notification.is_emergency,
-            JSON.stringify(notification.tags || []),
-            JSON.stringify(notification.attachments || []),
-            notification.source_url || null,
-            notification.deadline_at || null,
-            notification.content_hash,
-            notification.published_at,
-            notification.created_at,
-          ]
-        )
-        .catch((err) => console.warn('PG sync error (notifications):', err.message));
+      if (isExisting) {
+        this.pool
+          .query(
+            `UPDATE notifications SET
+               title = $1, summary = $2, action_required = $3, content = $4,
+               source_channel = $5, classified_by = $6, scope = $7, priority = $8,
+               priority_score = $9, course_code = $10, target_faculty = $11,
+               target_cohort = $12, is_emergency = $13, tags = $14::jsonb,
+               attachments = $15::jsonb, source_url = $16, deadline_at = $17,
+               content_hash = $18, published_at = $19
+             WHERE id = $20`,
+            [
+              notification.title,
+              notification.summary || '',
+              notification.action_required || null,
+              notification.content || '',
+              notification.source_channel || 'DUT_GENERAL',
+              notification.classified_by || 'RULE_ENGINE',
+              notification.scope || 'GLOBAL',
+              validPriority,
+              notification.priority_score || 0,
+              notification.course_code || null,
+              notification.target_faculty || null,
+              notification.target_cohort || null,
+              !!notification.is_emergency,
+              JSON.stringify(notification.tags || []),
+              JSON.stringify(notification.attachments || []),
+              notification.source_url || null,
+              notification.deadline_at || null,
+              notification.content_hash,
+              notification.published_at,
+              notification.id,
+            ]
+          )
+          .catch((err) => console.warn('PG sync error (update notifications):', err.message));
+      } else {
+        this.pool
+          .query(
+            `INSERT INTO notifications (
+               id, title, summary, action_required, content, source_channel,
+               classified_by, scope, priority, priority_score, course_code,
+               target_faculty, target_cohort, is_emergency, tags, attachments,
+               source_url, deadline_at, content_hash, published_at, created_at
+             ) VALUES (
+               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               $15::jsonb, $16::jsonb, $17, $18, $19, $20, $21
+             )
+             ON CONFLICT (content_hash) DO UPDATE SET
+               title = EXCLUDED.title,
+               summary = EXCLUDED.summary,
+               action_required = EXCLUDED.action_required,
+               content = EXCLUDED.content,
+               published_at = EXCLUDED.published_at,
+               tags = EXCLUDED.tags,
+               attachments = EXCLUDED.attachments,
+               source_url = EXCLUDED.source_url,
+               deadline_at = EXCLUDED.deadline_at`,
+            [
+              notification.id,
+              notification.title,
+              notification.summary || '',
+              notification.action_required || null,
+              notification.content || '',
+              notification.source_channel || 'DUT_GENERAL',
+              notification.classified_by || 'RULE_ENGINE',
+              notification.scope || 'GLOBAL',
+              validPriority,
+              notification.priority_score || 0,
+              notification.course_code || null,
+              notification.target_faculty || null,
+              notification.target_cohort || null,
+              !!notification.is_emergency,
+              JSON.stringify(notification.tags || []),
+              JSON.stringify(notification.attachments || []),
+              notification.source_url || null,
+              notification.deadline_at || null,
+              notification.content_hash,
+              notification.published_at,
+              notification.created_at,
+            ]
+          )
+          .catch((err) => console.warn('PG sync error (notifications):', err.message));
+      }
     }
 
     return notification;
