@@ -64,6 +64,11 @@ class CrawlerManagerService {
     console.log(`===================================================================`);
 
     try {
+      // 0. Sửa chữa và dọn dẹp các bài viết Facebook cũ bị lưu link chung trước khi nạp mới
+      if (typeof this.notificationSvc.repairAndDeduplicateFacebookNotices === 'function') {
+        await this.notificationSvc.repairAndDeduplicateFacebookNotices().catch(() => {});
+      }
+
       // 1. Cào 7 chuyên mục trên cổng sv.dut.udn.vn
       console.log(`▶ 1. Đang cào 7 tab từ https://sv.dut.udn.vn/...`);
       const dutResults = await this.dutCrawler.scrapeAllDutTabs({ monthsLimit: this.monthsLimit });

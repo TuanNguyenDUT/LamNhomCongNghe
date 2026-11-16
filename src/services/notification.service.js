@@ -141,13 +141,27 @@ class NotificationService {
   }
 
   /**
+   * Chuẩn hóa tiêu đề bài viết để so khớp và tính mã băm chống trùng lặp chính xác
+   */
+  _normalizeTitle(title) {
+    return String(title || '')
+      .normalize('NFKC')
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+      .replace(/[«»“”"''\[\]【】–—\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  /**
    * Tính mã băm SHA-256 chống trùng lặp tin (FR-02)
    */
   generateContentHash({ source_channel = 'DUT_GENERAL', title = '', published_at = '' }) {
-    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const isFb = source_channel === 'FB_CTSV' || source_channel === 'FB_TUVAN_SV';
+    const cleanTitle = isFb ? this._normalizeTitle(title) : String(title || '').replace(/\s+/g, ' ').trim().toLowerCase();
     let datePart = '';
     // Đối với Fanpage Facebook, không băm kèm datePart để tránh lệch ngày quét
-    if (source_channel === 'FB_CTSV' || source_channel === 'FB_TUVAN_SV') {
+    if (isFb) {
       const raw = `${source_channel}|${cleanTitle}`;
       return crypto.createHash('sha256').update(raw).digest('hex');
     }
@@ -158,6 +172,81 @@ class NotificationService {
     }
     const raw = `${source_channel}|${cleanTitle}|${datePart}`;
     return crypto.createHash('sha256').update(raw).digest('hex');
+  }
+
+  /**
+   * Sửa chữa và dọn dẹp các bài viết Facebook cũ bị lưu link chung hoặc trùng lặp
+   */
+  async repairAndDeduplicateFacebookNotices() {
+    const { fbCrawlerService } = require('./fb-crawler.service');
+    const ctsvFallbacks = fbCrawlerService._getCuratedFallbackNotices('FB_CTSV');
+    const tuvanFallbacks = fbCrawlerService._getCuratedFallbackNotices('FB_TUVAN_SV');
+    const allCurated = [...ctsvFallbacks, ...tuvanFallbacks];
+
+    let repairedCount = 0;
+    const seenByChannelAndTitle = new Map();
+    const toDeleteIds = [];
+
+    for (const [id, n] of this.dbStore.notifications.entries()) {
+      if (n.source_channel !== 'FB_CTSV' && n.source_channel !== 'FB_TUVAN_SV') continue;
+
+      const norm = this._normalizeTitle(n.title);
+      const key = `${n.source_channel}|${norm}`;
+
+      // 1. Kiểm tra sửa chữa link bài viết nếu đang là link trang chủ Fanpage chung
+      const isGenericUrl = !n.source_url || !n.source_url.includes('/posts/') || n.source_url.endsWith('/ctsvdhbkdhdn') || n.source_url.endsWith('/tuvansinhvien.dut');
+      if (isGenericUrl) {
+        for (const c of allCurated) {
+          const cNorm = this._normalizeTitle(c.title);
+          if (norm.length > 10 && (norm === cNorm || norm.includes(cNorm) || cNorm.includes(norm))) {
+            n.source_url = c.source_url;
+            if ((!n.attachments || n.attachments.length === 0) && c.attachments && c.attachments.length > 0) {
+              n.attachments = c.attachments;
+            }
+            this.dbStore.saveNotification(n);
+            if (this.dbStore.pool) {
+              this.dbStore.pool.query(
+                'UPDATE notifications SET source_url = $1, attachments = $2::jsonb WHERE id = $3',
+                [n.source_url, JSON.stringify(n.attachments || []), n.id]
+              ).catch(() => {});
+            }
+            repairedCount++;
+            break;
+          }
+        }
+      }
+
+      // 2. Kiểm tra trùng lặp
+      if (seenByChannelAndTitle.has(key)) {
+        const first = seenByChannelAndTitle.get(key);
+        // Ưu tiên giữ lại bản ghi có link cụ thể (/posts/)
+        if (first.source_url && first.source_url.includes('/posts/')) {
+          toDeleteIds.push(id);
+        } else if (n.source_url && n.source_url.includes('/posts/')) {
+          toDeleteIds.push(first.id);
+          seenByChannelAndTitle.set(key, n);
+        } else {
+          toDeleteIds.push(id);
+        }
+      } else {
+        seenByChannelAndTitle.set(key, n);
+      }
+    }
+
+    // Xóa các bản ghi trùng lặp
+    for (const delId of toDeleteIds) {
+      this.dbStore.notifications.delete(delId);
+      if (this.dbStore.student_notifications) {
+        this.dbStore.student_notifications = this.dbStore.student_notifications.filter(
+          (sn) => sn.notification_id !== delId
+        );
+      }
+      if (this.dbStore.pool) {
+        this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [delId]).catch(() => {});
+      }
+    }
+
+    return { repairedCount, deletedDuplicates: toDeleteIds.length };
   }
 
   /**
@@ -191,7 +280,9 @@ class NotificationService {
    */
   async ingestNotification(payload = {}) {
     const sourceChannel = payload.source_channel || payload.source_type || 'DUT_GENERAL';
+    const isFb = sourceChannel === 'FB_CTSV' || sourceChannel === 'FB_TUVAN_SV';
     const title = (payload.title || '').replace(/\s+/g, ' ').trim();
+    const cleanTitle = String(title || '').replace(/\s+/g, ' ').trim().toLowerCase();
     const content = payload.content || '';
     const publishedAt = payload.published_at || new Date().toISOString();
 
@@ -202,42 +293,96 @@ class NotificationService {
       published_at: publishedAt,
     });
 
-    const existing = this.dbStore.findNotificationByHash(contentHash);
-    if (existing) {
-      return {
-        status: 'DUPLICATE',
-        message: 'Thông báo đã tồn tại trên hệ thống (trùng khớp SHA-256 hash)',
-        notification: existing,
-      };
+    let existing = this.dbStore.findNotificationByHash(contentHash);
+
+    // 1b. Chống trùng lặp nâng cao cho các bài đăng Fanpage Facebook
+    if (isFb && !existing) {
+      const normInputTitle = this._normalizeTitle(title);
+      existing = Array.from(this.dbStore.notifications.values()).find((n) => {
+        if (n.source_channel !== sourceChannel) return false;
+        // Kiểm tra trùng link bài viết trực tiếp hoặc cùng ID bài viết
+        if (payload.source_url && n.source_url) {
+          const u1 = payload.source_url.replace(/\/$/, '');
+          const u2 = n.source_url.replace(/\/$/, '');
+          if (u1 === u2) return true;
+          const m1 = u1.match(/\/posts\/([a-zA-Z0-9_-]+)/);
+          const m2 = u2.match(/\/posts\/([a-zA-Z0-9_-]+)/);
+          if (m1 && m2 && m1[1] === m2[1]) return true;
+        }
+        // Kiểm tra trùng tiêu đề chuẩn hóa
+        const normExistingTitle = this._normalizeTitle(n.title);
+        return normInputTitle.length > 10 && normInputTitle === normExistingTitle;
+      });
     }
 
-    // 1b. Chống trùng lặp tuyệt đối cho các bài đăng Fanpage Facebook
-    const cleanTitle = title.toLowerCase();
-    if (sourceChannel === 'FB_CTSV' || sourceChannel === 'FB_TUVAN_SV') {
-      const fbExisting = Array.from(this.dbStore.notifications.values()).find((n) => {
-        if (n.source_channel !== sourceChannel) return false;
-        const nClean = String(n.title || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        const sameTitle = nClean === cleanTitle;
-        const sameUrl = payload.source_url && n.source_url && n.source_url === payload.source_url;
-        return sameTitle || sameUrl;
-      });
-      if (fbExisting) {
-        if (payload.published_at) fbExisting.published_at = payload.published_at;
-        if (payload.source_url) fbExisting.source_url = payload.source_url;
-        if (payload.attachments !== undefined) fbExisting.attachments = payload.attachments;
-        this.dbStore.saveNotification(fbExisting);
+    if (existing) {
+      let isUpdated = false;
+
+      // Cập nhật source_url nếu bài viết cũ lưu link Fanpage chung hoặc thiếu link bài cụ thể
+      if (isFb && payload.source_url) {
+        const isPayloadSpecific = payload.source_url.includes('/posts/');
+        const isExistingGeneric = !existing.source_url || !existing.source_url.includes('/posts/') || existing.source_url.endsWith('/ctsvdhbkdhdn') || existing.source_url.endsWith('/tuvansinhvien.dut');
+        if (isPayloadSpecific && (isExistingGeneric || existing.source_url !== payload.source_url)) {
+          existing.source_url = payload.source_url;
+          isUpdated = true;
+        }
+      }
+
+      // Cập nhật attachments nếu payload có liên kết đính kèm thật mà existing chưa có
+      if (payload.attachments && payload.attachments.length > 0) {
+        if (!existing.attachments || existing.attachments.length === 0) {
+          existing.attachments = payload.attachments;
+          isUpdated = true;
+        }
+      }
+
+      // Cập nhật published_at chuẩn
+      if (payload.published_at && isFb) {
+        existing.published_at = payload.published_at;
+        isUpdated = true;
+      }
+
+      if (isUpdated) {
+        this.dbStore.saveNotification(existing);
         if (this.dbStore.pool) {
           this.dbStore.pool.query(
             'UPDATE notifications SET source_url = $1, attachments = $2::jsonb, published_at = $3 WHERE id = $4',
-            [fbExisting.source_url, JSON.stringify(fbExisting.attachments || []), fbExisting.published_at, fbExisting.id]
+            [existing.source_url, JSON.stringify(existing.attachments || []), existing.published_at, existing.id]
           ).catch((e) => console.warn('Failed to update FB existing notice in DB:', e.message));
         }
-        return {
-          status: 'DUPLICATE',
-          message: 'Bài viết Facebook đã tồn tại (đã cập nhật dữ liệu chuẩn)',
-          notification: fbExisting,
-        };
       }
+
+      // Xóa các bản ghi trùng lặp tàn dư (nếu có bài cũ bị nhân bản với tiêu đề gần giống)
+      if (isFb) {
+        const normInputTitle = this._normalizeTitle(title);
+        const dupIdsToDelete = [];
+        for (const [id, n] of this.dbStore.notifications.entries()) {
+          if (id === existing.id || n.source_channel !== sourceChannel) continue;
+          const normNTitle = this._normalizeTitle(n.title);
+          const sameTitle = normInputTitle.length > 10 && normInputTitle === normNTitle;
+          const sameUrl = payload.source_url && n.source_url && payload.source_url.includes('/posts/') && n.source_url === payload.source_url;
+          if (sameTitle || sameUrl) {
+            dupIdsToDelete.push(id);
+          }
+        }
+        for (const dupId of dupIdsToDelete) {
+          this.dbStore.notifications.delete(dupId);
+          if (this.dbStore.student_notifications) {
+            this.dbStore.student_notifications = this.dbStore.student_notifications.filter(
+              (sn) => sn.notification_id !== dupId
+            );
+          }
+          if (this.dbStore.pool) {
+            this.dbStore.pool.query('DELETE FROM notifications WHERE id = $1', [dupId]).catch(() => {});
+          }
+        }
+      }
+
+      return {
+        status: 'DUPLICATE',
+        message: 'Thông báo đã tồn tại trên hệ thống (đã đồng bộ dữ liệu chuẩn)',
+        notification: existing,
+      };
     }
 
     // 1c. Chống trùng lặp chéo giữa các chuyên mục của nhà trường (VD: Thông báo chung & Phòng Đào tạo)

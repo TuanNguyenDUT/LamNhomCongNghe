@@ -381,17 +381,11 @@
                 <button class="btn-reminder" onclick="event.stopPropagation(); openReminderModal('${item.id}', '${safeTitle}', '${item.course_code || ''}')">
                   ⏰ Thêm nhắc nhở
                 </button>
-                ${isFb && hasUrl ? (() => {
-                  let fbUrl = item.source_url;
-                  if (fbUrl.includes('facebook.com') && /\/posts\/\d+$/.test(fbUrl)) {
-                    fbUrl = item.source_channel === 'FB_TUVAN_SV' ? 'https://www.facebook.com/tuvansinhvien.dut' : 'https://www.facebook.com/ctsvdhbkdhdn';
-                  }
-                  return `
-                    <a href="${fbUrl}" target="_blank" rel="noopener noreferrer" class="btn-facebook" onclick="event.stopPropagation()">
-                      🌐 Xem trên Facebook ↗
-                    </a>
-                  `;
-                })() : hasUrl ? `
+                ${isFb && hasUrl ? `
+                  <a href="${item.source_url}" target="_blank" rel="noopener noreferrer" class="btn-facebook" onclick="event.stopPropagation()">
+                    🌐 Xem trên Facebook ↗
+                  </a>
+                ` : hasUrl ? `
                   <a href="${item.source_url}" target="_blank" rel="noopener noreferrer" class="btn-source" onclick="event.stopPropagation()">
                     🔗 Mở bài gốc ↗
                   </a>

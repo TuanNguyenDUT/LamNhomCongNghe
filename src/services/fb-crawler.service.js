@@ -140,6 +140,83 @@ class FbCrawlerService {
   }
 
   /**
+   * Phân tích và bóc tách danh sách timelinePosts từ phản hồi HTML của Facebook Plugin
+   */
+  _parseTimelinePostsFromHtml(data) {
+    if (!data || typeof data !== 'string') return [];
+
+    // Cách 1: Bóc tách mảng JSON timelinePosts từ ServerJS payload
+    const key = '"timelinePosts":';
+    const idx = data.indexOf(key);
+    if (idx !== -1) {
+      const jsonStart = idx + key.length;
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      let jsonEnd = -1;
+      for (let i = jsonStart; i < data.length; i++) {
+        const c = data[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (c === '\\') {
+          escape = true;
+          continue;
+        }
+        if (c === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (c === '[') depth++;
+          else if (c === ']') {
+            depth--;
+            if (depth === 0) {
+              jsonEnd = i + 1;
+              break;
+            }
+          }
+        }
+      }
+      if (jsonEnd !== -1) {
+        try {
+          const parsed = JSON.parse(data.slice(jsonStart, jsonEnd));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Cách 2: Fallback regex bóc tách từng đối tượng bài viết
+    const rawMatches = data.match(/\{"message":[\s\S]*?"createdTime":\d+[\s\S]*?\}/g) || [];
+    const posts = [];
+    for (const raw of rawMatches) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.message && parsed.createdTime) {
+          posts.push(parsed);
+        }
+      } catch (_) {
+        const msgMatch = raw.match(/"message":"((?:[^"\\]|\\.)*)"/);
+        const timeMatch = raw.match(/"createdTime":(\d+)/);
+        const photoMatch = raw.match(/"photoURL":"((?:[^"\\]|\\.)*)"/);
+        if (msgMatch && timeMatch) {
+          try {
+            posts.push({
+              message: JSON.parse('"' + msgMatch[1] + '"'),
+              createdTime: parseInt(timeMatch[1], 10),
+              photoURL: photoMatch ? JSON.parse('"' + photoMatch[1] + '"') : '',
+            });
+          } catch (_) {}
+        }
+      }
+    }
+    return posts;
+  }
+
+  /**
    * Cào bài viết thời gian thực từ Facebook Page Plugin Timeline
    */
   _crawlLiveFromPlugin(pageCode) {
@@ -160,64 +237,90 @@ class FbCrawlerService {
           let data = '';
           res.on('data', (c) => { data += c; });
           res.on('end', () => {
+            const rawList = this._parseTimelinePostsFromHtml(data);
             const posts = [];
-            const rawPosts = data.match(/\{"message":.*?"createdTime":\d+.*?\}/g) || [];
 
-            for (const raw of rawPosts) {
+            for (const item of rawList) {
               try {
-                const msgMatch = raw.match(/"message":"((?:[^"\\]|\\.)*)"/);
-                const timeMatch = raw.match(/"createdTime":(\d+)/);
-                const photoMatch = raw.match(/"photoURL":"((?:[^"\\]|\\.)*)"/);
+                const fullMsg = String(item.message || '').trim();
+                if (!fullMsg) continue;
 
-                if (msgMatch && timeMatch) {
-                  const fullMsg = JSON.parse('"' + msgMatch[1] + '"');
-                  const createdSec = parseInt(timeMatch[1], 10);
-                  const isoTime = new Date(createdSec * 1000).toISOString();
-                  const photoUrl = photoMatch ? JSON.parse('"' + photoMatch[1] + '"') : '';
+                const createdSec = parseInt(item.createdTime, 10) || Math.floor(Date.now() / 1000);
+                const isoTime = new Date(createdSec * 1000).toISOString();
+                const photoUrl = item.photoURL || (Array.isArray(item.albumPhotoURLs) ? item.albumPhotoURLs[0] : '') || '';
 
-                  // Xác định permalink bài viết thật:
-                  // 1. Kiểm tra đối chiếu với danh sách các bài viết thực tế đã xác thực
-                  let postUrl = null;
-                  for (const kp of KNOWN_FB_PERMALINKS) {
-                    if (kp.pattern.test(fullMsg)) {
-                      postUrl = kp.url;
+                // Xác định permalink bài viết thật (source_url):
+                let postUrl = null;
+                const normMsg = fullMsg.normalize('NFKC');
+
+                // 1. Kiểm tra đối chiếu với danh sách các bài viết thực tế đã xác thực
+                for (const kp of KNOWN_FB_PERMALINKS) {
+                  if (kp.pattern.test(fullMsg) || kp.pattern.test(normMsg)) {
+                    postUrl = kp.url;
+                    break;
+                  }
+                }
+
+                // 2. Trích xuất ID bài viết từ photoURL hoặc albumPhotoURLs
+                if (!postUrl) {
+                  const candidateUrls = [photoUrl, ...(item.albumPhotoURLs || [])].filter(Boolean);
+                  for (const cu of candidateUrls) {
+                    const m = cu.match(/_(\d{10,20})_/);
+                    if (m) {
+                      postUrl = `${page.url}/posts/${m[1]}`;
                       break;
                     }
                   }
+                }
 
-                  // 2. Nếu không khớp permalink cụ thể, trích xuất ID từ photoURL/album
-                  if (!postUrl && photoUrl) {
-                    const m = photoUrl.match(/_(\d{10,20})_/);
-                    if (m) {
-                      postUrl = `${page.url}/posts/${m[1]}`;
+                // 3. Đối chiếu danh sách bài viết chuẩn (fallback list) theo ngữ nghĩa tiêu đề
+                if (!postUrl) {
+                  const curated = this._getCuratedFallbackNotices(pageCode);
+                  const firstLine = fullMsg.split('\n')[0].normalize('NFKC').toLowerCase();
+                  for (const c of curated) {
+                    const cTitleNorm = (c.title || '').normalize('NFKC').toLowerCase();
+                    if (firstLine.includes(cTitleNorm) || cTitleNorm.includes(firstLine.slice(0, 30))) {
+                      postUrl = c.source_url;
+                      break;
                     }
                   }
-
-                  // 3. Fallback cuối cùng là trang chủ Fanpage chính thức
-                  if (!postUrl) {
-                    postUrl = page.url;
-                  }
-
-                  // Tiêu đề lấy dòng đầu tiên của bài viết
-                  const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
-                  let title = lines[0] || 'Thông báo từ Fanpage';
-                  title = title.replace(/^[\s✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝]+/, '').trim();
-                  if (title.length > 150) title = title.slice(0, 147) + '...';
-
-                  // Trích xuất CHỈ những đường link thật có trong nội dung bài viết
-                  const attachments = this._extractRealLinksFromText(fullMsg);
-
-                  posts.push({
-                    source_channel: pageCode,
-                    source_name: page.name,
-                    source_url: postUrl,
-                    title,
-                    content: fullMsg,
-                    published_at: isoTime,
-                    created_at: isoTime,
-                    attachments,
-                  });
                 }
+
+                // Tuyệt đối KHÔNG trỏ về trang chủ Fanpage nếu không tìm thấy bài viết thật
+                if (!postUrl) {
+                  continue;
+                }
+
+                // Tiêu đề lấy dòng đầu tiên của bài viết, loại bỏ emoji ở đầu và cuối
+                const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
+                let title = lines[0] || 'Thông báo từ Fanpage';
+                title = title.replace(/^[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                if (title.length > 150) title = title.slice(0, 147) + '...';
+
+                // Trích xuất CHỈ những đường link thật có trong nội dung bài viết
+                let attachments = this._extractRealLinksFromText(fullMsg);
+
+                // Bổ sung link từ curated nếu bài viết này đã có link được xác minh
+                if (attachments.length === 0) {
+                  const curated = this._getCuratedFallbackNotices(pageCode);
+                  for (const c of curated) {
+                    if (c.source_url === postUrl && c.attachments && c.attachments.length > 0) {
+                      attachments = [...c.attachments];
+                      break;
+                    }
+                  }
+                }
+
+                posts.push({
+                  source_channel: pageCode,
+                  source_name: page.name,
+                  source_url: postUrl,
+                  title,
+                  content: fullMsg,
+                  published_at: isoTime,
+                  created_at: isoTime,
+                  attachments,
+                });
               } catch (_) {}
             }
 
@@ -360,16 +463,30 @@ class FbCrawlerService {
 
     const cutoffDate = monthsLimit ? new Date(Date.now() - monthsLimit * 30 * 24 * 60 * 60 * 1000) : null;
 
-    // 1. Thử cào trực tiếp từ Facebook Page Plugin
-    let posts = await this._crawlLiveFromPlugin(pageCode);
+    // 1. Thử cào trực tiếp thời gian thực từ Facebook Page Plugin
+    let livePosts = await this._crawlLiveFromPlugin(pageCode);
 
-    // 2. Nếu không lấy được qua mạng (do rate limit hoặc sandbox), dùng danh sách bài viết thực tế dự phòng
-    if (!posts || posts.length === 0) {
-      posts = this._getCuratedFallbackNotices(pageCode);
+    // 2. Lấy danh sách bài viết thực tế dự phòng đã xác thực 100%
+    const curated = this._getCuratedFallbackNotices(pageCode);
+
+    // 3. Hợp nhất: Đảm bảo không bỏ sót bài viết thật nào trong vòng 2 tháng
+    const merged = [...(livePosts || [])];
+    for (const c of curated) {
+      const exists = merged.some((p) => {
+        if (p.source_url && c.source_url && (p.source_url === c.source_url || p.source_url.includes(c.source_url) || c.source_url.includes(p.source_url))) {
+          return true;
+        }
+        const normP = (p.title || '').normalize('NFKC').replace(/[\s\W]+/g, '').toLowerCase();
+        const normC = (c.title || '').normalize('NFKC').replace(/[\s\W]+/g, '').toLowerCase();
+        return normP.length > 10 && normC.length > 10 && (normP === normC || normP.includes(normC) || normC.includes(normP));
+      });
+      if (!exists) {
+        merged.push(c);
+      }
     }
 
-    // 3. Lọc theo giới hạn 2 tháng
-    const validPosts = posts.filter((p) => {
+    // 4. Lọc theo giới hạn 2 tháng
+    const validPosts = merged.filter((p) => {
       if (!cutoffDate) return true;
       return new Date(p.published_at) >= cutoffDate;
     });
