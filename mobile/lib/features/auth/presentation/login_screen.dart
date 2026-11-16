@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/presentation/app_toast.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -37,9 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final pass = _passwordController.text.trim();
 
     if (code.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đầy đủ mã sinh viên và mật khẩu')),
-      );
+      AppToast.showError(context, 'Vui lòng nhập đầy đủ mã sinh viên và mật khẩu');
       return;
     }
 

@@ -36,6 +36,27 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy API and Auth requests directly to backend on port 3000
+  if (req.url.startsWith('/api/') || req.url.startsWith('/auth/')) {
+    const options = {
+      hostname: 'localhost',
+      port: 3000,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: 'localhost:3000' },
+    };
+    const proxyReq = http.request(options, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on('error', (e) => {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Backend unreachable', details: e.message }));
+    });
+    req.pipe(proxyReq, { end: true });
+    return;
+  }
+
   const urlPath = req.url.split('?')[0];
   let filePath = path.join(WEB_DIR, urlPath);
 

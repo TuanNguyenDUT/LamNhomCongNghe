@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/presentation/app_toast.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../deadlines/domain/deadline_item.dart';
 import '../../deadlines/presentation/deadlines_screen.dart';
@@ -619,11 +620,10 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       );
       ref.invalidate(deadlinesListProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã hoàn thành: $title (Tự động gỡ khỏi Google Calendar nếu có)'),
-            backgroundColor: const Color(0xFF34C759),
-          ),
+        AppToast.showSuccess(
+          context,
+          'Đã hoàn thành: $title (Tự động gỡ khỏi Google Calendar nếu có)',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (err) {
@@ -652,20 +652,12 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       ref.invalidate(deadlinesListProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Đã xóa sự kiện khỏi Google Calendar: "${item.title}"'),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFFDC2626),
-            duration: const Duration(seconds: 3),
-          ),
+        AppToast.show(
+          context,
+          message: 'Đã xóa sự kiện khỏi Google Calendar: "${item.title}"',
+          icon: const Icon(Icons.event_busy_rounded, color: Colors.white, size: 20),
+          backgroundColor: const Color(0xFFDC2626),
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (err) {
@@ -686,8 +678,10 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       await dio.delete('/api/v1/deadlines/$deadlineId');
       ref.invalidate(deadlinesListProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã xóa nhắc việc (và đã gỡ khỏi Google Calendar)')),
+        AppToast.showSuccess(
+          context,
+          'Đã xóa nhắc việc (và đã gỡ khỏi Google Calendar)',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (err) {
@@ -716,20 +710,10 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       ref.invalidate(deadlinesListProvider);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Đã tự động lưu vào Google Calendar: "${item.title}"'),
-                ),
-              ],
-            ),
-            backgroundColor: const Color(0xFF2E7D32),
-            duration: const Duration(seconds: 3),
-          ),
+        AppToast.showSuccess(
+          context,
+          'Đã tự động lưu vào Google Calendar: "${item.title}"',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (err) {
@@ -756,11 +740,10 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
       ref.invalidate(deadlinesListProvider);
       final count = res.data['data']?['synced_count'] ?? 0;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã đồng bộ $count sự kiện Remind với Google Calendar'),
-            backgroundColor: const Color(0xFF1A73E8),
-          ),
+        AppToast.showInfo(
+          context,
+          'Đã đồng bộ $count sự kiện Remind với Google Calendar',
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (err) {

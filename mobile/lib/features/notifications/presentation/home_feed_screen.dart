@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/presentation/app_toast.dart';
 import '../../auth/presentation/auth_controller.dart';
 import 'emergency_alert_modal.dart';
 import 'notification_providers.dart';
@@ -1023,29 +1024,20 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   );
 
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle_rounded, color: Colors.white),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('⏰ Đã thêm nhắc nhở: "$title"')),
-                          ],
-                        ),
-                        backgroundColor: const Color(0xFF34C759),
-                        duration: const Duration(seconds: 4),
-                        action: SnackBarAction(
-                          label: 'Xem Nhắc việc',
-                          textColor: Colors.white,
-                          onPressed: () => context.go('/reminds'),
-                        ),
-                      ),
+                    AppToast.showSuccess(
+                      context,
+                      '⏰ Đã thêm nhắc nhở: "$title"',
+                      duration: const Duration(seconds: 2),
+                      actionLabel: 'Xem Nhắc việc',
+                      onAction: () => context.go('/reminds'),
                     );
                   }
                 } catch (err) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi thêm nhắc nhở: $err')),
+                    AppToast.showError(
+                      context,
+                      'Lỗi thêm nhắc nhở: $err',
+                      duration: const Duration(seconds: 2),
                     );
                   }
                 }

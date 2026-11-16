@@ -145,6 +145,27 @@ class InMemoryDbStore {
     };
     this.saveStudent(defaultStudent);
 
+    const loiStudent = {
+      id: '5619b2b4-904e-45af-9269-b4c8454a9881',
+      firebase_uid: 'dut_uid_102230026',
+      student_code: '102230026',
+      full_name: 'Nguyễn Văn Lợi',
+      faculty: 'Khoa Công nghệ Thông tin',
+      cohort: 'K2023',
+      class_name: '23T_Nhat1',
+      dut_session_encrypted: null,
+      is_personalized_enabled: true,
+      interested_topics: ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+      dut_last_synced_at: new Date().toISOString(),
+      fcm_tokens: ['fcm_token_test_device_loi'],
+      google_refresh_token: null,
+      google_calendar_id: 'primary',
+      is_calendar_sync_enabled: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.saveStudent(loiStudent);
+
     // Thêm danh mục môn học mẫu
     const defaultCourses = [
       {

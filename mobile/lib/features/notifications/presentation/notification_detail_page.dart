@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/presentation/app_toast.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/notification_item.dart';
 import 'notification_providers.dart';
@@ -184,24 +185,18 @@ class NotificationDetailPage extends ConsumerWidget {
                   );
 
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(
-                          children: [
-                            const Icon(Icons.check_circle_rounded, color: Colors.white),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text('⏰ Đã thêm nhắc nhở: "$title"')),
-                          ],
-                        ),
-                        backgroundColor: const Color(0xFF34C759),
-                        duration: const Duration(seconds: 3),
-                      ),
+                    AppToast.showSuccess(
+                      context,
+                      '⏰ Đã thêm nhắc nhở: "$title"',
+                      duration: const Duration(seconds: 2),
                     );
                   }
                 } catch (err) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Lỗi thêm nhắc nhở: $err')),
+                    AppToast.showError(
+                      context,
+                      'Lỗi thêm nhắc nhở: $err',
+                      duration: const Duration(seconds: 2),
                     );
                   }
                 }
