@@ -217,3 +217,60 @@ test('FB-FIX-05: repairAndDeduplicateFacebookNotices hợp nhất nội dung pho
   assert.ok(remaining.content.length > 50, 'Nội dung phải được giữ lại bản đầy đủ phong phú');
   assert.ok(remaining.attachments && remaining.attachments.length > 0, 'Attachments phải được kế thừa đầy đủ');
 });
+
+test('FB-FIX-06: Edge cases: title normalization, emoji-only first line, link extraction, live post enrichment', async () => {
+  // 1. Kiểm tra chuẩn hóa tiêu đề _normalizePostTitle
+  const norm1 = fbCrawlerService._normalizePostTitle('📢 [THÔNG BÁO] – HỌC BỔNG TOYOTA NĂM 2026 🎉');
+  const norm2 = fbCrawlerService._normalizePostTitle('Thông báo học bổng Toyota năm 2026');
+  assert.equal(norm1, 'thông báo học bổng toyota năm 2026');
+  assert.equal(norm2, 'thông báo học bổng toyota năm 2026');
+
+  // 2. Trích xuất link thực tế _extractRealLinksFromText với các trường hợp ký tự bọc quanh
+  const sampleText = `
+    Đăng ký tham gia tại link: https://forms.gle/xyz123abc.
+    Xem thêm tài liệu tại (https://dut.udn.vn/tailieu) và https://bom.so/testlink!
+  `;
+  const links = fbCrawlerService._extractRealLinksFromText(sampleText);
+  assert.equal(links.length, 3);
+  assert.equal(links[0].url, 'https://forms.gle/xyz123abc');
+  assert.equal(links[1].url, 'https://dut.udn.vn/tailieu');
+  assert.equal(links[2].url, 'https://bom.so/testlink');
+
+  // 3. Merging logic làm giàu bài live từ curated
+  const store = new InMemoryDbStore();
+  const notifSvc = new NotificationService(store);
+
+  // Giả lập live post có nội dung ngắn và thiếu attachments
+  const customFbCrawler = {
+    fanpages: fbCrawlerService.fanpages,
+    _normalizePostTitle: fbCrawlerService._normalizePostTitle.bind(fbCrawlerService),
+    _getCuratedFallbackNotices: fbCrawlerService._getCuratedFallbackNotices.bind(fbCrawlerService),
+    async fetchFanpagePosts(pageCode, opts) {
+      // Gọi fetchFanpagePosts thật của FbCrawlerService
+      return fbCrawlerService.fetchFanpagePosts.call(this, pageCode, opts);
+    },
+    async _crawlLiveFromPlugin(pageCode) {
+      if (pageCode === 'FB_TUVAN_SV') {
+        return [
+          {
+            source_channel: 'FB_TUVAN_SV',
+            source_name: 'Tư vấn Sinh viên DUT',
+            source_url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl',
+            title: 'Recap Workshop Upgrade Ideas With AI',
+            content: 'Nội dung vắn tắt từ plugin',
+            published_at: '2026-11-16T01:00:15.000Z',
+            attachments: [], // Chưa có attachments
+          },
+        ];
+      }
+      return [];
+    },
+  };
+
+  const mergedPosts = await customFbCrawler.fetchFanpagePosts('FB_TUVAN_SV');
+  const recap = mergedPosts.find(p => p.source_url && p.source_url.includes('pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl'));
+  assert.ok(recap, 'Bài viết recap phải có trong danh sách');
+  assert.ok(recap.attachments.length > 0, 'Bài viết live phải được làm giàu attachments từ curated');
+  assert.ok(recap.attachments.some(a => a.url.includes('zalo.me')), 'Phải chứa link Zalo');
+  assert.ok(recap.content.length > 50, 'Nội dung phải được kế thừa bản đầy đủ');
+});
