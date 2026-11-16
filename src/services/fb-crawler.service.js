@@ -314,6 +314,18 @@ class FbCrawlerService {
                 const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
                 let title = lines[0] || 'Thông báo từ Fanpage';
                 title = title.replace(/^[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                if (!title) {
+                  for (let i = 1; i < lines.length; i++) {
+                    const candidate = lines[i].replace(/^[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                    if (candidate.length > 5) {
+                      title = candidate;
+                      break;
+                    }
+                  }
+                }
+                if (!title) {
+                  title = lines[0] || `Thông báo từ ${page.shortName || page.name}`;
+                }
                 if (title.length > 150) title = title.slice(0, 147) + '...';
 
                 // Trích xuất CHỈ những đường link thật có trong nội dung bài viết
@@ -491,7 +503,7 @@ class FbCrawlerService {
     // 3. Hợp nhất: Đảm bảo không bỏ sót bài viết thật nào trong vòng 2 tháng
     const merged = [...(livePosts || [])];
     for (const c of curated) {
-      const exists = merged.some((p) => {
+      const matchIndex = merged.findIndex((p) => {
         if (p.source_url && c.source_url && (p.source_url === c.source_url || p.source_url.includes(c.source_url) || c.source_url.includes(p.source_url))) {
           return true;
         }
@@ -499,8 +511,22 @@ class FbCrawlerService {
         const normC = this._normalizePostTitle(c.title);
         return normP.length > 10 && normC.length > 10 && (normP === normC || normP.includes(normC) || normC.includes(normP));
       });
-      if (!exists) {
+      if (matchIndex === -1) {
         merged.push(c);
+      } else {
+        const p = merged[matchIndex];
+        // Bổ sung link bài viết chuẩn nếu p đang thiếu hoặc là generic link
+        if ((!p.source_url || !p.source_url.includes('/posts/')) && c.source_url) {
+          p.source_url = c.source_url;
+        }
+        // Kế thừa attachments nếu p chưa có mà curated có
+        if ((!p.attachments || p.attachments.length === 0) && c.attachments && c.attachments.length > 0) {
+          p.attachments = [...c.attachments];
+        }
+        // Kế thừa content đầy đủ hơn nếu c dài hơn
+        if (c.content && (!p.content || p.content.length < c.content.length)) {
+          p.content = c.content;
+        }
       }
     }
 

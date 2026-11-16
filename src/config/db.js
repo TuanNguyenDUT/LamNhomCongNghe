@@ -369,6 +369,8 @@ class InMemoryDbStore {
              title = EXCLUDED.title,
              summary = EXCLUDED.summary,
              action_required = EXCLUDED.action_required,
+             content = EXCLUDED.content,
+             published_at = EXCLUDED.published_at,
              tags = EXCLUDED.tags,
              attachments = EXCLUDED.attachments,
              source_url = EXCLUDED.source_url,
