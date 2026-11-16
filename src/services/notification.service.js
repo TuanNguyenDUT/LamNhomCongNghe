@@ -146,8 +146,8 @@ class NotificationService {
   _normalizeTitle(title) {
     return String(title || '')
       .normalize('NFKC')
-      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
-      .replace(/[«»“”"''\[\]【】–—\-]/g, ' ')
+      .replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D]/gu, ' ')
+      .replace(/[«»“”"''\[\]【】–—\-!?:;.,]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();

@@ -31,50 +31,61 @@ const FANPAGES = {
 
 // Danh sách các permalink bài viết thật đã xác thực trên Facebook
 const KNOWN_FB_PERMALINKS = [
-  // 1. Fanpage Tư vấn Sinh viên DUT (facebook.com/tuvansinhvien.dut)
+  // 1. Fanpage Tư vấn Sinh viên DUT (facebook.com/tuvansinhvien.dut) -> FB_TUVAN_SV
   {
+    channel: 'FB_TUVAN_SV',
     pattern: /RECAP WORKSHOP/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0yzu1s1mD4icrWANYy8HEofDz5AeQV4RbrCscbsKLbeZDhfYrFE4XiJxcu96KwV9yl',
   },
   {
+    channel: 'FB_TUVAN_SV',
     pattern: /TIMELINE CH\u00cdNH TH\u1ee8C/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0KSbtAz4Aqp3biQ3my9QFUWFxpC8cMGsfKcwT9U2SBoLCW2S32iAthtBX8hwg8LScl',
   },
   {
+    channel: 'FB_TUVAN_SV',
     pattern: /CHECK MAIL|B\u1eaeT TR\u1eccN T\u1eccA \u0110\u1ed8/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid029dQ3XTUekJeihaoqCX4CEv5kSNqYXLhnkAJMKFRYBYYuS8Zt7NmAij8dLAGEGw57l',
   },
   {
+    channel: 'FB_TUVAN_SV',
     pattern: /NH\u00c0 T\u00c0I TR\u1ee2 \u0110\u1ed2NG H\u00c0NH/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid0AYUVbwYBXQ6ixPQQ9ewzbJHMGaNVyRvZ1MDMhGsiJNodpNNxHTynnxaiAoSa3H6rl',
   },
   {
+    channel: 'FB_TUVAN_SV',
     pattern: /L\u1ecaCH THI CU\u1ed0I K\u1ef2/i,
     url: 'https://www.facebook.com/tuvansinhvien.dut/posts/pfbid023Azuj3HvLNoeccrdmLtKhFVZd7prTZshQGpuW5W9NvUnZozcFNrciRJQHJsTBUbl',
   },
 
-  // 2. Fanpage Phòng Công tác Sinh viên ĐHBK - ĐHĐN (facebook.com/ctsvdhbkdhdn)
+  // 2. Fanpage Phòng Công tác Sinh viên ĐHBK - ĐHĐN (facebook.com/ctsvdhbkdhdn) -> FB_CTSV
   {
+    channel: 'FB_CTSV',
     pattern: /CH\u1ee6 \u0110\u1ed8NG PH\u00d2NG B\u1ec6NH/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1103839028947435',
   },
   {
+    channel: 'FB_CTSV',
     pattern: /ROBOT T\u1ef0 H\u00c0NH|INNOWORKS 2026/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1824646392020124',
   },
   {
+    channel: 'FB_CTSV',
     pattern: /H\u1eccC B\u1ed4NG TOYOTA/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1101010069230331',
   },
   {
+    channel: 'FB_CTSV',
     pattern: /N\u1ed8I DUNG KH\u00d4NG PH\u00d9 H\u1ee2P/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099942446003760',
   },
   {
+    channel: 'FB_CTSV',
     pattern: /L\u01afU H\u1eccC SINH/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1099847166013288',
   },
   {
+    channel: 'FB_CTSV',
     pattern: /THI\u1ebfT K\u1ebf VI M\u1ea0CH/i,
     url: 'https://www.facebook.com/ctsvdhbkdhdn/posts/1098254897839181',
   },
@@ -91,8 +102,8 @@ class FbCrawlerService {
   _normalizePostTitle(str) {
     return String(str || '')
       .normalize('NFKC')
-      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
-      .replace(/[«»“”"''\[\]【】–—\-]/g, ' ')
+      .replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u200D]/gu, ' ')
+      .replace(/[«»“”"''\[\]【】–—\-!?:;.,]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
@@ -202,8 +213,8 @@ class FbCrawlerService {
       }
     }
 
-    // Cách 2: Fallback regex bóc tách từng đối tượng bài viết
-    const rawMatches = data.match(/\{"message":[\s\S]*?"createdTime":\d+[\s\S]*?\}/g) || [];
+    // Cách 2: Fallback regex bóc tách từng đối tượng bài viết (hỗ trợ cả hai thứ tự message/createdTime)
+    const rawMatches = data.match(/\{(?:[^{}]*?"message":[^{}]*?"createdTime":\d+|[^{}]*?"createdTime":\d+[^{}]*?"message":)[^{}]*?\}/g) || [];
     const posts = [];
     for (const raw of rawMatches) {
       try {
@@ -268,6 +279,8 @@ class FbCrawlerService {
 
                 // 1. Kiểm tra đối chiếu với danh sách các bài viết thực tế đã xác thực
                 for (const kp of KNOWN_FB_PERMALINKS) {
+                  if (kp.channel && kp.channel !== pageCode) continue;
+                  if (kp.url && !kp.url.startsWith(page.url)) continue;
                   if (kp.pattern.test(fullMsg) || kp.pattern.test(normMsg)) {
                     postUrl = kp.url;
                     break;
@@ -278,7 +291,7 @@ class FbCrawlerService {
                 if (!postUrl) {
                   const candidateUrls = [photoUrl, ...(item.albumPhotoURLs || [])].filter(Boolean);
                   for (const cu of candidateUrls) {
-                    const m = cu.match(/_(\d{10,20})_/);
+                    const m = cu.match(/_(\d{10,20})_/) || cu.match(/[?&]fbid=(\d{10,20})/) || cu.match(/\/(\d{10,20})_/);
                     if (m) {
                       postUrl = `${page.url}/posts/${m[1]}`;
                       break;
@@ -289,19 +302,23 @@ class FbCrawlerService {
                 // 3. Đối chiếu danh sách bài viết chuẩn (fallback list) theo ngữ nghĩa tiêu đề
                 if (!postUrl) {
                   const curated = this._getCuratedFallbackNotices(pageCode);
-                  const normFirstLine = this._normalizePostTitle(fullMsg.split('\n')[0]);
+                  const candidateLines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3);
                   for (const c of curated) {
                     const cTitleNorm = this._normalizePostTitle(c.title);
-                    if (
-                      normFirstLine.length > 10 &&
-                      (normFirstLine === cTitleNorm ||
-                       normFirstLine.includes(cTitleNorm) ||
-                       cTitleNorm.includes(normFirstLine) ||
-                       (cTitleNorm.length > 20 && normFirstLine.slice(0, 30) === cTitleNorm.slice(0, 30)))
-                    ) {
-                      postUrl = c.source_url;
-                      break;
+                    for (const candLine of candidateLines) {
+                      const normCand = this._normalizePostTitle(candLine);
+                      if (
+                        normCand.length > 10 &&
+                        (normCand === cTitleNorm ||
+                         normCand.includes(cTitleNorm) ||
+                         cTitleNorm.includes(normCand) ||
+                         (cTitleNorm.length > 20 && normCand.slice(0, 30) === cTitleNorm.slice(0, 30)))
+                      ) {
+                        postUrl = c.source_url;
+                        break;
+                      }
                     }
+                    if (postUrl) break;
                   }
                 }
 
@@ -310,15 +327,15 @@ class FbCrawlerService {
                   continue;
                 }
 
-                // Tiêu đề lấy dòng đầu tiên của bài viết, loại bỏ emoji ở đầu và cuối
+                // Tiêu đề lấy dòng đầu tiên của bài viết, loại bỏ emoji ở đầu và cuối (bảo toàn số)
                 const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
                 let title = lines[0] || 'Thông báo từ Fanpage';
-                title = title.replace(/^[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
-                if (!title) {
-                  for (let i = 1; i < lines.length; i++) {
-                    const candidate = lines[i].replace(/^[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Emoji}\p{Symbol}✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                title = title.replace(/^[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                if (!title || title.length <= 15) {
+                  for (let i = 1; i < lines.length && i < 3; i++) {
+                    const candidate = lines[i].replace(/^[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
                     if (candidate.length > 5) {
-                      title = candidate;
+                      title = title ? `${title} ${candidate}` : candidate;
                       break;
                     }
                   }

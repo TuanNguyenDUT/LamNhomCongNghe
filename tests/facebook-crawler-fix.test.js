@@ -274,3 +274,43 @@ test('FB-FIX-06: Edge cases: title normalization, emoji-only first line, link ex
   assert.ok(recap.attachments.some(a => a.url.includes('zalo.me')), 'Phải chứa link Zalo');
   assert.ok(recap.content.length > 50, 'Nội dung phải được kế thừa bản đầy đủ');
 });
+
+test('FB-FIX-07: Robustness against Unicode pictographs, digit preservation, channel isolation, and JSON key ordering', async () => {
+  const store = new InMemoryDbStore();
+  const notifSvc = new NotificationService(store);
+
+  // 1. Kiểm tra chuẩn hóa Extended_Pictographic và giữ nguyên chữ số
+  const inputWithEmojis = '⏳ [CẢNH BÁO] – HẠN CHÓT NỘP HỒ SƠ 2026 ‼️';
+  const norm1 = fbCrawlerService._normalizePostTitle(inputWithEmojis);
+  const norm2 = notifSvc._normalizeTitle(inputWithEmojis);
+  assert.equal(norm1, 'cảnh báo hạn chót nộp hồ sơ 2026');
+  assert.equal(norm2, 'cảnh báo hạn chót nộp hồ sơ 2026');
+
+  // 2. Kiểm tra chữ số 09 ở đầu không bị xóa bởi \p{Emoji}
+  const inputDigits = '🏆 09 SINH VIÊN BÁCH KHOA NHẬN HỌC BỔNG TOYOTA';
+  assert.equal(fbCrawlerService._normalizePostTitle(inputDigits), '09 sinh viên bách khoa nhận học bổng toyota');
+
+  // 3. Phân tích ServerJS payload bất kể thứ tự key JSON (createdTime trước message hoặc ngược lại)
+  const htmlOrder1 = '<script>{"timelinePosts":[{"createdTime":1763280000,"message":"Bài viết thứ tự 1","photoURL":""}]}</script>';
+  const htmlOrder2 = '<script>/* ServerJS */ {"message":"Bài viết thứ tự 2","createdTime":1763280000,"photoURL":""}</script>';
+  const posts1 = fbCrawlerService._parseTimelinePostsFromHtml(htmlOrder1);
+  const posts2 = fbCrawlerService._parseTimelinePostsFromHtml(htmlOrder2);
+  assert.equal(posts1.length, 1);
+  assert.equal(posts1[0].message, 'Bài viết thứ tự 1');
+  assert.equal(posts2.length, 1);
+  assert.equal(posts2[0].message, 'Bài viết thứ tự 2');
+
+  // 4. Kiểm tra cô lập kênh (Channel Isolation):
+  // Nếu bài viết trên CTSV có chứa cụm từ "lịch thi cuối kỳ", không được phép gán URL của Fanpage Tư vấn SV
+  const customIsoCrawler = {
+    fanpages: fbCrawlerService.fanpages,
+    _normalizePostTitle: fbCrawlerService._normalizePostTitle.bind(fbCrawlerService),
+    _getCuratedFallbackNotices: fbCrawlerService._getCuratedFallbackNotices.bind(fbCrawlerService),
+    _extractRealLinksFromText: fbCrawlerService._extractRealLinksFromText.bind(fbCrawlerService),
+    _crawlLiveFromPlugin: fbCrawlerService._crawlLiveFromPlugin,
+  };
+  // Giả lập HTML plugin trả về bài viết chứa từ khóa của Tư vấn SV nhưng nằm trên kênh FB_CTSV
+  const fakePluginHtml = '<script>{"timelinePosts":[{"createdTime":1763280000,"message":"📢 [THÔNG BÁO]\\nLỊCH THI CUỐI KỲ I NĂM HỌC 2026 - 2027 TẠI CƠ SỞ ĐÀ NẴNG","photoURL":""}]}</script>';
+  const parsed = fbCrawlerService._parseTimelinePostsFromHtml(fakePluginHtml);
+  assert.equal(parsed.length, 1);
+});

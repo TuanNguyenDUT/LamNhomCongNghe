@@ -411,7 +411,8 @@ class InMemoryDbStore {
                tags = EXCLUDED.tags,
                attachments = EXCLUDED.attachments,
                source_url = EXCLUDED.source_url,
-               deadline_at = EXCLUDED.deadline_at`,
+               deadline_at = EXCLUDED.deadline_at
+             RETURNING id`,
             [
               notification.id,
               notification.title,
@@ -436,6 +437,15 @@ class InMemoryDbStore {
               notification.created_at,
             ]
           )
+          .then((res) => {
+            if (res && res.rows && res.rows[0] && res.rows[0].id && res.rows[0].id !== notification.id) {
+              const oldId = notification.id;
+              const dbId = res.rows[0].id;
+              this.notifications.delete(oldId);
+              notification.id = dbId;
+              this.notifications.set(dbId, notification);
+            }
+          })
           .catch((err) => console.warn('PG sync error (notifications):', err.message));
       }
     }
