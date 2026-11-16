@@ -100,6 +100,7 @@ async function notificationRouter(req, res, controller) {
         pathname.startsWith('/notifications') ||
         pathname.startsWith('/courses') ||
         pathname.startsWith('/deadlines') ||
+        pathname.startsWith('/reminds') ||
         pathname.startsWith('/profile');
 
       if (isFlutterSpaRoute && !pathname.startsWith('/api/')) {

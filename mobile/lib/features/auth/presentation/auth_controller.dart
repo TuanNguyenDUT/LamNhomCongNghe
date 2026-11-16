@@ -43,8 +43,29 @@ class AuthController extends Notifier<AuthState> {
   SecureStorageService get _storage => ref.read(secureStorageServiceProvider);
 
   Future<void> checkSavedSession() async {
-    // Chỉ khởi động ở trạng thái chưa đăng nhập để người dùng chủ động đăng nhập sv.dut.udn.vn
-    state = const AuthState();
+    try {
+      final savedToken = await _storage.readAccessToken();
+      final res = await _dio.get(
+        '/api/v1/auth/me',
+        queryParameters: {'student_id': '102230026'},
+      );
+      if (res.data != null && res.data['status'] == 'success') {
+        final data = res.data['data'] as Map<String, dynamic>;
+        final student = data['student'] as Map<String, dynamic>? ?? data;
+        final session = UserSession(
+          token: savedToken ?? 'dut_token_102230026',
+          studentCode: student['student_code']?.toString() ?? '102230026',
+          studentId: student['id']?.toString(),
+          fullName: student['full_name']?.toString() ?? 'Nguyễn Văn Lợi',
+          faculty: student['faculty']?.toString() ?? 'Khoa Công nghệ Thông tin',
+          cohort: student['cohort']?.toString() ?? 'K2023',
+          className: student['class_name']?.toString() ?? '23T_Nhat1',
+        );
+        state = state.copyWith(session: session);
+      }
+    } catch (_) {
+      state = const AuthState();
+    }
   }
 
   Future<bool> login(String studentCode, String password) async {

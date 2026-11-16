@@ -1010,7 +1010,12 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           ],
                         ),
                         backgroundColor: const Color(0xFF34C759),
-                        duration: const Duration(seconds: 3),
+                        duration: const Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: 'Xem Nhắc việc',
+                          textColor: Colors.white,
+                          onPressed: () => context.go('/reminds'),
+                        ),
                       ),
                     );
                   }

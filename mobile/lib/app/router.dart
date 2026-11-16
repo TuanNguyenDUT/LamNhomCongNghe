@@ -7,6 +7,7 @@ import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/courses/presentation/enrolled_courses_screen.dart';
 import '../features/deadlines/presentation/deadlines_screen.dart';
+import '../features/reminds/presentation/reminds_screen.dart';
 import '../features/notifications/presentation/home_feed_screen.dart';
 import '../features/notifications/presentation/notification_detail_page.dart';
 import '../features/profile/presentation/profile_screen.dart';
@@ -60,6 +61,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DeadlinesScreen(),
           ),
           GoRoute(
+            path: '/reminds',
+            builder: (context, state) => const RemindsScreen(),
+          ),
+          GoRoute(
             path: '/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
@@ -83,7 +88,8 @@ class _MainNavigationScaffold extends StatelessWidget {
     final location = GoRouterState.of(context).uri.path;
     if (location.startsWith('/courses')) return 1;
     if (location.startsWith('/deadlines')) return 2;
-    if (location.startsWith('/profile')) return 3;
+    if (location.startsWith('/reminds')) return 3;
+    if (location.startsWith('/profile')) return 4;
     return 0;
   }
 
@@ -96,16 +102,16 @@ class _MainNavigationScaffold extends StatelessWidget {
         children: [
           child,
 
-          // Apple Style Liquid Glass Floating Bottom Navigation Bar
+          // Apple Style Liquid Glass Floating Bottom Navigation Bar (5 tabs)
           Positioned(
-            left: 16,
-            right: 16,
+            left: 12,
+            right: 12,
             bottom: 20,
             child: LiquidGlassContainer(
               borderRadius: 30,
               blurSigma: 24,
               opacity: 0.88,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -132,13 +138,22 @@ class _MainNavigationScaffold extends StatelessWidget {
                     index: 2,
                     selectedIndex: selectedIndex,
                     path: '/deadlines',
-                    icon: Icons.access_time_outlined,
-                    selectedIcon: Icons.access_time_filled_rounded,
+                    icon: Icons.event_note_outlined,
+                    selectedIcon: Icons.event_note_rounded,
                     label: 'Hạn chót',
                   ),
                   _buildNavItem(
                     context: context,
                     index: 3,
+                    selectedIndex: selectedIndex,
+                    path: '/reminds',
+                    icon: Icons.alarm_outlined,
+                    selectedIcon: Icons.alarm_on_rounded,
+                    label: 'Nhắc việc',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    index: 4,
                     selectedIndex: selectedIndex,
                     path: '/profile',
                     icon: Icons.person_outline_rounded,
