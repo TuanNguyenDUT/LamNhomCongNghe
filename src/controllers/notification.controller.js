@@ -143,6 +143,10 @@ class NotificationController {
           student_code: student ? student.student_code : studentId,
           is_personalized_enabled: student ? student.is_personalized_enabled !== false : true,
           interested_topics: (student && student.interested_topics) ? student.interested_topics : ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+          is_calendar_sync_enabled: student ? Boolean(student.is_calendar_sync_enabled) : true,
+          quick_reminder_options: (student && Array.isArray(student.quick_reminder_options))
+            ? student.quick_reminder_options
+            : ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week'],
         },
       },
     };
@@ -167,18 +171,26 @@ class NotificationController {
     if (Array.isArray(payload.interested_topics)) {
       student.interested_topics = payload.interested_topics;
     }
+    if (payload.is_calendar_sync_enabled !== undefined) {
+      student.is_calendar_sync_enabled = Boolean(payload.is_calendar_sync_enabled);
+    }
+    if (Array.isArray(payload.quick_reminder_options)) {
+      student.quick_reminder_options = payload.quick_reminder_options;
+    }
     courseService.dbStore.saveStudent(student);
 
     return {
       statusCode: 200,
       body: {
         status: 'success',
-        message: 'Cập nhật tùy chọn chủ đề quan tâm thành công',
+        message: 'Cập nhật cấu hình nhắc nhở và tùy chọn thành công',
         data: {
           student_id: student.id,
           student_code: student.student_code,
           is_personalized_enabled: student.is_personalized_enabled,
           interested_topics: student.interested_topics,
+          is_calendar_sync_enabled: student.is_calendar_sync_enabled,
+          quick_reminder_options: student.quick_reminder_options,
         },
       },
     };
@@ -290,6 +302,17 @@ class NotificationController {
       };
     }
     const deadline = await deadlineService.createDeadline(payload);
+
+    // Tự động đồng bộ lên Google Calendar nếu có tích chọn
+    if (payload.sync_google_calendar || payload.auto_sync_google_calendar) {
+      try {
+        const studentId = payload.student_id || payload.student_code || '102230026';
+        await googleCalendarService.syncDeadlinesToGoogleCalendar(studentId, deadline.deadline_id);
+      } catch (gErr) {
+        console.warn('Lỗi tự động đồng bộ Google Calendar khi tạo nhắc việc:', gErr.message);
+      }
+    }
+
     return {
       statusCode: 201,
       body: { status: 'success', message: 'Đã tạo mốc hạn chót thành công', data: deadline },

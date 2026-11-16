@@ -7,6 +7,7 @@ import '../../../core/presentation/liquid_glass.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../courses/presentation/enrolled_courses_screen.dart';
 import 'widgets/interest_topics_card.dart';
+import 'widgets/quick_reminders_settings_card.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -323,6 +324,14 @@ class ProfileScreen extends ConsumerWidget {
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
                     child: InterestTopicsCard(),
+                  ),
+                ),
+
+                // Section: Cấu hình Nhắc nhở Nhanh & Lịch Google
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 6, 20, 10),
+                    child: QuickRemindersSettingsCard(),
                   ),
                 ),
 

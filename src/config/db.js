@@ -217,6 +217,8 @@ class InMemoryDbStore {
     student.updated_at = new Date().toISOString();
     if (student.is_personalized_enabled === undefined) student.is_personalized_enabled = true;
     if (!student.interested_topics) student.interested_topics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+    if (student.is_calendar_sync_enabled === undefined) student.is_calendar_sync_enabled = true;
+    if (!student.quick_reminder_options) student.quick_reminder_options = ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week'];
 
     this.students.set(student.id, student);
     this.students.set(student.student_code, student);
@@ -224,8 +226,8 @@ class InMemoryDbStore {
     if (this.pool) {
       this.pool
         .query(
-          `INSERT INTO students (id, firebase_uid, student_code, full_name, faculty, cohort, class_name, dut_session_encrypted, dut_last_synced_at, is_personalized_enabled, interested_topics)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `INSERT INTO students (id, firebase_uid, student_code, full_name, faculty, cohort, class_name, dut_session_encrypted, dut_last_synced_at, is_personalized_enabled, interested_topics, is_calendar_sync_enabled, quick_reminder_options)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (student_code) DO UPDATE SET
              full_name = EXCLUDED.full_name,
              faculty = EXCLUDED.faculty,
@@ -235,6 +237,8 @@ class InMemoryDbStore {
              dut_last_synced_at = EXCLUDED.dut_last_synced_at,
              is_personalized_enabled = EXCLUDED.is_personalized_enabled,
              interested_topics = EXCLUDED.interested_topics,
+             is_calendar_sync_enabled = EXCLUDED.is_calendar_sync_enabled,
+             quick_reminder_options = EXCLUDED.quick_reminder_options,
              updated_at = NOW()`,
           [
             student.id,
@@ -248,6 +252,8 @@ class InMemoryDbStore {
             student.dut_last_synced_at || new Date().toISOString(),
             student.is_personalized_enabled !== false,
             JSON.stringify(student.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung']),
+            Boolean(student.is_calendar_sync_enabled),
+            JSON.stringify(student.quick_reminder_options || ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week']),
           ]
         )
         .catch((err) => console.warn('PG sync error (students):', err.message));
