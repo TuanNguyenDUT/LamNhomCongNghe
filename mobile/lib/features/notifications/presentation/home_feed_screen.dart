@@ -28,6 +28,11 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
   final List<Map<String, String>> _categories = const [
     {'code': 'ALL', 'label': '🌟 Tất cả'},
+    {'code': 'ACADEMIC', 'label': '📖 Học tập'},
+    {'code': 'GRADE', 'label': '📊 Điểm số'},
+    {'code': 'ADMINISTRATIVE', 'label': '📑 Hành chính'},
+    {'code': 'EVENT', 'label': '🎉 Hoạt động sự kiện'},
+    {'code': 'CAREER', 'label': '💼 Nghề nghiệp'},
     {'code': 'DUT_COURSE_CLASS', 'label': '📚 Lớp học phần'},
     {'code': 'DUT_TRAINING', 'label': '🎓 Đào tạo'},
     {'code': 'DUT_TUITION_FEE', 'label': '💰 Học phí, lệ phí'},
@@ -338,11 +343,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     data: (page) {
                       var items = page.items;
 
-                      // Lọc theo Category
+                      // Lọc theo Category / Loại thông báo / Kênh
                       if (selectedCategory != 'ALL') {
                         items = items.where((item) {
                           return item.sourceChannel == selectedCategory ||
-                              item.sourceType == selectedCategory;
+                              item.sourceType == selectedCategory ||
+                              item.category == selectedCategory ||
+                              item.categoryCode == selectedCategory;
                         }).toList();
                       }
 
@@ -530,6 +537,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                       text: _getChannelLabel(notif.sourceChannel ?? ''),
                                       color: _getChannelColor(notif.sourceChannel ?? ''),
                                     ),
+                                    if (notif.categoryName != null && notif.categoryName!.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      LiquidGlassBadge(
+                                        text: notif.categoryName!,
+                                        color: _getCategoryColor(notif.category),
+                                      ),
+                                    ],
                                     if (notif.courseCode != null &&
                                         notif.courseCode!.trim().isNotEmpty &&
                                         notif.sourceChannel != 'FB_CTSV' &&
@@ -826,6 +840,22 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         return const Color(0xFF00B0FF); // Sky Blue
       default:
         return const Color(0xFF64748B);
+    }
+  }
+
+  Color _getCategoryColor(String? category) {
+    switch (category?.toUpperCase()) {
+      case 'GRADE':
+        return const Color(0xFFAF52DE);
+      case 'CAREER':
+        return const Color(0xFF30B0C7);
+      case 'ADMINISTRATIVE':
+        return const Color(0xFFFF9500);
+      case 'EVENT':
+        return const Color(0xFF34C759);
+      case 'ACADEMIC':
+      default:
+        return const Color(0xFF007AFF);
     }
   }
 

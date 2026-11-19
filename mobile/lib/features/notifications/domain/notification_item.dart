@@ -23,6 +23,9 @@ class NotificationItem {
     this.senderName,
     this.sourceUrl,
     this.sourceName,
+    this.category,
+    this.categoryCode,
+    this.categoryName,
   });
 
   final dynamic id;
@@ -48,6 +51,9 @@ class NotificationItem {
   final String? courseCode;
   final String? courseTag;
   final String? senderName;
+  final String? category;
+  final String? categoryCode;
+  final String? categoryName;
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'] ?? json['notification_id'] ?? 0;
@@ -79,6 +85,9 @@ class NotificationItem {
       senderName: json['sender_name']?.toString(),
       sourceUrl: json['source_url']?.toString(),
       sourceName: json['source_name']?.toString(),
+      category: json['category']?.toString(),
+      categoryCode: json['category_code']?.toString(),
+      categoryName: json['category_name']?.toString(),
     );
   }
 }

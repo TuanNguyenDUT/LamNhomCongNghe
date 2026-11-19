@@ -639,7 +639,26 @@ class NotificationController {
     return { statusCode: 200, body: { status: 'success', data: result } };
   }
 
+  async getCategories() {
+    const { NOTIFICATION_CATEGORIES } = require('../services/classifier.service');
+    return {
+      statusCode: 200,
+      body: {
+        status: 'success',
+        data: Object.values(NOTIFICATION_CATEGORIES).map((cat) => ({
+          category: cat.code,
+          category_code: cat.slug,
+          category_name: cat.name,
+          category_tag: cat.tag,
+          description: cat.description,
+          keywords: cat.keywords,
+        })),
+      },
+    };
+  }
+
   async getRules() {
+    const { NOTIFICATION_CATEGORIES } = require('../services/classifier.service');
     return {
       statusCode: 200,
       body: {
@@ -649,6 +668,7 @@ class NotificationController {
           scope_weights: SCOPE_WEIGHTS,
           priority_rules: PRIORITY_RULES,
           urgency_time_keywords: URGENCY_TIME_KEYWORDS,
+          notification_categories: NOTIFICATION_CATEGORIES,
           default_courses: DEFAULT_COURSES,
         },
       },

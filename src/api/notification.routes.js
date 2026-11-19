@@ -279,7 +279,13 @@ async function notificationRouter(req, res, controller) {
       return;
     }
 
-    // Tương thích ngược: Collect, Classify, Rules, Sources
+    // Tương thích ngược: Collect, Classify, Rules, Sources, Categories
+    if (req.method === 'GET' && (pathname === '/api/v1/notifications/categories' || pathname === '/api/v1/categories')) {
+      const result = await controller.getCategories();
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
     if (req.method === 'GET' && pathname === '/api/v1/notifications/sources') {
       const result = await controller.getSources();
       sendJson(res, result.statusCode, result.body);

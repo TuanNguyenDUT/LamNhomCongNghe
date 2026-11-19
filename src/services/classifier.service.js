@@ -225,6 +225,166 @@ const URGENCY_TIME_KEYWORDS = [
 ];
 
 /**
+ * 5 LOẠI THÔNG BÁO CHUẨN CỦA HỆ THỐNG:
+ * 1. ACADEMIC       (Thông báo học tập: thay đổi lịch học, nghỉ học, học bù, đổi phòng học, thi...)
+ * 2. GRADE          (Thông báo điểm số: phúc khảo điểm, cảnh báo kết quả học tập, công bố điểm...)
+ * 3. ADMINISTRATIVE (Thông báo hành chính: đăng ký học phần, học phí, gia hạn học phí, rút học phần...)
+ * 4. EVENT          (Hoạt động sự kiện: workshop, cuộc thi, hoạt động tình nguyện, CLB...)
+ * 5. CAREER         (Thông báo nghề nghiệp: tuyển dụng, thực tập, hạn ứng tuyển thực tập...)
+ */
+const NOTIFICATION_CATEGORIES = {
+  ACADEMIC: {
+    code: 'ACADEMIC',
+    slug: 'hoc_tap',
+    name: 'Thông báo học tập',
+    tag: '#HọcTập',
+    description: 'Thay đổi lịch học, nghỉ học, học bù, đổi phòng học, thời khóa biểu, bài tập lớn, thi giữa kỳ/cuối kỳ...',
+    keywords: [
+      'thay đổi lịch học', 'thay đổi lịch', 'đổi lịch học', 'nghỉ học', 'nghỉ dạy', 'học bù', 'lịch học bù',
+      'đổi phòng học', 'đổi phòng', 'chuyển phòng', 'thời khóa biểu', 'lịch học', 'lớp học phần', 'học phần',
+      'bài tập lớn', 'bài tập', 'đồ án', 'nộp bài', 'báo cáo đồ án', 'thực hành', 'lịch thi', 'thi cuối kỳ',
+      'thi giữa kỳ', 'phòng thi', 'danh sách phòng thi', 'danh sách thi', 'thi kết thúc học phần', 'hoãn thi',
+      'nghỉ bão', 'tiết học', 'ca học', 'chuyển ca'
+    ],
+  },
+  GRADE: {
+    code: 'GRADE',
+    slug: 'diem_so',
+    name: 'Thông báo điểm số',
+    tag: '#ĐiểmSố',
+    description: 'Phúc khảo điểm, cảnh báo kết quả học tập, cảnh báo học vụ, bảng điểm, công bố điểm thi, khiếu nại điểm...',
+    keywords: [
+      'phúc khảo điểm', 'phúc khảo', 'kết quả phúc khảo', 'cảnh báo kết quả học tập', 'cảnh báo học tập',
+      'cảnh báo học vụ', 'kết quả học tập', 'buộc thôi học', 'đình chỉ học', 'bảng điểm', 'điểm thi',
+      'điểm học phần', 'điểm kiểm tra', 'công bố điểm', 'khiếu nại điểm', 'cải thiện điểm', 'xếp loại học lực',
+      'xét điểm', 'điểm rèn luyện', 'điểm tổng kết', 'gpa', 'dpa'
+    ],
+  },
+  ADMINISTRATIVE: {
+    code: 'ADMINISTRATIVE',
+    slug: 'hanh_chinh',
+    name: 'Thông báo hành chính',
+    tag: '#HànhChính',
+    description: 'Đăng ký học phần, học phí, gia hạn học phí, rút học phần, miễn giảm học phí, hồ sơ thủ tục sinh viên, quy chế...',
+    keywords: [
+      'đăng ký học phần', 'đăng ký tín chỉ', 'đăng ký môn học', 'rút học phần', 'hủy học phần', 'học phí',
+      'nợ học phí', 'nhắc nợ học phí', 'thanh toán học phí', 'gia hạn học phí', 'hạn nộp học phí', 'miễn giảm học phí',
+      'hóa đơn học phí', 'lệ phí', 'hồ sơ sinh viên', 'thủ tục hành chính', 'giấy xác nhận', 'bảo hiểm y tế',
+      'bhyt', 'thẻ sinh viên', 'quy chế đào tạo', 'quy chế', 'nộp hồ sơ', 'chế độ chính sách', 'xét tốt nghiệp'
+    ],
+  },
+  EVENT: {
+    code: 'EVENT',
+    slug: 'su_kien',
+    name: 'Hoạt động sự kiện',
+    tag: '#HoạtĐộngSựKiện',
+    description: 'Workshop, cuộc thi, hoạt động tình nguyện, phong trào Đoàn - Hội, câu lạc bộ, văn nghệ, thể thao...',
+    keywords: [
+      'workshop', 'cuộc thi', 'hoạt động tình nguyện', 'tình nguyện', 'mùa hè xanh', 'hiến máu', 'hiến máu nhân đạo',
+      'câu lạc bộ', 'clb', 'phong trào', 'đoàn thanh niên', 'hội sinh viên', 'ngày hội', 'giao lưu', 'văn nghệ',
+      'đêm nhạc', 'thể thao', 'giải bóng đá', 'hội thao', 'minigame', 'tọa đàm', 'seminar', 'diễn đàn',
+      'ngoại khóa', 'sinh hoạt ngoại khóa', 'cuộc thi ý tưởng', 'hackathon'
+    ],
+  },
+  CAREER: {
+    code: 'CAREER',
+    slug: 'nghe_nghiep',
+    name: 'Thông báo nghề nghiệp',
+    tag: '#NghềNghiệp',
+    description: 'Tuyển dụng, thực tập, hạn ứng tuyển thực tập, cơ hội việc làm, ngày hội việc làm doanh nghiệp...',
+    keywords: [
+      'tuyển dụng', 'thực tập', 'hạn ứng tuyển', 'ứng tuyển thực tập', 'thực tập tốt nghiệp', 'việc làm',
+      'cơ hội việc làm', 'cơ hội nghề nghiệp', 'ngày hội việc làm', 'hội chợ việc làm', 'job fair', 'career',
+      'internship', 'doanh nghiệp tuyển', 'vị trí thực tập', 'tuyển fresher', 'tuyển intern', 'nhà tuyển dụng',
+      'tuyển nhân viên', 'hạn nộp cv', 'nộp hồ sơ ứng tuyển'
+    ],
+  },
+};
+
+/**
+ * Thuật toán tự động phân loại thông báo vào 5 loại chuẩn
+ */
+function detectNotificationCategory(payload = {}) {
+  const title = (payload.title || '').toLowerCase();
+  const content = (payload.content || payload.summary || '').toLowerCase();
+  const fullText = `${title} ${content}`;
+  const channel = (payload.source_channel || payload.source_type || '').toUpperCase();
+
+  const scores = {
+    GRADE: 0,
+    CAREER: 0,
+    ADMINISTRATIVE: 0,
+    EVENT: 0,
+    ACADEMIC: 0,
+  };
+
+  // Trọng số gợi ý từ kênh nguồn
+  if (channel === 'DUT_TUITION_FEE' || channel === 'DUT_REGULATIONS') {
+    scores.ADMINISTRATIVE += 8;
+  } else if (channel === 'DUT_COURSE_CLASS') {
+    scores.ACADEMIC += 8;
+  }
+
+  // Quét từ khóa
+  for (const [key, cat] of Object.entries(NOTIFICATION_CATEGORIES)) {
+    for (const kw of cat.keywords) {
+      if (title.includes(kw)) {
+        scores[key] += 6;
+      } else if (fullText.includes(kw)) {
+        scores[key] += 2;
+      }
+    }
+  }
+
+  // Quy tắc ưu tiên đặc biệt với cụm từ đặc thù
+  if (/phúc khảo|cảnh báo kết quả học tập|cảnh báo học vụ|kết quả phúc khảo|buộc thôi học/i.test(fullText)) {
+    scores.GRADE += 15;
+  }
+  if (/tuyển dụng|thực tập|hạn ứng tuyển|ứng tuyển|job fair|internship/i.test(fullText)) {
+    scores.CAREER += 15;
+  }
+  if (/đăng ký học phần|đăng ký tín chỉ|học phí|gia hạn học phí|nợ học phí|miễn giảm học phí/i.test(fullText)) {
+    scores.ADMINISTRATIVE += 15;
+  }
+  if (/workshop|cuộc thi|hoạt động tình nguyện|tình nguyện|mùa hè xanh|câu lạc bộ|văn nghệ|hội thao/i.test(fullText)) {
+    scores.EVENT += 15;
+  }
+  if (/thay đổi lịch học|nghỉ học|nghỉ dạy|học bù|đổi phòng học|lịch học bù/i.test(fullText)) {
+    scores.ACADEMIC += 15;
+  }
+
+  // Chọn loại có điểm cao nhất
+  let bestKey = 'ACADEMIC';
+  let maxScore = -1;
+  for (const [key, score] of Object.entries(scores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      bestKey = key;
+    }
+  }
+
+  // Fallback
+  if (maxScore <= 0) {
+    if (channel === 'DUT_TUITION_FEE' || channel === 'DUT_REGULATIONS') {
+      bestKey = 'ADMINISTRATIVE';
+    } else if (channel === 'FB_CTSV' || channel === 'FB_TUVAN_SV') {
+      bestKey = 'EVENT';
+    } else {
+      bestKey = 'ACADEMIC';
+    }
+  }
+
+  const selected = NOTIFICATION_CATEGORIES[bestKey] || NOTIFICATION_CATEGORIES.ACADEMIC;
+  return {
+    category: selected.code,
+    category_code: selected.slug,
+    category_name: selected.name,
+    category_tag: selected.tag,
+    category_description: selected.description,
+  };
+}
+
+/**
  * 1. Nhận diện môn học & gắn tag chuẩn (Hỗ trợ cả Default Courses và Dynamic Enrolled Courses từ sv.dut.udn.vn)
  */
 function detectCourseTag({ title = '', content = '', course_code = null, source_channel = null, source_type = null } = {}) {
@@ -465,6 +625,9 @@ function classifyNotification(payload = {}) {
     source_type: rawSource,
   });
 
+  // 1b. Nhận diện 5 loại thông báo chuẩn của hệ thống
+  const categoryInfo = detectNotificationCategory(payload);
+
   // 2. Nhận diện phạm vi
   const scopeType = detectScopeType(payload, courseInfo);
 
@@ -481,6 +644,10 @@ function classifyNotification(payload = {}) {
 
   if (courseInfo.course_tag && !isFb) {
     tags.push(courseInfo.course_tag);
+  }
+
+  if (categoryInfo.category_tag && !tags.includes(categoryInfo.category_tag)) {
+    tags.push(categoryInfo.category_tag);
   }
 
   // Quét từ khóa (sử dụng includes tiếng Việt an toàn)
@@ -565,6 +732,10 @@ function classifyNotification(payload = {}) {
     scope: scopeType,
     priority,
     priority_score: priorityScore,
+    category: categoryInfo.category,
+    category_code: categoryInfo.category_code,
+    category_name: categoryInfo.category_name,
+    category_tag: categoryInfo.category_tag,
     tags,
     topics,
     target_student_id: targetStudentId,
@@ -698,8 +869,10 @@ module.exports = {
   SCOPE_WEIGHTS,
   PRIORITY_RULES,
   URGENCY_TIME_KEYWORDS,
+  NOTIFICATION_CATEGORIES,
   detectCourseTag,
   detectScopeType,
+  detectNotificationCategory,
   detectNotificationTopics,
   classifyNotification,
   classifySmartNotification,
