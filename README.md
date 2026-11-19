@@ -13,7 +13,7 @@
 |---|---|---|
 | **FR-01** | **Đồng bộ Học phần từ `sv.dut.udn.vn`** | Đăng nhập trích xuất danh sách lớp học phần sinh viên đang học và khởi tạo không gian thông báo riêng (`src/services/dut-crawler.service.js`, `course.service.js`). |
 | **FR-02** | **Thu thập & Chống trùng lặp đa nguồn** | Thu thập từ 7 chuyên mục cổng thông tin trường và 2 Fanpage Facebook (`ctsvdhbkdhdn`, `tuvansinhvien.dut`). Chống trùng lặp bằng mã băm **SHA-256** `content_hash` (`src/services/notification.service.js`). |
-| **FR-03** | **Phân loại thông minh kết hợp (Rules + AI API)** | **Rules Engine** cho 7 mục `sv.dut.udn.vn` (Regex bóc tách mã môn, lịch học bù, nghỉ dạy, hạn chót) & **AI API** (Google Gemini / Fallback NLP) cho bài viết Facebook. Công thức tính điểm ưu tiên đa trọng số $S_{\text{total}} = W_{\text{base}} + W_{\text{scope}} + W_{\text{keyword}} + W_{\text{urgency}}$ (`src/services/classifier.service.js`). |
+| **FR-03** | **Phân loại thông minh kết hợp (Rules + AI API) & 5 Loại thông báo chuẩn** | **Rules Engine** & **AI API** tự động phân loại thông báo theo **5 loại chính**: (1) **Thông báo học tập** (`ACADEMIC`: đổi lịch học, nghỉ học, học bù, đổi phòng học, thi...), (2) **Thông báo điểm số** (`GRADE`: phúc khảo điểm, cảnh báo kết quả học tập...), (3) **Thông báo hành chính** (`ADMINISTRATIVE`: đăng ký học phần, học phí...), (4) **Hoạt động sự kiện** (`EVENT`: workshop, cuộc thi, tình nguyện...), (5) **Thông báo nghề nghiệp** (`CAREER`: tuyển dụng, thực tập, hạn ứng tuyển...). Công thức tính điểm ưu tiên đa trọng số $S_{\text{total}} = W_{\text{base}} + W_{\text{scope}} + W_{\text{keyword}} + W_{\text{urgency}}$ (`src/services/classifier.service.js`). |
 | **FR-04** | **Mục thông báo riêng từng học phần** | Gom thông báo từ `DUT_COURSE_CLASS` vào đúng môn sinh viên đang học, hiển thị số tin chưa đọc (`unread_count`) và deadline sắp tới (`src/services/course.service.js`). |
 | **FR-05** | **Bảng tin thông báo tập trung & Cá nhân hóa** | Bảng tin hợp nhất lọc theo 7 chuyên mục web trường, 2 Fanpage FB, tags, độ ưu tiên, tìm kiếm từ khóa (`src/services/notification.service.js`, `HomeFeedScreen`). |
 | **FR-06** | **Quản lý danh sách hạn chót (Deadlines CRUD)** | Quản lý hạn chót đóng học phí, nộp chứng chỉ, bài tập môn học kèm đồng hồ đếm ngược và trạng thái động (`PENDING`, `DUE_SOON`, `OVERDUE`, `COMPLETED`) (`src/services/deadline.service.js`). |
@@ -87,7 +87,8 @@ LamNhomCongNghe/
 | `POST` | `/api/v1/dut/sync-courses` | Đồng bộ danh sách học phần sinh viên đang học từ `sv.dut.udn.vn`. |
 | `GET` | `/api/v1/courses/enrolled` | Lấy danh sách học phần kèm số tin chưa đọc (`unread_count`) & số deadline sắp tới. |
 | `GET` | `/api/v1/courses/:code/notifications` | Lấy luồng thông báo riêng biệt của một lớp học phần. |
-| `GET` | `/api/v1/notifications` | Bảng tin thông báo tổng hợp (hỗ trợ lọc 7 mục web, 2 fanpage FB, tag, search). |
+| `GET` | `/api/v1/notifications` | Bảng tin thông báo tổng hợp (hỗ trợ lọc theo 5 loại thông báo: `category`, 7 mục web trường, 2 fanpage FB, tag, search). |
+| `GET` | `/api/v1/notifications/categories` | Lấy danh mục 5 loại thông báo chính (`ACADEMIC`, `GRADE`, `ADMINISTRATIVE`, `EVENT`, `CAREER`). |
 | `POST` | `/api/v1/notifications/ingest` | Thu thập tin mới $\rightarrow$ Băm SHA-256 $\rightarrow$ Smart Classifier $\rightarrow$ Lưu DB $\rightarrow$ FCM & Deadline. |
 | `POST` | `/api/v1/notifications/:id/ack` | Xác nhận **Đã đọc / Đã nhận tin (Read Receipt)** cho thông báo khẩn cấp. |
 | `GET` | `/api/v1/deadlines` | Lấy danh sách hạn chót của sinh viên (hỗ trợ lọc `status`, `course_code`). |

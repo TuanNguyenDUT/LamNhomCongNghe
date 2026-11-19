@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     scope notification_scope_type NOT NULL,
     priority notification_priority_level NOT NULL DEFAULT 'NORMAL',
     priority_score INTEGER NOT NULL DEFAULT 0,
+    category VARCHAR(50) DEFAULT 'ACADEMIC',       -- ACADEMIC, GRADE, ADMINISTRATIVE, EVENT, CAREER
+    category_code VARCHAR(50) DEFAULT 'hoc_tap',   -- hoc_tap, diem_so, hanh_chinh, su_kien, nghe_nghiep
+    category_name VARCHAR(100) DEFAULT 'Thông báo học tập',
     course_code VARCHAR(50) REFERENCES courses(course_code) ON DELETE SET NULL,
     target_faculty VARCHAR(100),
     target_cohort VARCHAR(20),
@@ -173,6 +176,9 @@ CREATE INDEX IF NOT EXISTS idx_notifications_course_time
 
 CREATE INDEX IF NOT EXISTS idx_notifications_channel_priority_time 
     ON notifications (source_channel, priority, published_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_category
+    ON notifications (category);
 
 CREATE INDEX IF NOT EXISTS idx_student_notifications_filter 
     ON student_notifications (student_id, is_read, created_at DESC);
