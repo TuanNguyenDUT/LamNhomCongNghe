@@ -522,7 +522,7 @@ class NotificationController {
     const studentId = this._extractStudentIdentifier(payload);
     const deadlineId = payload.deadline_id || null;
     const result = await this.calendarSvc.syncDeadlinesToCalendar(studentId, deadlineId);
-    if (!result.is_connected && result.synced_count === 0) {
+    if (result.mode === 'NOT_CONNECTED') {
       return {
         statusCode: 400,
         body: {
