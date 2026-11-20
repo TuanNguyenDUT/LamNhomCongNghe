@@ -98,6 +98,8 @@ class AuthController extends Notifier<AuthState> {
       if (dioErr.response?.data is Map) {
         msg = (dioErr.response?.data['message'] ?? msg).toString();
       } else if (dioErr.type == DioExceptionType.connectionTimeout ||
+          dioErr.type == DioExceptionType.receiveTimeout ||
+          dioErr.type == DioExceptionType.sendTimeout ||
           dioErr.type == DioExceptionType.connectionError) {
         msg = 'Không thể kết nối đến máy chủ xác thực. Vui lòng kiểm tra kết nối mạng!';
       }
