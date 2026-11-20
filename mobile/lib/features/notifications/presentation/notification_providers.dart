@@ -28,6 +28,30 @@ class SelectedCategoryNotifier extends Notifier<String> {
 final selectedCategoryProvider =
     NotifierProvider<SelectedCategoryNotifier, String>(SelectedCategoryNotifier.new);
 
+class SelectedTopicCategoriesNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => <String>{};
+
+  void toggle(String categoryCode) {
+    final next = Set<String>.from(state);
+    if (next.contains(categoryCode)) {
+      next.remove(categoryCode);
+    } else {
+      next.add(categoryCode);
+    }
+    state = next;
+  }
+
+  void clear() {
+    state = <String>{};
+  }
+}
+
+final selectedTopicCategoriesProvider =
+    NotifierProvider<SelectedTopicCategoriesNotifier, Set<String>>(
+  SelectedTopicCategoriesNotifier.new,
+);
+
 class CourseFilter {
   final String courseCode;
   final String courseName;

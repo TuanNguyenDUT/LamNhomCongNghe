@@ -12,7 +12,7 @@
 
 const crypto = require('node:crypto');
 const { getDbStore } = require('../config/db');
-const { classifySmartNotification, detectNotificationTopics } = require('./classifier.service');
+const { classifySmartNotification, detectNotificationTopics, matchesInterestedTopics } = require('./classifier.service');
 const { deadlineService } = require('./deadline.service');
 const { sendPushNotification } = require('./pushNotificationService');
 
@@ -533,6 +533,9 @@ class NotificationService {
             student_id: student.id,
             notification_id: notification.id,
             course_code: notification.course_code,
+            category: notification.category,
+            category_code: notification.category_code,
+            category_name: notification.category_name,
             title: `[Hạn chót] ${notification.title.trim()}`,
             description: notification.action_required || notification.summary,
             due_date: notification.deadline_at,
@@ -618,6 +621,9 @@ class NotificationService {
               student_id: student.id,
               notification_id: notification.id,
               course_code: notification.course_code,
+              category: notification.category,
+              category_code: notification.category_code,
+              category_name: notification.category_name,
               title: `[Hạn chót] ${notification.title.replace(/\s+/g, ' ').trim()}`,
               description: notification.action_required || notification.summary || notification.content,
               due_date: notification.deadline_at,
@@ -638,6 +644,7 @@ class NotificationService {
     priority = null,
     tag = null,
     category = null,
+    categories = null,
     search = null,
     limit = 50,
     offset = 0,
@@ -672,14 +679,15 @@ class NotificationService {
       list = list.filter((n) => n.tags && n.tags.includes(tag));
     }
 
-    // Lọc theo loại thông báo (category / category_code)
-    if (category && category !== 'ALL') {
-      const catKey = category.toLowerCase();
-      list = list.filter((n) =>
-        (n.category && n.category.toLowerCase() === catKey) ||
-        (n.category_code && n.category_code.toLowerCase() === catKey) ||
-        (n.category_name && n.category_name.toLowerCase() === catKey)
-      );
+    // Lọc theo loại thông báo (hỗ trợ chọn 1 hoặc nhiều option: ?categories=SCHOLARSHIP,GRADE hoặc ?category=GRADE)
+    const rawCats = categories || category;
+    if (rawCats && rawCats !== 'ALL') {
+      const catList = (Array.isArray(rawCats) ? rawCats : String(rawCats).split(','))
+        .map((c) => c.trim())
+        .filter((c) => c && c.toUpperCase() !== 'ALL');
+      if (catList.length > 0) {
+        list = list.filter((n) => matchesInterestedTopics(n, catList));
+      }
     }
 
     // Tìm kiếm từ khóa
@@ -694,14 +702,18 @@ class NotificationService {
       );
     }
 
-    // Sắp xếp: tin khẩn cấp lên đầu, ưu tiên tin thuộc chủ đề sinh viên quan tâm nếu bật cá nhân hóa trên Bảng tin mặc định
+    // Cá nhân hóa theo 6 loại thông báo quan tâm của sinh viên:
+    // Nếu bật cá nhân hóa, lọc hiển thị các thông báo ứng với mục người dùng đã chọn (vẫn giữ tin khẩn cấp)
     const isPersonalized = student && student.is_personalized_enabled !== false;
-    const studentTopics = isPersonalized ? (student.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung']) : [];
+    const studentTopics = isPersonalized ? (student.interested_topics || ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP']) : [];
+
+    if (isPersonalized && studentTopics.length > 0 && !rawCats) {
+      list = list.filter((n) => n.is_emergency || matchesInterestedTopics(n, studentTopics));
+    }
 
     const getTopicMatchScore = (n) => {
       if (!isPersonalized || studentTopics.length === 0) return 0;
-      const notifTopics = n.topics || detectNotificationTopics(n);
-      return notifTopics.some((t) => studentTopics.includes(t)) ? 1 : 0;
+      return matchesInterestedTopics(n, studentTopics) ? 1 : 0;
     };
 
     list.sort((a, b) => {

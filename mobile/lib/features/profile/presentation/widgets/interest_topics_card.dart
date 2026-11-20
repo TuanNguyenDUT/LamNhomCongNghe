@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/auth_controller.dart';
+import '../../../deadlines/presentation/deadlines_screen.dart';
 import '../../../notifications/presentation/notification_providers.dart';
 
 class InterestTopicsCard extends ConsumerStatefulWidget {
@@ -14,15 +15,62 @@ class InterestTopicsCard extends ConsumerStatefulWidget {
 
 class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
   bool _isPersonalizedEnabled = true;
-  List<String> _selectedTopics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+  List<String> _selectedTopics = [
+    'ACADEMIC',
+    'GRADE',
+    'ADMINISTRATIVE',
+    'EVENT',
+    'CAREER',
+    'SCHOLARSHIP',
+  ];
   bool _isSaving = false;
 
   final List<Map<String, String>> _topicOptions = const [
-    {'id': 'hoc_vu', 'label': 'Học vụ'},
-    {'id': 'hoc_bong', 'label': 'Học bổng'},
-    {'id': 'hoat_dong_sv', 'label': 'Hoạt động sinh viên'},
-    {'id': 'tuyen_dung', 'label': 'Tuyển dụng / Thực tập'},
+    {'id': 'ACADEMIC', 'label': '📖 Thông báo học tập'},
+    {'id': 'GRADE', 'label': '📊 Thông báo điểm số'},
+    {'id': 'ADMINISTRATIVE', 'label': '📑 Thông báo hành chính'},
+    {'id': 'EVENT', 'label': '🎉 Hoạt động sự kiện'},
+    {'id': 'CAREER', 'label': '💼 Thông báo nghề nghiệp'},
+    {'id': 'SCHOLARSHIP', 'label': '🎓 Học bổng'},
   ];
+
+  List<String> _normalizeTopics(List<String> raw) {
+    final mapped = <String>{};
+    for (final item in raw) {
+      switch (item.trim().toUpperCase()) {
+        case 'HOC_VU':
+          mapped.addAll(['ACADEMIC', 'GRADE', 'ADMINISTRATIVE']);
+          break;
+        case 'HOC_TAP':
+        case 'ACADEMIC':
+          mapped.add('ACADEMIC');
+          break;
+        case 'DIEM_SO':
+        case 'GRADE':
+          mapped.add('GRADE');
+          break;
+        case 'HANH_CHINH':
+        case 'ADMINISTRATIVE':
+          mapped.add('ADMINISTRATIVE');
+          break;
+        case 'HOAT_DONG_SV':
+        case 'SU_KIEN':
+        case 'EVENT':
+          mapped.add('EVENT');
+          break;
+        case 'TUYEN_DUNG':
+        case 'NGHE_NGHIEP':
+        case 'CAREER':
+          mapped.add('CAREER');
+          break;
+        case 'HOC_BONG':
+        case 'SCHOLARSHIP':
+          mapped.add('SCHOLARSHIP');
+          break;
+      }
+    }
+    return mapped.toList();
+  }
 
   @override
   void initState() {
@@ -36,7 +84,7 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
     if (session != null) {
       setState(() {
         _isPersonalizedEnabled = session.isPersonalizedEnabled;
-        _selectedTopics = List<String>.from(session.interestedTopics);
+        _selectedTopics = _normalizeTopics(session.interestedTopics);
       });
     }
 
@@ -52,7 +100,9 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
         setState(() {
           _isPersonalizedEnabled = data['is_personalized_enabled'] != false;
           if (data['interested_topics'] is List) {
-            _selectedTopics = (data['interested_topics'] as List).map((e) => e.toString()).toList();
+            _selectedTopics = _normalizeTopics(
+              (data['interested_topics'] as List).map((e) => e.toString()).toList(),
+            );
           }
         });
       }
@@ -79,8 +129,9 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
         },
       );
 
-      // Làm mới dữ liệu bảng tin để áp dụng ngay bộ lọc/thứ tự cá nhân hóa
+      // Làm mới dữ liệu bảng tin và hạn chót để áp dụng ngay cá nhân hóa theo 6 loại
       ref.invalidate(notificationFeedProvider);
+      ref.invalidate(deadlinesListProvider);
     } catch (_) {
     } finally {
       if (mounted) {

@@ -5,6 +5,7 @@
 
 const crypto = require('node:crypto');
 const { getDbStore } = require('../config/db');
+const { detectNotificationCategory, matchesInterestedTopics } = require('./classifier.service');
 
 class DeadlineService {
   constructor(dbStore = getDbStore()) {
@@ -47,11 +48,25 @@ class DeadlineService {
       }
     }
 
+    const catInfo = data.category
+      ? {
+          category: data.category,
+          category_code: data.category_code || null,
+          category_name: data.category_name || null,
+        }
+      : detectNotificationCategory({
+          title: formattedTitle,
+          content: data.description || '',
+        });
+
     const deadline = {
       deadline_id: crypto.randomUUID(),
       student_id: targetStudentId,
       notification_id: data.notification_id || null,
       course_code: data.course_code || null,
+      category: catInfo.category,
+      category_code: catInfo.category_code,
+      category_name: catInfo.category_name,
       title: formattedTitle,
       description: data.description || '',
       due_date: data.due_date ? new Date(data.due_date).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
@@ -90,6 +105,40 @@ class DeadlineService {
       } else if (filters.item_type === 'DEADLINE') {
         list = list.filter((d) => d.item_type !== 'REMINDER' && !(d.title && d.title.startsWith('[Nhắc nhở]')));
       }
+    }
+
+    // Gắn thông tin category từ notification liên kết nếu deadline chưa có
+    for (const d of list) {
+      if (!d.category) {
+        const linkedNotif = d.notification_id ? this.dbStore.notifications.get(d.notification_id) : null;
+        if (linkedNotif && linkedNotif.category) {
+          d.category = linkedNotif.category;
+          d.category_code = linkedNotif.category_code;
+          d.category_name = linkedNotif.category_name;
+        } else {
+          const catInfo = detectNotificationCategory({
+            title: (d.title || '').replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, ''),
+            content: d.description || '',
+          });
+          d.category = catInfo.category;
+          d.category_code = catInfo.category_code;
+          d.category_name = catInfo.category_name;
+        }
+      }
+    }
+
+    // Lọc theo bộ lọc categories / category truyền lên từ API (nếu có)
+    const rawCats = filters.categories || filters.category;
+    if (rawCats && rawCats !== 'ALL') {
+      const catList = (Array.isArray(rawCats) ? rawCats : String(rawCats).split(','))
+        .map((c) => c.trim())
+        .filter((c) => c && c.toUpperCase() !== 'ALL');
+      if (catList.length > 0) {
+        list = list.filter((d) => matchesInterestedTopics(d, catList));
+      }
+    } else if (student && student.is_personalized_enabled !== false && Array.isArray(student.interested_topics) && student.interested_topics.length > 0) {
+      // Cá nhân hóa Hạn chót theo 6 mục người dùng đã chọn quan tâm
+      list = list.filter((d) => matchesInterestedTopics(d, student.interested_topics));
     }
 
     // Khử trùng lặp trên tầng đọc (Deduplicate on read)

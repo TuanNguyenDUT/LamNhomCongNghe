@@ -225,12 +225,13 @@ const URGENCY_TIME_KEYWORDS = [
 ];
 
 /**
- * 5 LOẠI THÔNG BÁO CHUẨN CỦA HỆ THỐNG:
+ * 6 LOẠI THÔNG BÁO CHUẨN CỦA HỆ THỐNG:
  * 1. ACADEMIC       (Thông báo học tập: thay đổi lịch học, nghỉ học, học bù, đổi phòng học, thi...)
  * 2. GRADE          (Thông báo điểm số: phúc khảo điểm, cảnh báo kết quả học tập, công bố điểm...)
  * 3. ADMINISTRATIVE (Thông báo hành chính: đăng ký học phần, học phí, gia hạn học phí, rút học phần...)
  * 4. EVENT          (Hoạt động sự kiện: workshop, cuộc thi, hoạt động tình nguyện, CLB...)
  * 5. CAREER         (Thông báo nghề nghiệp: tuyển dụng, thực tập, hạn ứng tuyển thực tập...)
+ * 6. SCHOLARSHIP    (Học bổng: học bổng khuyến khích học tập, học bổng doanh nghiệp, tài trợ...)
  */
 const NOTIFICATION_CATEGORIES = {
   ACADEMIC: {
@@ -299,10 +300,22 @@ const NOTIFICATION_CATEGORIES = {
       'tuyển nhân viên', 'hạn nộp cv', 'nộp hồ sơ ứng tuyển'
     ],
   },
+  SCHOLARSHIP: {
+    code: 'SCHOLARSHIP',
+    slug: 'hoc_bong',
+    name: 'Học bổng',
+    tag: '#HọcBổng',
+    description: 'Học bổng khuyến khích học tập, học bổng doanh nghiệp, tài trợ học bổng, khen thưởng học tập...',
+    keywords: [
+      'học bổng', 'khuyến khích học tập', 'xét cấp học bổng', 'tài trợ học bổng', 'trao học bổng',
+      'doanh nghiệp trao học bổng', 'scholarship', 'trợ cấp học tập', 'quỹ học bổng', 'hồ sơ học bổng',
+      'nhận học bổng', 'học bổng toàn phần', 'học bổng du học'
+    ],
+  },
 };
 
 /**
- * Thuật toán tự động phân loại thông báo vào 5 loại chuẩn
+ * Thuật toán tự động phân loại thông báo vào 6 loại chuẩn
  */
 function detectNotificationCategory(payload = {}) {
   const title = (payload.title || '').toLowerCase();
@@ -313,12 +326,13 @@ function detectNotificationCategory(payload = {}) {
   const scores = {
     GRADE: 0,
     CAREER: 0,
+    SCHOLARSHIP: 0,
     ADMINISTRATIVE: 0,
     EVENT: 0,
     ACADEMIC: 0,
   };
 
-  // Trọng số gợi ý từ kênh nguồn
+  // Trọng số gợi ý từ kênh nguồn gốc
   if (channel === 'DUT_TUITION_FEE' || channel === 'DUT_REGULATIONS') {
     scores.ADMINISTRATIVE += 8;
   } else if (channel === 'DUT_COURSE_CLASS') {
@@ -339,6 +353,9 @@ function detectNotificationCategory(payload = {}) {
   // Quy tắc ưu tiên đặc biệt với cụm từ đặc thù
   if (/phúc khảo|cảnh báo kết quả học tập|cảnh báo học vụ|kết quả phúc khảo|buộc thôi học/i.test(fullText)) {
     scores.GRADE += 15;
+  }
+  if (/học bổng|khuyến khích học tập|tài trợ học bổng|trao học bổng|scholarship/i.test(fullText)) {
+    scores.SCHOLARSHIP += 18;
   }
   if (/tuyển dụng|thực tập|hạn ứng tuyển|ứng tuyển|job fair|internship/i.test(fullText)) {
     scores.CAREER += 15;
@@ -382,6 +399,75 @@ function detectNotificationCategory(payload = {}) {
     category_tag: selected.tag,
     category_description: selected.description,
   };
+}
+
+/**
+ * Kiểm tra một thông báo hoặc hạn chót có khớp với danh sách tùy chọn cá nhân hóa (6 loại) của sinh viên hay không.
+ */
+function matchesInterestedTopics(item = {}, interestedTopics = []) {
+  if (!Array.isArray(interestedTopics) || interestedTopics.length === 0) {
+    return true;
+  }
+
+  const expanded = new Set();
+  for (const raw of interestedTopics) {
+    const t = String(raw || '').trim().toUpperCase();
+    if (!t) continue;
+    expanded.add(t);
+    if (t === 'HOC_TAP' || t === 'ACADEMIC') {
+      expanded.add('ACADEMIC');
+      expanded.add('HOC_TAP');
+      expanded.add('HOC_VU');
+    } else if (t === 'DIEM_SO' || t === 'GRADE') {
+      expanded.add('GRADE');
+      expanded.add('DIEM_SO');
+      expanded.add('HOC_VU');
+    } else if (t === 'HANH_CHINH' || t === 'ADMINISTRATIVE') {
+      expanded.add('ADMINISTRATIVE');
+      expanded.add('HANH_CHINH');
+      expanded.add('HOC_VU');
+    } else if (t === 'SU_KIEN' || t === 'EVENT' || t === 'HOAT_DONG_SV') {
+      expanded.add('EVENT');
+      expanded.add('SU_KIEN');
+      expanded.add('HOAT_DONG_SV');
+    } else if (t === 'NGHE_NGHIEP' || t === 'CAREER' || t === 'TUYEN_DUNG') {
+      expanded.add('CAREER');
+      expanded.add('NGHE_NGHIEP');
+      expanded.add('TUYEN_DUNG');
+    } else if (t === 'HOC_BONG' || t === 'SCHOLARSHIP') {
+      expanded.add('SCHOLARSHIP');
+      expanded.add('HOC_BONG');
+    } else if (t === 'HOC_VU') {
+      expanded.add('ACADEMIC');
+      expanded.add('GRADE');
+      expanded.add('ADMINISTRATIVE');
+      expanded.add('HOC_VU');
+    }
+  }
+
+  const itemCat = String(item.category || '').toUpperCase();
+  const itemCatCode = String(item.category_code || '').toUpperCase();
+  if (itemCat && expanded.has(itemCat)) return true;
+  if (itemCatCode && expanded.has(itemCatCode)) return true;
+
+  if (Array.isArray(item.topics)) {
+    for (const topic of item.topics) {
+      if (expanded.has(String(topic || '').toUpperCase())) return true;
+    }
+  }
+
+  if (!itemCat && (item.title || item.content || item.description)) {
+    const detected = detectNotificationCategory({
+      title: item.title || '',
+      content: item.content || item.description || '',
+      source_channel: item.source_channel || item.source_type || '',
+    });
+    if (expanded.has(detected.category.toUpperCase()) || expanded.has(detected.category_code.toUpperCase())) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -873,6 +959,7 @@ module.exports = {
   detectCourseTag,
   detectScopeType,
   detectNotificationCategory,
+  matchesInterestedTopics,
   detectNotificationTopics,
   classifyNotification,
   classifySmartNotification,
