@@ -161,6 +161,21 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 9. Bảng Quản lý Fanpage Facebook được Sinh viên Theo dõi (Custom Facebook Pages)
+CREATE TABLE IF NOT EXISTS followed_fb_pages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    page_url TEXT NOT NULL,
+    page_name VARCHAR(255) NOT NULL,
+    page_username VARCHAR(100) NOT NULL,
+    channel_code VARCHAR(100) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_scraped_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_student_page UNIQUE (student_id, page_url)
+);
+
 -- =============================================================================
 -- INDEXES TỐI ƯU TRUY VẤN TRÊN POSTGRESQL
 -- =============================================================================
@@ -192,3 +207,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_device_tokens_active_target_hash
 
 CREATE INDEX IF NOT EXISTS idx_device_tokens_student_active
     ON device_tokens (student_id, is_active, last_seen_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_followed_fb_pages_student
+    ON followed_fb_pages (student_id, is_active);
