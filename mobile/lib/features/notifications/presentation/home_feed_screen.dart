@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -25,6 +26,7 @@ class HomeFeedScreen extends ConsumerStatefulWidget {
 class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<Map<String, dynamic>> _customFollowedPages = [];
 
   final List<Map<String, String>> _categories = const [
     {'code': 'ALL', 'label': '🌟 Tất cả'},
@@ -38,6 +40,34 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     {'code': 'FB_CTSV', 'label': '🔵 Fanpage CTSV'},
     {'code': 'FB_TUVAN_SV', 'label': '💬 Tư vấn SV'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFollowedPages();
+  }
+
+  Future<void> _loadFollowedPages() async {
+    try {
+      final session = ref.read(authControllerProvider).session;
+      final studentId = session?.studentCode ?? '102230026';
+      final res = await ref.read(dioProvider).get(
+        '/api/v1/facebook/followed',
+        queryParameters: {'student_id': studentId},
+      );
+      if (res.data != null && res.data['data'] is List) {
+        final list = List<Map<String, dynamic>>.from(res.data['data']);
+        if (mounted) {
+          setState(() {
+            _customFollowedPages = list.where((p) {
+              final url = (p['page_url'] ?? '').toString();
+              return !url.contains('ctsvdhbkdhdn') && !url.contains('tuvansinhvien.dut');
+            }).toList();
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -148,6 +178,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                           ),
                         ),
 
+                        // Nút Theo dõi Fanpage Facebook bất kỳ
+                        IconButton(
+                          icon: const Icon(Icons.add_link_rounded, color: Color(0xFF1877F2), size: 24),
+                          tooltip: 'Theo dõi Fanpage Facebook mới',
+                          onPressed: () => _showFollowFbPageDialog(context, session),
+                        ),
+
                         // Nút làm mới & Cào dữ liệu đa nguồn
                         IconButton(
                           icon: const Icon(Icons.refresh_rounded, color: Color(0xFF007AFF), size: 22),
@@ -223,46 +260,146 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
 
-                // 3. Phân loại chuyên mục (Liquid Glass Horizontal Selector)
-                SizedBox(
-                  height: 48,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    itemCount: _categories.length,
-                    separatorBuilder: (ctx, idx) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final cat = _categories[index];
-                      final isSelected = cat['code'] == selectedCategory;
-                      return GestureDetector(
-                        onTap: () {
-                          ref.read(selectedCategoryProvider.notifier).setCategory(cat['code']!);
-                          if (cat['code'] != 'DUT_COURSE_CLASS') {
-                            ref.read(selectedCourseFilterProvider.notifier).clear();
-                          }
-                        },
-                        child: LiquidGlassContainer(
-                          borderRadius: 20,
-                          blurSigma: 14,
-                          opacity: isSelected ? 0.9 : 0.5,
-                          gradientColors: isSelected
-                              ? [const Color(0xFF007AFF), const Color(0xFF005BD8)]
-                              : null,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          child: Center(
-                            child: Text(
-                              cat['label']!,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected ? Colors.white : const Color(0xFF334155),
+                // 3. Phân loại chuyên mục & Fanpage theo dõi (Liquid Glass Horizontal Selector)
+                Builder(
+                  builder: (context) {
+                    final allCategories = [
+                      ..._categories,
+                      ..._customFollowedPages.map((p) => {
+                            'code': (p['channel_code'] ?? 'FB_CUSTOM').toString(),
+                            'label': '📘 ${(p['page_name'] ?? 'Fanpage').toString()}',
+                            'is_custom': 'true',
+                            'id': (p['id'] ?? '').toString(),
+                            'url': (p['page_url'] ?? '').toString(),
+                          }),
+                      {'code': '__ADD_FB__', 'label': '➕ Theo dõi Fanpage'},
+                    ];
+
+                    return SizedBox(
+                      height: 48,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        itemCount: allCategories.length,
+                        separatorBuilder: (ctx, idx) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final cat = allCategories[index];
+                          final isSelected = cat['code'] == selectedCategory;
+                          final isAddButton = cat['code'] == '__ADD_FB__';
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (isAddButton) {
+                                _showFollowFbPageDialog(context, session);
+                                return;
+                              }
+                              ref.read(selectedCategoryProvider.notifier).setCategory(cat['code']!);
+                              if (cat['code'] != 'DUT_COURSE_CLASS') {
+                                ref.read(selectedCourseFilterProvider.notifier).clear();
+                              }
+                            },
+                            child: LiquidGlassContainer(
+                              borderRadius: 20,
+                              blurSigma: 14,
+                              opacity: isSelected ? 0.9 : (isAddButton ? 0.75 : 0.5),
+                              gradientColors: isSelected
+                                  ? (cat['code']!.startsWith('FB_')
+                                      ? [const Color(0xFF1877F2), const Color(0xFF0C63D4)]
+                                      : [const Color(0xFF007AFF), const Color(0xFF005BD8)])
+                                  : (isAddButton
+                                      ? [const Color(0xFF1877F2).withValues(alpha: 0.15), const Color(0xFF1877F2).withValues(alpha: 0.05)]
+                                      : null),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              child: Center(
+                                child: Text(
+                                  cat['label']!,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isAddButton ? FontWeight.w700 : FontWeight.w600,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (isAddButton ? const Color(0xFF1877F2) : const Color(0xFF334155)),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+
+                // 3.4 Banner hiển thị khi đang lọc theo Fanpage theo dõi tùy chọn
+                Builder(
+                  builder: (context) {
+                    final customPage = _customFollowedPages.firstWhere(
+                      (p) => p['channel_code'] == selectedCategory,
+                      orElse: () => {},
+                    );
+                    if (customPage.isEmpty) return const SizedBox.shrink();
+
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+                      child: LiquidGlassContainer(
+                        borderRadius: 16,
+                        blurSigma: 16,
+                        opacity: 0.9,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        gradientColors: [
+                          const Color(0xFF1877F2).withValues(alpha: 0.15),
+                          Colors.white.withValues(alpha: 0.95),
+                        ],
+                        child: Row(
+                          children: [
+                            const Icon(Icons.facebook_rounded, color: Color(0xFF1877F2), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Đang lọc theo Fanpage theo dõi:',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${customPage['page_name']} • ${customPage['page_url']}',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              icon: const Icon(Icons.bookmark_remove_rounded, size: 15, color: Color(0xFFFF3B30)),
+                              label: const Text(
+                                'Bỏ theo dõi',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFFF3B30),
+                                ),
+                              ),
+                              onPressed: () => _unfollowFbPage(customPage),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
 
                 // 3.5 Banner hiển thị bộ lọc môn học riêng (nếu có)
@@ -688,47 +825,77 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                                     ),
                                     const SizedBox(width: 8),
 
-                                    // 2. Nút Điều Hướng tới nguồn (Đặc biệt nguồn Facebook)
-                                    if (notif.sourceChannel == 'FB_CTSV' ||
-                                        notif.sourceChannel == 'FB_TUVAN_SV' ||
+                                    // 2. Nút Điều Hướng tới nguồn (Đặc biệt nguồn Facebook có kèm nút Copy link)
+                                    if ((notif.sourceChannel?.startsWith('FB_') ?? false) ||
                                         (notif.sourceUrl != null && notif.sourceUrl!.contains('facebook.com')))
                                       Expanded(
-                                        child: InkWell(
-                                          borderRadius: BorderRadius.circular(12),
-                                          onTap: () {
-                                            final url = notif.sourceUrl;
-                                            if (url != null && url.trim().isNotEmpty && url.startsWith('http')) {
-                                              _openSourceUrl(url.trim());
-                                            } else {
-                                              final fallbackUrl = notif.sourceChannel == 'FB_CTSV'
-                                                  ? 'https://www.facebook.com/ctsvdhbkdhdn'
-                                                  : 'https://www.facebook.com/tuvansinhvien.dut';
-                                              _openSourceUrl(fallbackUrl);
-                                            }
-                                          },
-                                          child: Container(
-                                            height: 36,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF1877F2).withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: const Color(0xFF1877F2).withValues(alpha: 0.4)),
-                                            ),
-                                            child: const Row(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              children: [
-                                                Icon(Icons.open_in_new_rounded, size: 15, color: Color(0xFF1877F2)),
-                                                SizedBox(width: 6),
-                                                Text(
-                                                  'Xem trên Facebook',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Color(0xFF1877F2),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: InkWell(
+                                                borderRadius: BorderRadius.circular(12),
+                                                onTap: () {
+                                                  final url = notif.sourceUrl;
+                                                  if (url != null && url.trim().isNotEmpty && url.startsWith('http')) {
+                                                    _openSourceUrl(url.trim());
+                                                  } else {
+                                                    final fallbackUrl = notif.sourceChannel == 'FB_CTSV'
+                                                        ? 'https://www.facebook.com/ctsvdhbkdhdn'
+                                                        : (notif.sourceChannel == 'FB_TUVAN_SV'
+                                                            ? 'https://www.facebook.com/tuvansinhvien.dut'
+                                                            : 'https://www.facebook.com');
+                                                    _openSourceUrl(fallbackUrl);
+                                                  }
+                                                },
+                                                child: Container(
+                                                  height: 36,
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF1877F2).withValues(alpha: 0.12),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(color: const Color(0xFF1877F2).withValues(alpha: 0.4)),
+                                                  ),
+                                                  child: const Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Icon(Icons.open_in_new_rounded, size: 15, color: Color(0xFF1877F2)),
+                                                      SizedBox(width: 5),
+                                                      Text(
+                                                        'Xem Facebook',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Color(0xFF1877F2),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
-                                              ],
+                                              ),
                                             ),
-                                          ),
+                                            const SizedBox(width: 6),
+                                            // Nút Sao chép liên kết bài viết Facebook
+                                            InkWell(
+                                              borderRadius: BorderRadius.circular(12),
+                                              onTap: () {
+                                                final postLink = notif.sourceUrl ??
+                                                    (notif.sourceChannel == 'FB_CTSV'
+                                                        ? 'https://www.facebook.com/ctsvdhbkdhdn'
+                                                        : 'https://www.facebook.com/tuvansinhvien.dut');
+                                                Clipboard.setData(ClipboardData(text: postLink));
+                                                AppToast.showSuccess(context, 'Đã sao chép liên kết bài viết Facebook!');
+                                              },
+                                              child: Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF1877F2).withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: const Color(0xFF1877F2).withValues(alpha: 0.3)),
+                                                ),
+                                                child: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF1877F2)),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       )
                                     else if (notif.sourceUrl != null && notif.sourceUrl!.startsWith('http'))
@@ -800,11 +967,24 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
       case 'FB_TUVAN_SV':
         return 'Tư vấn SV';
       default:
+        if (channel.startsWith('FB_')) {
+          final matched = _customFollowedPages.firstWhere(
+            (p) => p['channel_code'] == channel,
+            orElse: () => {},
+          );
+          if (matched.isNotEmpty && matched['page_name'] != null) {
+            return matched['page_name'].toString();
+          }
+          return 'Fanpage FB';
+        }
         return 'Thông báo';
     }
   }
 
   Color _getChannelColor(String channel) {
+    if (channel.startsWith('FB_')) {
+      return const Color(0xFF1877F2); // Facebook Blue
+    }
     switch (channel) {
       case 'DUT_COURSE_CLASS':
         return const Color(0xFF5856D6); // Purple
@@ -820,10 +1000,6 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         return const Color(0xFF0288D1); // Light Blue
       case 'DUT_REGULATIONS':
         return const Color(0xFF795548); // Brown
-      case 'FB_CTSV':
-        return const Color(0xFF1877F2); // Facebook Blue
-      case 'FB_TUVAN_SV':
-        return const Color(0xFF00B0FF); // Sky Blue
       default:
         return const Color(0xFF64748B);
     }
@@ -865,5 +1041,212 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
   void _showAddReminderDialog(BuildContext context, NotificationItem notif, dynamic session) {
     showAddReminderModal(context, ref, notif, session);
+  }
+
+  Future<void> _unfollowFbPage(Map<String, dynamic> customPage) async {
+    final pageId = customPage['id'] ?? customPage['page_url'];
+    final pageName = customPage['page_name'] ?? 'Fanpage';
+    try {
+      await ref.read(dioProvider).delete('/api/v1/facebook/unfollow/$pageId');
+      if (mounted) {
+        AppToast.showSuccess(context, 'Đã bỏ theo dõi Fanpage "$pageName"');
+      }
+      await _loadFollowedPages();
+      ref.read(selectedCategoryProvider.notifier).setCategory('ALL');
+      ref.invalidate(notificationFeedProvider);
+    } catch (err) {
+      if (mounted) {
+        AppToast.showError(context, 'Không thể bỏ theo dõi: $err');
+      }
+    }
+  }
+
+  Future<void> _showFollowFbPageDialog(BuildContext context, dynamic session) async {
+    final urlCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    bool isSubmitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: LiquidGlassContainer(
+                borderRadius: 28,
+                blurSigma: 24,
+                opacity: 0.95,
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1877F2).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.facebook_rounded, color: Color(0xFF1877F2), size: 26),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Theo dõi Fanpage Facebook',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                'Cào và nhận thông báo tự động từ trang',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Link Fanpage
+                    const Text(
+                      'Đường link Fanpage Facebook *',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: urlCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'VD: https://www.facebook.com/clb.guitar.dut',
+                        hintStyle: TextStyle(fontSize: 13, color: Colors.blueGrey.shade300),
+                        prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF1877F2), size: 20),
+                        filled: true,
+                        fillColor: const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Tên gợi nhớ
+                    const Text(
+                      'Tên gợi nhớ (Không bắt buộc)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'VD: CLB Guitar Bách Khoa',
+                        hintStyle: TextStyle(fontSize: 13, color: Colors.blueGrey.shade300),
+                        prefixIcon: const Icon(Icons.badge_rounded, color: Color(0xFF64748B), size: 20),
+                        filled: true,
+                        fillColor: const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Nút Submit
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1877F2),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 0,
+                        ),
+                        icon: isSubmitting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Icon(Icons.bookmark_add_rounded, size: 20),
+                        label: Text(
+                          isSubmitting ? 'Đang phân tích & Cào bài...' : 'Theo dõi & Cào bài ngay',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final inputUrl = urlCtrl.text.trim();
+                                if (inputUrl.isEmpty) {
+                                  AppToast.showError(context, 'Vui lòng dán link Fanpage Facebook');
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  isSubmitting = true;
+                                });
+
+                                try {
+                                  final res = await ref.read(dioProvider).post(
+                                    '/api/v1/facebook/follow',
+                                    data: {
+                                      'student_id': session?.studentCode ?? '102230026',
+                                      'page_url': inputUrl,
+                                      'page_name': nameCtrl.text.trim(),
+                                    },
+                                  );
+
+                                  final scrapedCount = res.data?['data']?['scraped_posts_count'] ?? 0;
+                                  final pageName = res.data?['data']?['page_name'] ?? 'Fanpage';
+
+                                  if (context.mounted) {
+                                    Navigator.pop(ctx);
+                                    AppToast.showSuccess(
+                                      context,
+                                      'Đã theo dõi "$pageName"! Đã cào được $scrapedCount bài viết mới.',
+                                    );
+                                  }
+
+                                  await _loadFollowedPages();
+                                  ref.invalidate(notificationFeedProvider);
+                                } catch (err) {
+                                  setModalState(() {
+                                    isSubmitting = false;
+                                  });
+                                  if (context.mounted) {
+                                    AppToast.showError(context, 'Lỗi: $err');
+                                  }
+                                }
+                              },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }

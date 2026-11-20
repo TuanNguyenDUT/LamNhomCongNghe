@@ -262,6 +262,35 @@ async function notificationRouter(req, res, controller) {
       return;
     }
 
+    // 2.1 Quản lý theo dõi Fanpage Facebook bất kỳ (Custom Facebook Pages)
+    if (req.method === 'POST' && pathname === '/api/v1/facebook/follow') {
+      const body = await readJsonBody(req);
+      const result = await controller.followFacebookPage(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'GET' && pathname === '/api/v1/facebook/followed') {
+      const result = await controller.getFollowedFacebookPages(queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    const unfollowMatch = pathname.match(/^\/api\/v1\/facebook\/unfollow\/([^/]+)$/);
+    if ((req.method === 'DELETE' || req.method === 'POST') && unfollowMatch) {
+      const pageId = unfollowMatch[1];
+      const result = await controller.unfollowFacebookPage(pageId, queryParams);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/v1/facebook/crawl-custom') {
+      const body = await readJsonBody(req);
+      const result = await controller.crawlCustomFacebookPage(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
     // 2. Ingest & Bảng tin thông báo (FR-02, FR-03, FR-05, FR-08)
     if (req.method === 'POST' && pathname === '/api/v1/notifications/ingest') {
       const body = await readJsonBody(req);

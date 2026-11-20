@@ -13,6 +13,8 @@
  */
 
 const https = require('node:https');
+const { URL } = require('node:url');
+const { getDbStore } = require('../config/db');
 
 const FANPAGES = {
   FB_CTSV: {
@@ -92,8 +94,382 @@ const KNOWN_FB_PERMALINKS = [
 ];
 
 class FbCrawlerService {
-  constructor() {
+  constructor(dbStore = null) {
+    this._dbStore = dbStore;
     this.fanpages = FANPAGES;
+  }
+
+  get dbStore() {
+    return this._dbStore || getDbStore();
+  }
+
+  /**
+   * Chuẩn hóa và xác thực URL Fanpage Facebook bất kỳ do người dùng cung cấp
+   * Hỗ trợ mọi định dạng:
+   * - https://www.facebook.com/clb.guitar.dut
+   * - https://m.facebook.com/clb.guitar.dut/
+   * - https://facebook.com/profile.php?id=100064893829123
+   * - https://www.facebook.com/p/Ten-Trang-100064893829123/
+   * - facebook.com/clb.guitar.dut
+   * - clb.guitar.dut hoặc @clb.guitar.dut
+   */
+  parseFacebookPageUrl(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.trim()) {
+      throw new Error('Đường link Facebook không được để trống');
+    }
+
+    let cleaned = rawUrl.trim();
+
+    // 1. Chuẩn hóa tiền tố giao thức (protocol)
+    if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+      if (
+        cleaned.startsWith('facebook.com') ||
+        cleaned.startsWith('www.facebook.com') ||
+        cleaned.startsWith('m.facebook.com') ||
+        cleaned.startsWith('web.facebook.com')
+      ) {
+        cleaned = 'https://' + cleaned;
+      } else if (cleaned.includes('/') || cleaned.includes('.')) {
+        cleaned = 'https://www.facebook.com/' + cleaned.replace(/^[@/]+/, '');
+      } else {
+        cleaned = `https://www.facebook.com/${cleaned.replace(/^@/, '')}`;
+      }
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(cleaned);
+    } catch (_) {
+      throw new Error('Định dạng URL Facebook không hợp lệ');
+    }
+
+    // 2. Xác thực hostname thuộc hệ sinh thái Facebook
+    const hostname = parsed.hostname.toLowerCase();
+    const validHostnames = [
+      'facebook.com',
+      'www.facebook.com',
+      'm.facebook.com',
+      'web.facebook.com',
+      'touch.facebook.com',
+      'mbasic.facebook.com',
+      'fb.com',
+      'fb.me',
+    ];
+    if (!validHostnames.some((h) => hostname === h || hostname.endsWith('.' + h))) {
+      throw new Error('Đường dẫn phải thuộc mạng xã hội Facebook (facebook.com)');
+    }
+
+    let pageUsername = '';
+    let pageId = null;
+    let cleanUrl = '';
+
+    // Trường hợp 1: Trang định danh theo ID (profile.php?id=...)
+    if (parsed.pathname === '/profile.php' || parsed.pathname.startsWith('/profile.php')) {
+      const idParam = parsed.searchParams.get('id');
+      if (!idParam || !/^\d+$/.test(idParam)) {
+        throw new Error('Link trang Facebook profile.php phải chứa tham số id số nguyên hợp lệ');
+      }
+      pageId = idParam;
+      pageUsername = idParam;
+      cleanUrl = `https://www.facebook.com/profile.php?id=${pageId}`;
+    } else if (parsed.pathname.startsWith('/p/')) {
+      // Trường hợp 2: Trang giao diện mới Facebook (/p/Slug-Page-ID/)
+      const parts = parsed.pathname.replace(/^\/p\//, '').split('/').filter(Boolean);
+      const slug = parts[0] || '';
+      const m = slug.match(/-(\d{10,25})$/);
+      if (m) {
+        pageId = m[1];
+        pageUsername = slug;
+        cleanUrl = `https://www.facebook.com/profile.php?id=${pageId}`;
+      } else {
+        pageUsername = slug;
+        cleanUrl = `https://www.facebook.com/${pageUsername}`;
+      }
+    } else if (parsed.pathname.startsWith('/pages/')) {
+      // Trường hợp 3: Trang định dạng cũ /pages/Category/Page-Name/123456789
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && /^\d+$/.test(lastPart)) {
+        pageId = lastPart;
+        pageUsername = parts[parts.length - 2] || lastPart;
+        cleanUrl = `https://www.facebook.com/profile.php?id=${pageId}`;
+      } else {
+        pageUsername = lastPart || 'page';
+        cleanUrl = `https://www.facebook.com/${pageUsername}`;
+      }
+    } else {
+      // Trường hợp 4: https://www.facebook.com/{pageUsername}
+      const pathParts = parsed.pathname.split('/').filter(Boolean);
+      const firstSegment = pathParts[0];
+      const invalidSegments = [
+        'groups',
+        'events',
+        'watch',
+        'marketplace',
+        'gaming',
+        'stories',
+        'reels',
+        'share',
+        'login',
+        'recover',
+        'messages',
+        'settings',
+        'help',
+      ];
+      if (!firstSegment || invalidSegments.includes(firstSegment.toLowerCase())) {
+        throw new Error(`Đường dẫn "${parsed.pathname}" không phải là một Fanpage Facebook hợp lệ`);
+      }
+      pageUsername = firstSegment;
+      cleanUrl = `https://www.facebook.com/${pageUsername}`;
+    }
+
+    // 3. Chuẩn hóa channel_code và tên hiển thị mặc định
+    const channelCode = `FB_${pageUsername.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`;
+    let displayName = pageUsername
+      .split(/[\._\-]/)
+      .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
+      .join(' ')
+      .trim();
+    if (!displayName || /^\d+$/.test(displayName)) {
+      displayName = `Fanpage ${pageUsername}`;
+    }
+
+    return {
+      isValid: true,
+      rawUrl,
+      cleanUrl,
+      pageUsername,
+      pageId,
+      channelCode,
+      displayName,
+    };
+  }
+
+  /**
+   * Cào bài viết từ một Fanpage Facebook bất kỳ theo URL do người dùng cung cấp
+   * @param {string} pageUrl - Đường link Fanpage bất kỳ
+   * @param {Object} options
+   * @param {number} options.monthsLimit - Giới hạn thời gian (mặc định 2 tháng)
+   * @param {string} options.pageName - Tên gợi nhớ của Fanpage
+   */
+  async scrapeCustomFacebookPage(pageUrl, { monthsLimit = 2, pageName } = {}) {
+    const parsed = this.parseFacebookPageUrl(pageUrl);
+    const cutoffDate = monthsLimit ? new Date(Date.now() - monthsLimit * 30 * 24 * 60 * 60 * 1000) : null;
+    const targetName = pageName && String(pageName).trim().length > 0 ? String(pageName).trim() : parsed.displayName;
+
+    return new Promise((resolve) => {
+      let httpsModule;
+      try {
+        httpsModule = require('node:https');
+      } catch (_) {
+        return resolve({
+          page: {
+            clean_url: parsed.cleanUrl,
+            channel_code: parsed.channelCode,
+            page_name: targetName,
+            page_username: parsed.pageUsername,
+          },
+          posts: [],
+        });
+      }
+
+      const pluginUrl = `https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(parsed.cleanUrl)}&tabs=timeline`;
+      httpsModule.get(
+        pluginUrl,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          timeout: 8000,
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (c) => { data += c; });
+          res.on('end', () => {
+            const rawList = this._parseTimelinePostsFromHtml(data);
+            const posts = [];
+
+            for (const item of rawList) {
+              try {
+                const fullMsg = String(item.message || '').trim();
+                if (!fullMsg) continue;
+
+                const createdSec = parseInt(item.createdTime, 10) || Math.floor(Date.now() / 1000);
+                const isoTime = new Date(createdSec * 1000).toISOString();
+                if (cutoffDate && new Date(isoTime) < cutoffDate) continue;
+
+                // Xác định permalink bài viết chính xác
+                let postUrl = null;
+                if (item.permalink && typeof item.permalink === 'string') {
+                  postUrl = item.permalink.startsWith('http') ? item.permalink : `${parsed.cleanUrl}${item.permalink}`;
+                } else if (item.share_uri && typeof item.share_uri === 'string') {
+                  postUrl = item.share_uri;
+                } else if (item.post_url && typeof item.post_url === 'string') {
+                  postUrl = item.post_url;
+                }
+
+                // Nếu có fbid trong photoURL
+                if (!postUrl && item.photoURL) {
+                  const fbidMatch = item.photoURL.match(/[?&]fbid=(\d{10,20})/);
+                  if (fbidMatch) {
+                    postUrl = `https://www.facebook.com/photo.php?fbid=${fbidMatch[1]}`;
+                  }
+                }
+
+                // Tiêu đề bài viết
+                const lines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean);
+                let title = lines[0] || `Thông báo từ ${targetName}`;
+                title = title.replace(/^[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                if (!title || title.length <= 15) {
+                  for (let i = 1; i < lines.length && i < 3; i++) {
+                    const candidate = lines[i].replace(/^[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+|[\s\p{Extended_Pictographic}\uFE0E\uFE0F\u200D✨🔥🌟📢📌⏳🚨🏆🌏🤖🌱🎉🤝💙👏🎓👉]+$/gu, '').trim();
+                    if (candidate.length > 5) {
+                      title = title ? `${title} ${candidate}` : candidate;
+                      break;
+                    }
+                  }
+                }
+                if (!title) title = `Thông báo từ ${targetName}`;
+                if (title.length > 150) title = title.slice(0, 147) + '...';
+
+                const attachments = this._extractRealLinksFromText(fullMsg);
+
+                posts.push({
+                  source_channel: parsed.channelCode,
+                  source_name: targetName,
+                  source_url: postUrl || parsed.cleanUrl,
+                  title,
+                  content: fullMsg,
+                  published_at: isoTime,
+                  created_at: isoTime,
+                  attachments,
+                });
+              } catch (_) {}
+            }
+
+            resolve({
+              page: {
+                clean_url: parsed.cleanUrl,
+                channel_code: parsed.channelCode,
+                page_name: targetName,
+                page_username: parsed.pageUsername,
+              },
+              posts,
+            });
+          });
+        }
+      ).on('error', () => {
+        resolve({
+          page: {
+            clean_url: parsed.cleanUrl,
+            channel_code: parsed.channelCode,
+            page_name: targetName,
+            page_username: parsed.pageUsername,
+          },
+          posts: [],
+        });
+      });
+    });
+  }
+
+  /**
+   * Theo dõi một Fanpage Facebook bất kỳ: Lưu cấu hình theo dõi và cào bài viết ngay lập tức
+   */
+  async followPage({ studentId = '102200001', pageUrl, pageName } = {}) {
+    const parsed = this.parseFacebookPageUrl(pageUrl);
+    const targetName = pageName && String(pageName).trim().length > 0 ? String(pageName).trim() : parsed.displayName;
+
+    const pageData = {
+      student_id: studentId,
+      page_url: parsed.cleanUrl,
+      page_name: targetName,
+      page_username: parsed.pageUsername,
+      channel_code: parsed.channelCode,
+      is_active: true,
+    };
+
+    const saved = this.dbStore.saveFollowedPage(pageData);
+
+    // Cào các bài viết mới nhất ngay khi người dùng bấm Follow
+    let scrapedPosts = [];
+    try {
+      const crawlRes = await this.scrapeCustomFacebookPage(parsed.cleanUrl, {
+        pageName: targetName,
+        monthsLimit: 2,
+      });
+      scrapedPosts = crawlRes.posts || [];
+
+      // Ingest vào kho thông báo cho sinh viên nếu có bài viết
+      if (scrapedPosts.length > 0) {
+        const { notificationService } = require('./notification.service');
+        for (const p of scrapedPosts) {
+          await notificationService.ingestNotification({
+            title: p.title,
+            content: p.content,
+            source_channel: p.source_channel,
+            source_type: p.source_channel,
+            source_name: p.source_name,
+            source_url: p.source_url,
+            published_at: p.published_at,
+            attachments: p.attachments || [],
+          }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn(`Lỗi thu thập ban đầu từ ${parsed.cleanUrl}:`, err.message);
+    }
+
+    return {
+      status: 'success',
+      message: `Đã theo dõi thành công Fanpage "${targetName}"!`,
+      data: {
+        page: saved,
+        scraped_posts_count: scrapedPosts.length,
+        posts: scrapedPosts,
+      },
+    };
+  }
+
+  /**
+   * Lấy danh sách toàn bộ các Fanpage Facebook mà sinh viên đang theo dõi
+   */
+  getFollowedPages(studentId) {
+    return this.dbStore.getFollowedPages(studentId);
+  }
+
+  /**
+   * Hủy theo dõi một Fanpage Facebook
+   */
+  unfollowPage(pageId, studentId) {
+    return this.dbStore.deleteFollowedPage(pageId, studentId);
+  }
+
+  /**
+   * Cào toàn bộ các Fanpage mà sinh viên đang theo dõi trong hệ thống
+   */
+  async scrapeAllFollowedPages({ monthsLimit = 2 } = {}) {
+    const activePages = this.dbStore.getAllActiveFollowedPages();
+    const allPosts = [];
+
+    for (const page of activePages) {
+      // Bỏ qua nếu là 2 fanpage mặc định vì đã được scrapeAllFanpages xử lý
+      if (page.page_url === FANPAGES.FB_CTSV.url || page.page_url === FANPAGES.FB_TUVAN_SV.url) {
+        continue;
+      }
+      try {
+        const res = await this.scrapeCustomFacebookPage(page.page_url, {
+          monthsLimit,
+          pageName: page.page_name,
+        });
+        if (res.posts && res.posts.length > 0) {
+          allPosts.push(...res.posts);
+        }
+      } catch (err) {
+        console.warn(`Lỗi cào Fanpage theo dõi ${page.page_url}:`, err.message);
+      }
+    }
+
+    return allPosts;
   }
 
   /**
@@ -287,19 +663,30 @@ class FbCrawlerService {
                   }
                 }
 
-                // 2. Trích xuất ID bài viết từ photoURL hoặc albumPhotoURLs
+                // 2. Trích xuất permalink hợp lệ từ item (nếu có permalink/share_uri/post_url)
+                if (!postUrl) {
+                  if (item.permalink && typeof item.permalink === 'string' && item.permalink.includes('/posts/')) {
+                    postUrl = item.permalink.startsWith('http') ? item.permalink : `${page.url}${item.permalink}`;
+                  } else if (item.share_uri && typeof item.share_uri === 'string' && item.share_uri.includes('/posts/')) {
+                    postUrl = item.share_uri;
+                  } else if (item.post_url && typeof item.post_url === 'string') {
+                    postUrl = item.post_url;
+                  }
+                }
+
+                // 3. Trích xuất fbid ảnh thực sự nếu có tham số fbid= (ảnh bài viết trực tiếp)
                 if (!postUrl) {
                   const candidateUrls = [photoUrl, ...(item.albumPhotoURLs || [])].filter(Boolean);
                   for (const cu of candidateUrls) {
-                    const m = cu.match(/_(\d{10,20})_/) || cu.match(/[?&]fbid=(\d{10,20})/) || cu.match(/\/(\d{10,20})_/);
-                    if (m) {
-                      postUrl = `${page.url}/posts/${m[1]}`;
+                    const fbidMatch = cu.match(/[?&]fbid=(\d{10,20})/);
+                    if (fbidMatch) {
+                      postUrl = `https://www.facebook.com/photo.php?fbid=${fbidMatch[1]}`;
                       break;
                     }
                   }
                 }
 
-                // 3. Đối chiếu danh sách bài viết chuẩn (fallback list) theo ngữ nghĩa tiêu đề
+                // 4. Đối chiếu danh sách bài viết chuẩn (fallback list) theo ngữ nghĩa tiêu đề
                 if (!postUrl) {
                   const curated = this._getCuratedFallbackNotices(pageCode);
                   const candidateLines = fullMsg.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3);
