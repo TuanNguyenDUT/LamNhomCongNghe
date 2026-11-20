@@ -155,6 +155,9 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
     return RefreshIndicator(
       onRefresh: () async {
+        try {
+          await ref.read(dioProvider).post('/api/v1/crawler/trigger');
+        } catch (_) {}
         ref.invalidate(notificationFeedProvider);
         await _loadFollowedPages();
       },
@@ -575,9 +578,13 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
               // Custom Followed Fanpages
               ..._customFollowedPages.map((page) {
-                final pageCode = page['page_url']?.toString() ?? '';
+                final pageCode = (page['channel_code']?.toString().isNotEmpty == true)
+                    ? page['channel_code'].toString()
+                    : (page['page_url']?.toString() ?? '');
                 final pageName = page['page_name']?.toString() ?? 'Fanpage';
-                final isSelected = selectedCategory == pageCode;
+                final isSelected = selectedCategory == pageCode ||
+                    selectedCategory == page['page_url']?.toString() ||
+                    selectedCategory == page['channel_code']?.toString();
 
                 return Padding(
                   padding: const EdgeInsets.only(right: 6.0),

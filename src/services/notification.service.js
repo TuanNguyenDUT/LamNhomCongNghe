@@ -151,7 +151,7 @@ class NotificationService {
 
   generateContentHash({ source_channel = 'DUT_GENERAL', title = '', published_at = '' }) {
     const channel = normalizeSourceChannel(source_channel);
-    const isFb = channel === 'FB_CTSV' || channel === 'FB_TUVAN_SV';
+    const isFb = channel === 'FB_CTSV' || channel === 'FB_TUVAN_SV' || channel.startsWith('FB_');
     const cleanTitle = isFb ? this._normalizeTitle(title) : String(title || '').replace(/\s+/g, ' ').trim().toLowerCase();
     if (isFb) {
       const raw = `${channel}|${cleanTitle}`;
@@ -338,10 +338,14 @@ class NotificationService {
         if (payload.source_url && n.source_url) {
           const u1 = payload.source_url.replace(/\/$/, '');
           const u2 = n.source_url.replace(/\/$/, '');
-          if (u1 === u2) return true;
-          const m1 = u1.match(/\/posts\/([a-zA-Z0-9_-]+)/);
-          const m2 = u2.match(/\/posts\/([a-zA-Z0-9_-]+)/);
-          if (m1 && m2 && m1[1] === m2[1]) return true;
+          const isSpecific1 = u1.includes('/posts/') || u1.includes('/permalink/') || u1.includes('fbid=') || u1.includes('/photos/');
+          const isSpecific2 = u2.includes('/posts/') || u2.includes('/permalink/') || u2.includes('fbid=') || u2.includes('/photos/');
+          if (isSpecific1 && isSpecific2) {
+            if (u1 === u2) return true;
+            const m1 = u1.match(/\/posts\/([a-zA-Z0-9_-]+)/);
+            const m2 = u2.match(/\/posts\/([a-zA-Z0-9_-]+)/);
+            if (m1 && m2 && m1[1] === m2[1]) return true;
+          }
         }
         const normExistingTitle = this._normalizeTitle(n.title);
         return normInputTitle.length > 10 && normInputTitle === normExistingTitle;
@@ -680,7 +684,20 @@ class NotificationService {
     }
 
     if (source_channel && source_channel !== 'ALL') {
-      list = list.filter((n) => n.source_channel === source_channel || n.source_type === source_channel);
+      const target = source_channel.trim();
+      const targetLower = target.toLowerCase();
+      list = list.filter((n) => {
+        const sc = (n.source_channel || '').trim();
+        const st = (n.source_type || '').trim();
+        const su = (n.source_url || '').trim().toLowerCase();
+        return (
+          sc === target ||
+          st === target ||
+          su === targetLower ||
+          su.replace(/\/$/, '') === targetLower.replace(/\/$/, '') ||
+          (targetLower.startsWith('http') && (su === targetLower || su.includes(targetLower)))
+        );
+      });
     }
 
     if (priority) {

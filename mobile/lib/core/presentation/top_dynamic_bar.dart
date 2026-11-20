@@ -55,6 +55,9 @@ class _TopDynamicBarState extends ConsumerState<TopDynamicBar>
         '/api/v1/dut/sync-courses',
         data: {'student_id': studentCode},
       );
+      try {
+        await dio.post('/api/v1/crawler/trigger');
+      } catch (_) {}
 
       // Invalidate providers to reload fresh data
       ref.invalidate(enrolledCoursesProvider);
