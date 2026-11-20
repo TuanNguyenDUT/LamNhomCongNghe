@@ -36,90 +36,9 @@ final enrolledCoursesProvider = FutureProvider<List<CourseItem>>((ref) async {
     }
   } catch (_) {}
 
-  // Fallback danh sách 9 học phần THỰC TẾ cào trực tiếp từ sv.dut.udn.vn của sinh viên 102230026
-  return const [
-    CourseItem(
-      courseCode: '1020503.2610.23.16',
-      courseName: 'An toàn Thông tin mạng',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'ThS. Nguyễn Thế Xuân Ly',
-      scheduleInfo: 'Thứ 5, Tiết 1-2, Phòng E2.404 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1023603.2610.23.99',
-      courseName: 'Chuyên đề công nghệ',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'TS. Nguyễn Chánh Đạo',
-      scheduleInfo: 'Thứ 7, Tiết 7-8, Phòng E1.201 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1023140.2610.23.16',
-      courseName: 'Học máy và ứng dụng',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'TS. Phạm Công Thắng',
-      scheduleInfo: 'Thứ 6, Tiết 6-7, Phòng B302 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1020413.2610.23.16',
-      courseName: 'Kiểm thử phần mềm',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'TS. Võ Đức Hoàng',
-      scheduleInfo: 'Thứ 2, Tiết 3-4, Phòng E2.405 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1023920.2610.23.16A',
-      courseName: 'PBL 6: Dự án chuyên ngành 1',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'PGS.TS. Phạm Minh Tuấn',
-      scheduleInfo: 'Thứ 3, Tiết 3-5, Phòng C1.202 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1023910.2610.23.16',
-      courseName: 'Quản trị mạng',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'ThS. Nguyễn Thế Xuân Ly',
-      scheduleInfo: 'Thứ 3, Tiết 1-2, Phòng B302 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1023930.2610.23.16',
-      courseName: 'TH Quản trị mạng (1TC)',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'ThS. Nguyễn Thế Xuân Ly',
-      scheduleInfo: 'Lịch theo thông báo khoa',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '1022603.2610.23.16',
-      courseName: 'Thực tập Tốt nghiệp (CNTT)',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'ThS. Nguyễn Thế Xuân Ly',
-      scheduleInfo: 'Thứ 2-6, Tiết 1-10, Xưởng/Doanh nghiệp XP (Tuần 22-25)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-    CourseItem(
-      courseCode: '5070090.2610.23.16',
-      courseName: 'Tiếng Nhật 7 (CNTT)',
-      semester: 'Học kỳ 1 (2026-2027)',
-      lecturerName: 'ThS. Trần Thị Kim Ngân',
-      scheduleInfo: 'Thứ 3 & 5, Tiết 9-10, Phòng C5.105 (Tuần 1-16)',
-      unreadCount: 0,
-      upcomingDeadlines: 0,
-    ),
-  ];
+  // Tuân thủ nghiêm ngặt GEMINI.md Rule 1: Tuyệt đối không hardcode mock fallback trên Frontend
+  // Khi không có dữ liệu hoặc lỗi mạng, trả về danh sách rỗng để hiển thị trạng thái trống
+  return const <CourseItem>[];
 });
 
 class EnrolledCoursesScreen extends ConsumerStatefulWidget {

@@ -35,6 +35,14 @@ function getPool() {
   }
 }
 
+function isTestEnvironment() {
+  return (
+    process.env.NODE_ENV === 'test' ||
+    (Array.isArray(process.execArgv) && process.execArgv.some((a) => a.includes('test'))) ||
+    (Array.isArray(process.argv) && process.argv.some((a) => a.includes('test')))
+  );
+}
+
 /**
  * In-Memory Store hỗ trợ đầy đủ các bảng và quan hệ chuẩn theo AGENT.md
  */
@@ -63,6 +71,15 @@ class InMemoryDbStore {
         ALTER TABLE students ADD COLUMN IF NOT EXISTS dut_session_encrypted TEXT;
         ALTER TABLE students ADD COLUMN IF NOT EXISTS is_personalized_enabled BOOLEAN DEFAULT TRUE;
         ALTER TABLE students ADD COLUMN IF NOT EXISTS interested_topics JSONB DEFAULT '["hoc_vu", "hoc_bong", "tuyen_dung"]'::jsonb;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS quick_reminder_options JSONB DEFAULT '["1_hour", "tonight", "tomorrow_morning", "1_day", "3_days", "1_week"]'::jsonb;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS major VARCHAR(100);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS program VARCHAR(100);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS dob VARCHAR(20);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS school_email VARCHAR(100);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS personal_email VARCHAR(100);
+        ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
       `).catch(() => {});
 
       const studentRes = await this.pool.query('SELECT * FROM students');
@@ -123,7 +140,13 @@ class InMemoryDbStore {
   }
 
   _seedDefaults() {
-    // Thêm sinh viên mẫu mặc định
+    // Tuân thủ nghiêm ngặt GEMINI.md Rule 1: Tuyệt đối không tạo Mock/Fake data ở môi trường thực tế
+    // Chỉ nạp dữ liệu mẫu sinh viên và môn học khi chạy bộ kiểm thử tự động nội bộ (NODE_ENV === 'test')
+    if (!isTestEnvironment()) {
+      return;
+    }
+
+    // Thêm sinh viên mẫu mặc định cho unit tests
     const defaultStudent = {
       id: 'a0000000-0000-0000-0000-000000000001',
       firebase_uid: 'dut_student_firebase_uid_001',

@@ -13,32 +13,7 @@ async function seed() {
     console.log('Ingested:', d.status, n.title);
   }
 
-  // Create some sample deadlines
-  await fetch('http://localhost:3000/api/v1/deadlines', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      student_id: '102200001',
-      course_code: 'IT401',
-      title: 'Nộp báo cáo giữa kỳ Chuyên đề Công nghệ phần mềm',
-      due_date: new Date(Date.now() + 2 * 86400000).toISOString(),
-      priority: 'HIGH'
-    })
-  });
-
-  await fetch('http://localhost:3000/api/v1/deadlines', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      student_id: '102200001',
-      course_code: 'IT402',
-      title: 'Đăng ký đề tài Khóa luận tốt nghiệp',
-      due_date: new Date(Date.now() + 5 * 86400000).toISOString(),
-      priority: 'URGENT'
-    })
-  });
-
-  console.log('Seed hoàn tất!');
+  console.log('Thu thập thông báo thật hoàn tất! (Tuân thủ GEMINI.md: Không tạo mock deadlines giả)');
 }
 
 seed();

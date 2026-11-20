@@ -61,6 +61,17 @@ CREATE TABLE IF NOT EXISTS students (
     google_refresh_token TEXT,                     -- Token OAuth2 đồng bộ Google Calendar
     google_calendar_id VARCHAR(255) DEFAULT 'primary',
     is_calendar_sync_enabled BOOLEAN DEFAULT FALSE,
+    is_personalized_enabled BOOLEAN DEFAULT TRUE,
+    interested_topics JSONB DEFAULT '["hoc_vu", "hoc_bong", "tuyen_dung"]'::jsonb,
+    quick_reminder_options JSONB DEFAULT '["1_hour", "tonight", "tomorrow_morning", "1_day", "3_days", "1_week"]'::jsonb,
+    major VARCHAR(100),
+    program VARCHAR(100),
+    avatar_url TEXT,
+    dob VARCHAR(20),
+    gender VARCHAR(10),
+    school_email VARCHAR(100),
+    personal_email VARCHAR(100),
+    phone VARCHAR(20),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
