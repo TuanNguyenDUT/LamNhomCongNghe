@@ -120,8 +120,8 @@ async function notificationRouter(req, res, controller) {
       }
     }
 
-    // 0.1 Trang Dashboard kỹ thuật (Dev/Admin) phục vụ theo dõi dữ liệu cào
-    if ((req.method === 'GET' || req.method === 'HEAD') && (pathname === '/admin' || pathname === '/web' || pathname === '/dev')) {
+    // 0.1 Trang Dashboard Web (hoặc fallback khi chưa build Flutter Web) phục vụ theo dõi dữ liệu
+    if ((req.method === 'GET' || req.method === 'HEAD') && (pathname === '/' || pathname === '/admin' || pathname === '/web' || pathname === '/dev')) {
       const fs = require('node:fs');
       const path = require('node:path');
       const htmlPath = path.join(__dirname, '../public/index.html');
