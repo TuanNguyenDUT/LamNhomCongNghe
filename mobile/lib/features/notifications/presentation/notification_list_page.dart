@@ -105,6 +105,11 @@ class _NotificationCard extends StatelessWidget {
                       label: '${item.priority} · ${item.priorityScore}đ',
                       color: color,
                     ),
+                    if (item.categoryName != null)
+                      _Badge(
+                        label: item.categoryName!,
+                        color: _categoryColor(item.category),
+                      ),
                     _Badge(label: item.scopeType, color: Colors.indigo),
                     if (item.courseTag != null)
                       _Badge(label: item.courseTag!, color: Colors.blue),
@@ -195,5 +200,16 @@ Color _priorityColor(String priority) {
     'HIGH' => Colors.orange,
     'LOW' => Colors.green,
     _ => Colors.lightBlue,
+  };
+}
+
+Color _categoryColor(String? category) {
+  return switch (category) {
+    'GRADE' => Colors.purple,
+    'CAREER' => Colors.teal,
+    'ADMINISTRATIVE' => Colors.deepOrange,
+    'EVENT' => Colors.green,
+    'ACADEMIC' => Colors.blue,
+    _ => Colors.blueGrey,
   };
 }

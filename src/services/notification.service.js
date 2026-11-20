@@ -486,6 +486,10 @@ class NotificationService {
       scope_type: classified.scope_type || classified.scope || 'GLOBAL',
       priority: classified.priority || 'NORMAL',
       priority_score: classified.priority_score || 0,
+      category: payload.category || classified.category || 'ACADEMIC',
+      category_code: payload.category_code || classified.category_code || 'hoc_tap',
+      category_name: payload.category_name || classified.category_name || 'Thông báo học tập',
+      category_tag: classified.category_tag || '#HọcTập',
       course_code: (sourceChannel === 'FB_CTSV' || sourceChannel === 'FB_TUVAN_SV') ? null : (classified.course_code || null),
       target_faculty: payload.target_faculty || null,
       target_cohort: payload.target_cohort || null,
@@ -633,6 +637,7 @@ class NotificationService {
     source_channel = null,
     priority = null,
     tag = null,
+    category = null,
     search = null,
     limit = 50,
     offset = 0,
@@ -665,6 +670,16 @@ class NotificationService {
     // Lọc theo tag
     if (tag) {
       list = list.filter((n) => n.tags && n.tags.includes(tag));
+    }
+
+    // Lọc theo loại thông báo (category / category_code)
+    if (category && category !== 'ALL') {
+      const catKey = category.toLowerCase();
+      list = list.filter((n) =>
+        (n.category && n.category.toLowerCase() === catKey) ||
+        (n.category_code && n.category_code.toLowerCase() === catKey) ||
+        (n.category_name && n.category_name.toLowerCase() === catKey)
+      );
     }
 
     // Tìm kiếm từ khóa

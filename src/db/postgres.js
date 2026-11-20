@@ -131,6 +131,9 @@ class NotificationRepository {
       scope_type: payload.scope_type || classified.scope_type,
       priority: payload.priority || classified.priority,
       priority_score: Number(payload.priority_score ?? classified.priority_score),
+      category: payload.category || classified.category || 'ACADEMIC',
+      category_code: payload.category_code || classified.category_code || 'hoc_tap',
+      category_name: payload.category_name || classified.category_name || 'Thông báo học tập',
       tags:
         Array.isArray(payload.tags) && payload.tags.length > 0
           ? payload.tags
@@ -233,6 +236,7 @@ class NotificationRepository {
     source_type,
     scope_type,
     course_code,
+    category,
     student_id,
     page = 1,
     limit = 10,
@@ -256,6 +260,10 @@ class NotificationRepository {
       if (course_code) {
         values.push(course_code);
         conditions.push(`course_code = $${values.length}`);
+      }
+      if (category && category !== 'ALL') {
+        values.push(category.toUpperCase());
+        conditions.push(`category = $${values.length}`);
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -302,6 +310,13 @@ class NotificationRepository {
     if (source_type) filtered = filtered.filter((n) => n.source_type === source_type);
     if (scope_type) filtered = filtered.filter((n) => n.scope_type === scope_type);
     if (course_code) filtered = filtered.filter((n) => n.course_code === course_code);
+    if (category && category !== 'ALL') {
+      const catKey = category.toLowerCase();
+      filtered = filtered.filter(
+        (n) => (n.category && n.category.toLowerCase() === catKey) ||
+               (n.category_code && n.category_code.toLowerCase() === catKey)
+      );
+    }
 
     return {
       items: filtered.slice(offset, offset + safeLimit).map((item) => ({
