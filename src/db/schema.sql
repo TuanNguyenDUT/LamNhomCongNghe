@@ -102,20 +102,23 @@ CREATE TABLE IF NOT EXISTS notifications (
     summary TEXT,                                  -- Tóm tắt (từ Rules Template hoặc AI API)
     action_required TEXT,
     content TEXT NOT NULL,
-    source_channel source_channel_type NOT NULL,
+    source_channel VARCHAR(100) NOT NULL CHECK (length(trim(source_channel)) > 0),
+    source_name VARCHAR(255),
     classified_by VARCHAR(20) NOT NULL DEFAULT 'RULE_ENGINE', -- 'RULE_ENGINE' hoặc 'AI_API'
     scope notification_scope_type NOT NULL,
     priority notification_priority_level NOT NULL DEFAULT 'NORMAL',
     priority_score INTEGER NOT NULL DEFAULT 0,
-    category VARCHAR(50) DEFAULT 'ACADEMIC',       -- ACADEMIC, GRADE, ADMINISTRATIVE, EVENT, CAREER
-    category_code VARCHAR(50) DEFAULT 'hoc_tap',   -- hoc_tap, diem_so, hanh_chinh, su_kien, nghe_nghiep
+    category VARCHAR(50) DEFAULT 'ACADEMIC',       -- ACADEMIC, GRADE, ADMINISTRATIVE, EVENT, CAREER, SCHOLARSHIP
+    category_code VARCHAR(50) DEFAULT 'hoc_tap',   -- hoc_tap, diem_so, hanh_chinh, su_kien, nghe_nghiep, hoc_bong
     category_name VARCHAR(100) DEFAULT 'Thông báo học tập',
     course_code VARCHAR(50) REFERENCES courses(course_code) ON DELETE SET NULL,
     target_faculty VARCHAR(100),
     target_cohort VARCHAR(20),
+    target_student_id UUID REFERENCES students(id) ON DELETE SET NULL,
     is_emergency BOOLEAN DEFAULT FALSE,
     tags JSONB DEFAULT '[]'::jsonb,                -- Nhãn JSONB: ["nghi_hoc", "hoc_bu", "hoc_bong"]
     attachments JSONB DEFAULT '[]'::jsonb,         -- Đính kèm JSONB: [{"name": "...", "url": "..."}]
+    reschedule_details JSONB,
     source_url TEXT,
     deadline_at TIMESTAMPTZ,
     content_hash CHAR(64) UNIQUE NOT NULL,         -- Băm SHA-256 chống trùng lặp tin
@@ -141,6 +144,10 @@ CREATE TABLE IF NOT EXISTS deadlines (
     student_id UUID REFERENCES students(id) ON DELETE CASCADE,
     notification_id UUID REFERENCES notifications(id) ON DELETE SET NULL,
     course_code VARCHAR(50) REFERENCES courses(course_code) ON DELETE SET NULL,
+    category VARCHAR(50) DEFAULT 'ACADEMIC',
+    category_code VARCHAR(50) DEFAULT 'hoc_tap',
+    category_name VARCHAR(100) DEFAULT 'Thông báo học tập',
+    item_type VARCHAR(30) DEFAULT 'DEADLINE',
     title VARCHAR(255) NOT NULL,
     description TEXT,
     due_date TIMESTAMPTZ NOT NULL,

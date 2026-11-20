@@ -6,9 +6,14 @@
 const { createServer } = require('../src/server');
 const { dutCrawlerService } = require('../src/services/dut-crawler.service');
 const { fbCrawlerService } = require('../src/services/fb-crawler.service');
-const { deadlineService } = require('../src/services/deadline.service');
+const {
+  createTestPool,
+  resetDatabase,
+  seedStudent,
+  teardownTestPool,
+} = require('../tests/helpers/pg-test-harness');
 
-const PORT = 3456;
+const PORT = Number(process.env.PORT || 3456);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 // Màu sắc terminal để in báo cáo trực quan
@@ -63,17 +68,21 @@ async function runBusinessTests() {
   console.log('######################################################################');
   console.log(colors.reset);
 
-  // 1. Khởi động server
-  const { server } = createServer();
+  // 1. Kết nối PostgreSQL test & khởi động server
+  const pool = await createTestPool();
+  await resetDatabase(pool);
+  await seedStudent(pool, { student_code: '102200001' });
+
+  const { server, services } = createServer(pool);
   await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve));
-  logSuccess(`HTTP Server Backend đã khởi động thành công trên cổng ${PORT}`);
+  logSuccess(`HTTP Server Backend đã khởi động thành công trên cổng ${PORT} (Direct PG)`);
 
   try {
     // =========================================================================
     // BƯỚC 1: Health Check & Danh sách Endpoints
     // =========================================================================
     logStep(1, 'Kiểm tra trạng thái máy chủ (Health Check & Endpoints)');
-    const rootRes = await request('/');
+    const rootRes = await request('/api');
     if (rootRes.status === 200 && rootRes.json.service) {
       logSuccess('API Gateway hoạt động hoàn hảo', {
         service: rootRes.json.service,
@@ -214,11 +223,12 @@ async function runBusinessTests() {
     // =========================================================================
     logStep(6, 'FR-06 & FR-07: Quản lý Deadlines & Worker cảnh báo nhắc việc leo thang 4 tầng');
     
-    // Tạo deadline đóng học phí
+    // Tạo deadline đóng học phí gắn liền với notification_id thật
     const createDl = await request('/api/v1/deadlines', {
       method: 'POST',
       body: JSON.stringify({
         student_id: '102200001',
+        notification_id: ingestTuition.json.data.id,
         title: 'Hạn cuối hoàn thành học phí HK2',
         due_date: new Date(Date.now() + 48 * 3600 * 1000).toISOString(), // 48h nữa -> DUE_SOON
         description: 'Đóng tiền qua cổng thanh toán sinh viên',
@@ -237,7 +247,7 @@ async function runBusinessTests() {
     logSuccess(`Lấy danh sách deadlines của sinh viên: ${dlList.json.total} mốc hạn chót.`);
 
     // Chạy worker quét nhắc việc leo thang 4 tầng (168h, 72h, 24h, 2h)
-    const reminders = await deadlineService.processEscalationReminders();
+    const reminders = await services.deadlineSvc.processEscalationReminders();
     logSuccess(`Worker nhắc việc leo thang đã kích hoạt ${reminders.length} cảnh báo:`, reminders);
 
     // Đánh dấu hoàn thành deadline
@@ -313,7 +323,9 @@ async function runBusinessTests() {
 
   } finally {
     await new Promise((resolve) => server.close(resolve));
-    logInfo('Đã đóng HTTP Server an toàn sau khi hoàn tất kiểm thử.');
+    await resetDatabase(pool).catch(() => {});
+    await teardownTestPool(pool);
+    logInfo('Đã đóng HTTP Server & kết nối PostgreSQL an toàn sau khi hoàn tất kiểm thử.');
   }
 }
 

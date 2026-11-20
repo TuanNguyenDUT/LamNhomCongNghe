@@ -15,4 +15,9 @@ abstract interface class NotificationRepository {
     required bool isRead,
     String? studentId,
   });
+
+  Future<void> acknowledgeNotification(
+    dynamic id, {
+    required String studentId,
+  });
 }

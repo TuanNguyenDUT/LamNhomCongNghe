@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'router.dart';
@@ -12,9 +12,10 @@ class StudentNotificationApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'DUT Student Notifications',
+      title: 'DUT Student Portal',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      themeMode: ThemeMode.light,
       routerConfig: router,
     );
   }

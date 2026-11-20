@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/presentation/ambient_background.dart';
 import '../../../core/presentation/app_toast.dart';
+import '../../../core/presentation/warm_pearl_tokens.dart';
 import 'auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -21,8 +22,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Gợi ý sẵn tài khoản sinh viên DUT thực tế theo yêu cầu, mật khẩu bắt buộc người dùng tự nhập bảo mật
-    _studentCodeController = TextEditingController(text: '102230026');
+    // Tuân thủ nghiêm ngặt GEMINI.md: không điền sẵn MSSV mặc định
+    _studentCodeController = TextEditingController();
     _passwordController = TextEditingController();
   }
 
@@ -38,11 +39,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final pass = _passwordController.text.trim();
 
     if (code.isEmpty || pass.isEmpty) {
-      AppToast.showError(context, 'Vui lòng nhập đầy đủ mã sinh viên và mật khẩu');
+      AppToast.showError(
+        context,
+        'Vui lòng nhập đầy đủ mã sinh viên và mật khẩu',
+      );
       return;
     }
 
-    final success = await ref.read(authControllerProvider.notifier).login(code, pass);
+    final success =
+        await ref.read(authControllerProvider.notifier).login(code, pass);
     if (success && mounted) {
       context.go('/notifications');
     }
@@ -52,80 +57,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Apple Wallpaper Style Background Gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFE2EAF8), // Soft Glacier Blue
-                  Color(0xFFEFE9F8), // Soft Lavender
-                  Color(0xFFE6EEF9),
-                  Color(0xFFF3F7FD),
-                ],
-              ),
-            ),
-          ),
-
-          // 2. Background Ambient Glow Orbs (Hiệu ứng ánh sáng xuyên thấu qua lớp kính)
-          Positioned(
-            top: -60,
-            right: -50,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF007AFF).withValues(alpha: 0.18),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 80,
-            left: -40,
-            child: Container(
-              width: 220,
-              height: 220,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF5856D6).withValues(alpha: 0.14),
-              ),
-            ),
-          ),
-
-          // 3. Nội dung đăng nhập căn giữa
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Biểu tượng Logo DUT Liquid Glass
-                    LiquidGlassContainer(
-                      borderRadius: 28,
-                      blurSigma: 18,
-                      opacity: 0.82,
-                      padding: const EdgeInsets.all(18),
-                      child: Container(
-                        width: 72,
-                        height: 72,
+    return WarmPearlAmbientBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: WarmPearlColors.glassBgStrong,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: WarmPearlColors.glassBorderStrong,
+                      width: 1.2,
+                    ),
+                    boxShadow: WarmPearlShadows.glass,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Brand Crest / Logo
+                      Container(
+                        width: 70,
+                        height: 70,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [Color(0xFF007AFF), Color(0xFF0049B7)],
-                          ),
-                          boxShadow: [
+                          gradient: WarmPearlGradients.coralButton,
+                          boxShadow: const [
                             BoxShadow(
-                              color: const Color(0xFF007AFF).withValues(alpha: 0.35),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
+                              color: WarmPearlColors.coralGlow,
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
                             ),
                           ],
                         ),
@@ -135,194 +101,253 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: Colors.white,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                    // Tiêu đề thương hiệu
-                    const Text(
-                      'DUT Student Portal',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.6,
-                        color: Color(0xFF0F172A),
+                      // Brand Titles
+                      const Text(
+                        'DUT Student Portal',
+                        style: TextStyle(
+                          fontFamily: WarmPearlTypography.displayFont,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: WarmPearlColors.inkPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Đăng nhập bằng tài khoản sv.dut.udn.vn',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF475569).withValues(alpha: 0.9),
-                        letterSpacing: -0.2,
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Đăng nhập bằng tài khoản sv.dut.udn.vn',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: WarmPearlTypography.bodyFont,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: WarmPearlColors.inkSecondary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                    // Thẻ kính Liquid Glass chứa Form Đăng Nhập
-                    LiquidGlassContainer(
-                      borderRadius: 26,
-                      blurSigma: 24,
-                      opacity: 0.78,
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Báo lỗi nếu có
-                          if (authState.errorMessage != null) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF3B30).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFFFF3B30).withValues(alpha: 0.3),
+                      // Error message if any
+                      if (authState.errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: WarmPearlColors.roseSoft,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: WarmPearlColors.roseBorder,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                size: 16,
+                                color: WarmPearlColors.rose,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  authState.errorMessage!,
+                                  style: const TextStyle(
+                                    fontFamily: WarmPearlTypography.bodyFont,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: WarmPearlColors.rose,
+                                  ),
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.error_outline, size: 18, color: Color(0xFFFF3B30)),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      authState.errorMessage!,
-                                      style: const TextStyle(
-                                        color: Color(0xFFB91C1C),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Student Code input
+                      Container(
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: WarmPearlColors.inputBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: WarmPearlColors.inputBorder,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.badge_outlined,
+                              size: 19,
+                              color: WarmPearlColors.coralFrom,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _studentCodeController,
+                                style: const TextStyle(
+                                  fontFamily: WarmPearlTypography.bodyFont,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: WarmPearlColors.inkPrimary,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'Mã số sinh viên (VD: 102230xxx)',
+                                  hintStyle: TextStyle(
+                                    color: WarmPearlColors.inkMuted,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.normal,
                                   ),
-                                ],
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 16),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
 
-                          // Label Mã Sinh Viên
-                          Text(
-                            'MÃ SINH VIÊN',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: const Color(0xFF334155).withValues(alpha: 0.85),
-                            ),
+                      // Password input
+                      Container(
+                        height: 48,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: WarmPearlColors.inputBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: WarmPearlColors.inputBorder,
+                            width: 1,
                           ),
-                          const SizedBox(height: 8),
-
-                          // Input Mã Sinh Viên (Glass Input)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.65),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                width: 1.1,
-                              ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.lock_outline_rounded,
+                              size: 19,
+                              color: WarmPearlColors.inkMuted,
                             ),
-                            child: TextField(
-                              controller: _studentCodeController,
-                              keyboardType: TextInputType.number,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                              ),
-                              decoration: const InputDecoration(
-                                hintText: 'Nhập mã SV (VD: 102230026)',
-                                prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF007AFF)),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-
-                          // Label Mật Khẩu
-                          Text(
-                            'MẬT KHẨU SV.DUT.UDN.VN',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: const Color(0xFF334155).withValues(alpha: 0.85),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-
-                          // Input Mật Khẩu (Glass Input)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.65),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                width: 1.1,
-                              ),
-                            ),
-                            child: TextField(
-                              controller: _passwordController,
-                              obscureText: _obscurePassword,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                              ),
-                              decoration: InputDecoration(
-                                hintText: 'Nhập mật khẩu',
-                                prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF007AFF)),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                    color: const Color(0xFF64748B),
-                                  ),
-                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                onSubmitted: (_) => _handleLogin(),
+                                style: const TextStyle(
+                                  fontFamily: WarmPearlTypography.bodyFont,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: WarmPearlColors.inkPrimary,
                                 ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: const InputDecoration(
+                                  hintText: 'Mật khẩu sinh viên',
+                                  hintStyle: TextStyle(
+                                    color: WarmPearlColors.inkMuted,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.normal,
+                                  ),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 26),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              child: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                size: 19,
+                                color: WarmPearlColors.inkMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
-                          // Nút Đăng nhập Liquid Glass
-                          LiquidGlassButton(
-                            label: 'Đăng nhập & Đồng bộ học phần',
-                            icon: Icons.login_rounded,
-                            isLoading: authState.isLoading,
-                            onPressed: _handleLogin,
+                      // Submit Button
+                      GestureDetector(
+                        onTap: authState.isLoading ? null : _handleLogin,
+                        child: Container(
+                          height: 46,
+                          decoration: BoxDecoration(
+                            gradient: WarmPearlGradients.coralButton,
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: WarmPearlColors.coralGlow,
+                                blurRadius: 20,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: authState.isLoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Đăng nhập hệ thống',
+                                  style: TextStyle(
+                                    fontFamily: WarmPearlTypography.displayFont,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Verification info
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: WarmPearlColors.mintBright,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Flexible(
+                            child: Text(
+                              'Xác thực trực tiếp HTTP 302 từ sv.dut.udn.vn',
+                              style: TextStyle(
+                                fontFamily: WarmPearlTypography.bodyFont,
+                                fontSize: 11,
+                                color: WarmPearlColors.inkMuted,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 22),
-
-                    // Thông báo bảo mật & tính năng
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.sync_lock_rounded, size: 16, color: Colors.blueGrey.shade700),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Tự động đồng bộ môn học & thông báo mới nhất',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.blueGrey.shade700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,9 +1,11 @@
 /**
- * Task 6: Lưu Firebase registration target trong PostgreSQL.
- * Khi chưa truyền pg Pool, repository dùng bộ nhớ để local/test vẫn chạy.
+ * Task 6: Lưu Firebase registration target trực tiếp trong PostgreSQL.
+ * Không còn cơ chế fallback bộ nhớ (fail-fast khi thiếu cấu hình/kết nối PostgreSQL).
  */
 
 const crypto = require('node:crypto');
+const { db: defaultDb, createDbAdapter } = require('../config/db');
+const { DatabaseConfigurationError } = require('../utils/errors');
 
 function hashTarget(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -20,63 +22,42 @@ function publicDevice(row) {
     app_version: row.app_version || null,
     is_active: Boolean(row.is_active),
     failure_count: Number(row.failure_count || 0),
-    last_seen_at: row.last_seen_at,
+    last_seen_at: row.last_seen_at instanceof Date ? row.last_seen_at.toISOString() : row.last_seen_at,
     last_error_code: row.last_error_code || null,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
   };
 }
 
 class DeviceTokenRepository {
   constructor(pgPool = null) {
-    this.pool = pgPool;
-    this.memoryDevices = [];
-    this.nextId = 1;
+    if (pgPool === undefined || pgPool === null) {
+      this.db = defaultDb;
+    } else if (typeof pgPool.query === 'function') {
+      this.db = pgPool;
+    } else {
+      this.db = createDbAdapter(pgPool);
+    }
+  }
+
+  _requireDb() {
+    if (!this.db || typeof this.db.query !== 'function') {
+      throw new DatabaseConfigurationError('PostgreSQL Pool is required for DeviceTokenRepository');
+    }
+    return this.db;
   }
 
   async registerDevice({ student_id, target, target_type, platform, device_id, app_version }) {
-    const now = new Date().toISOString();
+    const runner = this._requireDb();
     const targetHash = hashTarget(target);
 
-    if (!this.pool) {
-      for (const item of this.memoryDevices) {
-        if (item.target_hash === targetHash && item.device_id !== device_id && item.is_active) {
-          item.is_active = false;
-          item.last_error_code = 'TOKEN_REASSIGNED';
-          item.updated_at = now;
-        }
-      }
-
-      let row = this.memoryDevices.find((item) => item.device_id === device_id);
-      const created = !row;
-      if (!row) {
-        row = { id: this.nextId++, created_at: now };
-        this.memoryDevices.push(row);
-      }
-      Object.assign(row, {
-        student_id,
-        registration_target: target,
-        target_hash: targetHash,
-        target_type,
-        platform,
-        device_id,
-        app_version: app_version || null,
-        is_active: true,
-        failure_count: 0,
-        last_seen_at: now,
-        last_error_code: null,
-        updated_at: now,
-      });
-      return { created, device: publicDevice(row) };
-    }
-
-    await this.pool.query(
+    await runner.query(
       `UPDATE device_tokens
        SET is_active = FALSE, last_error_code = 'TOKEN_REASSIGNED', updated_at = NOW()
        WHERE target_hash = $1 AND device_id <> $2 AND is_active = TRUE`,
       [targetHash, device_id]
     );
-    const { rows } = await this.pool.query(
+    const { rows } = await runner.query(
       `INSERT INTO device_tokens (
          student_id, registration_target, target_hash, target_type, platform,
          device_id, app_version, is_active, failure_count, last_seen_at,
@@ -101,85 +82,85 @@ class DeviceTokenRepository {
   }
 
   async getActiveByDevice(deviceId, studentId = null) {
-    if (!this.pool) {
-      return this.memoryDevices.find(
-        (item) =>
-          item.device_id === deviceId &&
-          item.is_active &&
-          (!studentId || item.student_id === studentId)
-      ) || null;
+    const runner = this._requireDb();
+    if (Array.isArray(studentId)) {
+      const { rows } = await runner.query(
+        `SELECT * FROM device_tokens
+         WHERE device_id = $1 AND is_active = TRUE AND student_id = ANY($2::text[])
+         LIMIT 1`,
+        [deviceId, studentId]
+      );
+      return rows[0] ? { ...rows[0], id: Number(rows[0].id) } : null;
     }
+
     const values = [deviceId];
     const studentFilter = studentId ? 'AND student_id = $2' : '';
     if (studentId) values.push(studentId);
-    const { rows } = await this.pool.query(
+    const { rows } = await runner.query(
       `SELECT * FROM device_tokens
        WHERE device_id = $1 AND is_active = TRUE ${studentFilter}
        LIMIT 1`,
       values
     );
-    return rows[0] || null;
+    return rows[0] ? { ...rows[0], id: Number(rows[0].id) } : null;
   }
 
   async getByIdForDelivery(id) {
-    if (!this.pool) {
-      return this.memoryDevices.find((item) => item.id === Number(id) && item.is_active) || null;
-    }
-    const { rows } = await this.pool.query(
+    const runner = this._requireDb();
+    const { rows } = await runner.query(
       'SELECT * FROM device_tokens WHERE id = $1 AND is_active = TRUE',
       [Number(id)]
     );
-    return rows[0] || null;
+    return rows[0] ? { ...rows[0], id: Number(rows[0].id) } : null;
   }
 
-  async listStudentDevices(studentId, { activeOnly = true } = {}) {
-    if (!this.pool) {
-      return this.memoryDevices
-        .filter((item) => item.student_id === studentId && (!activeOnly || item.is_active))
-        .sort((a, b) => String(b.last_seen_at).localeCompare(String(a.last_seen_at)))
-        .map(publicDevice);
-    }
+  async listStudentDevices(studentIdentifiers, { activeOnly = true } = {}) {
+    const runner = this._requireDb();
     const activeFilter = activeOnly ? 'AND is_active = TRUE' : '';
-    const { rows } = await this.pool.query(
+    if (Array.isArray(studentIdentifiers)) {
+      const ids = studentIdentifiers.filter(Boolean).map(String);
+      if (ids.length === 0) return [];
+      const { rows } = await runner.query(
+        `SELECT * FROM device_tokens
+         WHERE student_id = ANY($1::text[]) ${activeFilter}
+         ORDER BY last_seen_at DESC`,
+        [ids]
+      );
+      return rows.map(publicDevice);
+    }
+
+    const { rows } = await runner.query(
       `SELECT * FROM device_tokens
        WHERE student_id = $1 ${activeFilter}
        ORDER BY last_seen_at DESC`,
-      [studentId]
+      [String(studentIdentifiers)]
     );
     return rows.map(publicDevice);
   }
 
   async unregisterDevice(deviceId, studentId) {
-    if (!this.pool) {
-      const row = this.memoryDevices.find(
-        (item) => item.device_id === deviceId && item.student_id === studentId && item.is_active
+    const runner = this._requireDb();
+    if (Array.isArray(studentId)) {
+      const result = await runner.query(
+        `UPDATE device_tokens
+         SET is_active = FALSE, last_error_code = 'UNREGISTERED_BY_CLIENT', updated_at = NOW()
+         WHERE device_id = $1 AND student_id = ANY($2::text[]) AND is_active = TRUE`,
+        [deviceId, studentId]
       );
-      if (!row) return false;
-      row.is_active = false;
-      row.last_error_code = 'UNREGISTERED_BY_CLIENT';
-      row.updated_at = new Date().toISOString();
-      return true;
+      return result.rowCount > 0;
     }
-    const result = await this.pool.query(
+    const result = await runner.query(
       `UPDATE device_tokens
        SET is_active = FALSE, last_error_code = 'UNREGISTERED_BY_CLIENT', updated_at = NOW()
        WHERE device_id = $1 AND student_id = $2 AND is_active = TRUE`,
-      [deviceId, studentId]
+      [deviceId, String(studentId)]
     );
     return result.rowCount > 0;
   }
 
   async recordPushSuccess(id) {
-    if (!this.pool) {
-      const row = this.memoryDevices.find((item) => item.id === Number(id));
-      if (row) {
-        row.failure_count = 0;
-        row.last_error_code = null;
-        row.updated_at = new Date().toISOString();
-      }
-      return;
-    }
-    await this.pool.query(
+    const runner = this._requireDb();
+    await runner.query(
       `UPDATE device_tokens
        SET failure_count = 0, last_error_code = NULL, updated_at = NOW()
        WHERE id = $1`,
@@ -188,17 +169,8 @@ class DeviceTokenRepository {
   }
 
   async recordPushFailure(id, errorCode, { deactivate = false } = {}) {
-    if (!this.pool) {
-      const row = this.memoryDevices.find((item) => item.id === Number(id));
-      if (row) {
-        row.failure_count += 1;
-        row.last_error_code = String(errorCode || 'UNKNOWN_PUSH_ERROR');
-        if (deactivate) row.is_active = false;
-        row.updated_at = new Date().toISOString();
-      }
-      return;
-    }
-    await this.pool.query(
+    const runner = this._requireDb();
+    await runner.query(
       `UPDATE device_tokens
        SET failure_count = failure_count + 1,
            last_error_code = $2,

@@ -86,7 +86,7 @@ class QuickReminderPreferencesNotifier extends Notifier<QuickReminderPreferences
 
   Future<void> loadPreferences() async {
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
 
     try {
       final dio = ref.read(dioProvider);
@@ -118,7 +118,7 @@ class QuickReminderPreferencesNotifier extends Notifier<QuickReminderPreferences
   }) async {
     state = state.copyWith(isLoading: true);
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
 
     try {
       final dio = ref.read(dioProvider);

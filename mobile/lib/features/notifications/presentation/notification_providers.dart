@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/notification_api_service.dart';
@@ -99,7 +98,7 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationPage>((
   ref,
 ) {
   final authState = ref.watch(authControllerProvider);
-  final studentId = authState.session?.studentCode ?? AppConfig.developmentStudentId;
+  final studentId = authState.session?.studentCode ?? '';
   final category = ref.watch(selectedCategoryProvider);
   return ref.watch(notificationRepositoryProvider).fetchNotifications(
     studentId: studentId,
@@ -108,10 +107,31 @@ final notificationFeedProvider = FutureProvider.autoDispose<NotificationPage>((
   );
 });
 
+final notificationsProvider =
+    Provider.autoDispose<AsyncValue<List<NotificationItem>>>((ref) {
+  final feedAsync = ref.watch(notificationFeedProvider);
+  return feedAsync.whenData((page) => page.items);
+});
+
+final unreadNotificationsCountProvider = Provider.autoDispose<int>((ref) {
+  final notifs = ref.watch(notificationsProvider).asData?.value ?? [];
+  return notifs.where((n) => !n.isRead).length;
+});
+
+final urgentNotificationProvider =
+    Provider.autoDispose<NotificationItem?>((ref) {
+  final notifs = ref.watch(notificationsProvider).asData?.value ?? [];
+  try {
+    return notifs.firstWhere((n) => n.isEmergency && !n.isRead);
+  } catch (_) {
+    return null;
+  }
+});
+
 final notificationDetailProvider = FutureProvider.autoDispose
     .family<NotificationItem, dynamic>((ref, id) {
       final authState = ref.watch(authControllerProvider);
-      final studentId = authState.session?.studentCode ?? AppConfig.developmentStudentId;
+      final studentId = authState.session?.studentCode ?? '';
       return ref.watch(notificationRepositoryProvider).fetchNotification(
         id,
         studentId: studentId,

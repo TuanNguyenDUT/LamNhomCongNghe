@@ -1,15 +1,29 @@
 /**
  * DỊCH VỤ QUẢN LÝ HỌC PHẦN & MỤC THÔNG BÁO RIÊNG TỪNG HỌC PHẦN (FR-01, FR-04)
- * Triển khai theo đặc tả AGENT.md
+ * Kiến trúc Direct PostgreSQL Query.
  */
 
 const crypto = require('node:crypto');
 const { dutCrawlerService } = require('./dut-crawler.service');
-const { getDbStore } = require('../config/db');
+const { db: defaultDb, createDbAdapter } = require('../config/db');
+const { StudentRepository, isUuid } = require('../db/student.repository');
+const { CourseRepository } = require('../db/course.repository');
+const { NotificationRepository } = require('../db/postgres');
+const { ValidationError, AuthenticationError } = require('../utils/errors');
 
 class CourseService {
-  constructor(dbStore = getDbStore(), crawler = dutCrawlerService) {
-    this.dbStore = dbStore;
+  constructor({
+    pool = null,
+    db = null,
+    studentRepo = null,
+    courseRepo = null,
+    notificationRepo = null,
+    crawler = dutCrawlerService,
+  } = {}) {
+    this.db = db || (pool ? createDbAdapter(pool) : defaultDb);
+    this.studentRepo = studentRepo || new StudentRepository(this.db);
+    this.courseRepo = courseRepo || new CourseRepository(this.db);
+    this.notificationRepo = notificationRepo || new NotificationRepository(this.db);
     this.crawler = crawler;
   }
 
@@ -19,7 +33,7 @@ class CourseService {
    */
   async login(studentCode, password) {
     if (!studentCode || !password) {
-      throw new Error('Vui lòng nhập đầy đủ mã sinh viên và mật khẩu sv.dut.udn.vn');
+      throw new ValidationError('Vui lòng nhập đầy đủ mã sinh viên và mật khẩu sv.dut.udn.vn');
     }
 
     const cleanCode = String(studentCode).trim();
@@ -28,74 +42,60 @@ class CourseService {
     // 1. Xác thực THẬT SỰ với cổng sv.dut.udn.vn
     const authResult = await this.crawler.authenticateWithDut(cleanCode, cleanPass);
     if (!authResult.authenticated) {
-      throw new Error(authResult.message || 'Tài khoản hoặc mật khẩu sv.dut.udn.vn không chính xác!');
+      throw new AuthenticationError(
+        authResult.message || 'Tài khoản hoặc mật khẩu sv.dut.udn.vn không chính xác!'
+      );
     }
 
     const enrolledCourses = authResult.courses || [];
     const profile = authResult.profile || {};
-
-    // 2. Khởi tạo/cập nhật định danh sinh viên vào CSDL với dữ liệu thật từ PageCaNhan.aspx
-    let student = this.dbStore.findStudentByCodeOrId(cleanCode);
     const kYear = cleanCode.length >= 5 ? cleanCode.slice(3, 5) : '23';
     const encryptedPass = Buffer.from(cleanPass, 'utf8').toString('base64');
-    if (!student) {
-      student = {
-        id: crypto.randomUUID(),
-        firebase_uid: `dut_uid_${cleanCode}`,
-        student_code: cleanCode,
-        full_name: profile.full_name || `Sinh viên ${cleanCode}`,
-        faculty: profile.faculty || 'Khoa Công nghệ Thông tin',
-        cohort: profile.cohort || `K${kYear}`,
-        class_name: profile.class_name || `${kYear}T_DT`,
-        major: profile.major || 'Công nghệ Thông tin',
-        program: profile.program || '',
-        avatar_url: `/api/v1/avatar/${cleanCode}.jpg`,
-        dob: profile.dob || '',
-        gender: profile.gender || '',
-        school_email: profile.school_email || '',
-        personal_email: profile.personal_email || '',
-        phone: profile.phone || '',
-        dut_session_encrypted: encryptedPass,
-        is_personalized_enabled: true,
-        interested_topics: ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
-        dut_last_synced_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    } else {
-      if (profile.full_name) student.full_name = profile.full_name;
-      if (profile.class_name) student.class_name = profile.class_name;
-      if (profile.faculty) student.faculty = profile.faculty;
-      if (profile.cohort) student.cohort = profile.cohort;
-      if (profile.major) student.major = profile.major;
-      if (profile.program) student.program = profile.program;
-      student.avatar_url = `/api/v1/avatar/${cleanCode}.jpg`;
-      if (profile.dob) student.dob = profile.dob;
-      if (profile.gender) student.gender = profile.gender;
-      if (profile.school_email) student.school_email = profile.school_email;
-      if (profile.personal_email) student.personal_email = profile.personal_email;
-      if (profile.phone) student.phone = profile.phone;
-      student.dut_session_encrypted = encryptedPass;
-      student.dut_last_synced_at = new Date().toISOString();
-      student.updated_at = new Date().toISOString();
-    }
-    this.dbStore.saveStudent(student);
 
-    // 3. Tự động lưu & cập nhật học phần hiện tại vào Database
-    if (enrolledCourses && enrolledCourses.length > 0) {
+    // 2. Lưu/cập nhật sinh viên, môn học & đăng ký môn học trong transaction
+    const student = await this.db.withTransaction(async (tx) => {
+      const existing = await this.studentRepo.resolveStudent(cleanCode, tx);
+      const savedStudent = await this.studentRepo.upsertStudent(
+        {
+          id: existing?.id || crypto.randomUUID(),
+          firebase_uid: existing?.firebase_uid || `dut_uid_${cleanCode}`,
+          student_code: cleanCode,
+          full_name: profile.full_name || existing?.full_name || `Sinh viên ${cleanCode}`,
+          faculty: profile.faculty || existing?.faculty || 'Khoa Công nghệ Thông tin',
+          cohort: profile.cohort || existing?.cohort || `K${kYear}`,
+          class_name: profile.class_name || existing?.class_name || `${kYear}T_DT`,
+          major: profile.major || existing?.major || 'Công nghệ Thông tin',
+          program: profile.program || existing?.program || '',
+          avatar_url: `/api/v1/avatar/${cleanCode}.jpg`,
+          dob: profile.dob || existing?.dob || '',
+          gender: profile.gender || existing?.gender || '',
+          school_email: profile.school_email || existing?.school_email || '',
+          personal_email: profile.personal_email || existing?.personal_email || '',
+          phone: profile.phone || existing?.phone || '',
+          dut_session_encrypted: encryptedPass,
+          is_personalized_enabled: existing ? existing.is_personalized_enabled !== false : true,
+          interested_topics: existing?.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+          quick_reminder_options: existing?.quick_reminder_options,
+          google_refresh_token: existing?.google_refresh_token,
+          google_calendar_id: existing?.google_calendar_id,
+          is_calendar_sync_enabled: existing?.is_calendar_sync_enabled,
+          dut_last_synced_at: new Date().toISOString(),
+        },
+        tx
+      );
+
       for (const c of enrolledCourses) {
-        this.dbStore.saveCourse(c);
-        this.dbStore.enrollStudentCourse(student.id, c.course_code);
+        await this.courseRepo.upsertCourse(c, tx);
+        await this.courseRepo.enrollStudentCourse(savedStudent.id, c.course_code, tx);
       }
-    }
 
-    // 3.1. Phân phối các thông báo thực tế và đồng bộ nhắc nhở/hạn chót bóc tách từ bản tin
-    try {
-      const { notificationService } = require('./notification.service');
-      await notificationService.distributeExistingNotificationsToStudent(student);
-    } catch (e) {
-      console.warn('Lỗi phân phối thông báo khi đăng nhập:', e.message);
-    }
+      return savedStudent;
+    });
+
+    // 3. Phân phối thông báo hiện có và đồng bộ deadline cho sinh viên (lỗi DB sẽ propagate)
+    const { NotificationService } = require('./notification.service');
+    const notifService = new NotificationService({ db: this.db });
+    await notifService.distributeExistingNotificationsToStudent(student);
 
     // 4. Lấy danh sách học phần kèm thống kê
     const coursesWithStats = await this.getEnrolledCoursesWithStats(student.id);
@@ -130,9 +130,16 @@ class CourseService {
    * Đồng bộ danh sách học phần sinh viên đang học từ sv.dut.udn.vn (FR-01)
    */
   async syncCoursesFromDut(studentId, studentCode, password = '') {
-    let student = this.dbStore.findStudentByCodeOrId(studentId) || this.dbStore.findStudentByCodeOrId(studentCode);
+    let student =
+      (await this.studentRepo.resolveStudent(studentId)) ||
+      (await this.studentRepo.resolveStudent(studentCode));
+
     if (!student) {
-      student = this.dbStore.saveStudent({
+      if (!studentCode) {
+        throw new ValidationError('Thiếu mã sinh viên (student_code) để đồng bộ học phần');
+      }
+      student = await this.studentRepo.upsertStudent({
+        id: isUuid(studentId) ? studentId : crypto.randomUUID(),
         student_code: studentCode,
         full_name: `Sinh viên ${studentCode}`,
         faculty: 'Khoa Công nghệ Thông tin',
@@ -140,9 +147,8 @@ class CourseService {
         class_name: '23T_DT',
       });
     }
-    const targetStudentId = student.id;
 
-    // Sử dụng mật khẩu sinh viên cung cấp hoặc dùng phiên đã lưu trong CSDL
+    const effectiveCode = studentCode || student.student_code;
     let effectivePassword = (password || '').trim();
     if (!effectivePassword && student.dut_session_encrypted) {
       try {
@@ -150,26 +156,32 @@ class CourseService {
       } catch (err) {
         console.warn('Không thể giải mã session mật khẩu sv.dut:', err.message);
       }
-    } else if (effectivePassword) {
-      student.dut_session_encrypted = Buffer.from(effectivePassword, 'utf8').toString('base64');
     }
 
-    const enrolledCourses = await this.crawler.syncStudentCourses(studentCode, effectivePassword);
+    const enrolledCourses = await this.crawler.syncStudentCourses(effectiveCode, effectivePassword);
+    const syncedAt = new Date().toISOString();
 
-    for (const c of enrolledCourses) {
-      this.dbStore.saveCourse(c);
-      this.dbStore.enrollStudentCourse(targetStudentId, c.course_code);
-    }
-
-    if (student) {
-      student.dut_last_synced_at = new Date().toISOString();
-      this.dbStore.saveStudent(student);
-    }
+    await this.db.withTransaction(async (tx) => {
+      for (const c of enrolledCourses) {
+        await this.courseRepo.upsertCourse(c, tx);
+        await this.courseRepo.enrollStudentCourse(student.id, c.course_code, tx);
+      }
+      await this.studentRepo.upsertStudent(
+        {
+          ...student,
+          dut_session_encrypted: effectivePassword
+            ? Buffer.from(effectivePassword, 'utf8').toString('base64')
+            : student.dut_session_encrypted,
+          dut_last_synced_at: syncedAt,
+        },
+        tx
+      );
+    });
 
     return {
-      synced_at: new Date().toISOString(),
-      student_id: targetStudentId,
-      student_code: studentCode,
+      synced_at: syncedAt,
+      student_id: student.id,
+      student_code: effectiveCode,
       total_courses: enrolledCourses.length,
       courses: enrolledCourses,
     };
@@ -178,76 +190,23 @@ class CourseService {
   /**
    * Lấy danh sách các học phần sinh viên đang học kèm số tin chưa đọc & deadline (FR-04)
    */
-  async getEnrolledCoursesWithStats(studentId) {
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
-    const sId = student ? student.id : studentId;
-    const courses = this.dbStore.getStudentCourses(sId);
-
-    // Tính unread_count và upcoming_deadlines cho từng môn
-    const result = courses.map((course) => {
-      // Đếm tin thông báo thuộc môn này
-      let unreadCount = 0;
-      for (const notif of this.dbStore.notifications.values()) {
-        if (notif.course_code === course.course_code) {
-          const isRead = this.dbStore.student_notifications.some(
-            (sn) => sn.notification_id === notif.id && sn.student_id === sId && sn.is_read
-          );
-          if (!isRead) unreadCount++;
-        }
-      }
-
-      // Đếm deadline sắp tới thuộc môn này
-      const now = new Date();
-      let upcomingDeadlines = 0;
-      for (const d of this.dbStore.deadlines.values()) {
-        if (d.student_id === sId && d.course_code === course.course_code) {
-          if (d.status === 'PENDING' || d.status === 'DUE_SOON') {
-            if (new Date(d.due_date) >= now) upcomingDeadlines++;
-          }
-        }
-      }
-
-      return {
-        ...course,
-        unread_count: unreadCount,
-        upcoming_deadlines: upcomingDeadlines,
-      };
-    });
-
-    return result;
+  async getEnrolledCoursesWithStats(studentIdentifier) {
+    if (!studentIdentifier) return [];
+    const student = await this.studentRepo.resolveStudent(studentIdentifier);
+    if (!student) return [];
+    return this.courseRepo.getEnrolledCoursesWithStats(student.id);
   }
 
   /**
    * Lấy luồng thông báo riêng biệt của một học phần (FR-04)
-   * Phân loại riêng nghỉ học, học bù, đổi phòng, bài tập
    */
-  async getCourseNotifications(courseCode, studentId = null) {
-    const allNotifs = Array.from(this.dbStore.notifications.values()).filter(
-      (n) => n.course_code === courseCode || (n.tags && n.tags.includes(`#${courseCode}`))
-    );
-
-    allNotifs.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-
-    return allNotifs.map((n) => {
-      let isRead = false;
-      let isAcknowledged = false;
-      if (studentId) {
-        const student = this.dbStore.findStudentByCodeOrId(studentId);
-        const sId = student ? student.id : studentId;
-        const entry = this.dbStore.student_notifications.find(
-          (sn) => sn.notification_id === n.id && sn.student_id === sId
-        );
-        if (entry) {
-          isRead = Boolean(entry.is_read);
-          isAcknowledged = Boolean(entry.is_acknowledged);
-        }
-      }
-      return {
-        ...n,
-        is_read: isRead,
-        is_acknowledged: isAcknowledged,
-      };
-    });
+  async getCourseNotifications(courseCode, studentIdentifier = null) {
+    let studentUuid = null;
+    if (studentIdentifier) {
+      const student = await this.studentRepo.resolveStudent(studentIdentifier);
+      studentUuid = student ? student.id : null;
+    }
+    return this.notificationRepo.listByCourse(courseCode, studentUuid);
   }
 }
 
@@ -257,4 +216,3 @@ module.exports = {
   CourseService,
   courseService,
 };
-

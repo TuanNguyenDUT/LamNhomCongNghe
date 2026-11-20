@@ -8,7 +8,7 @@ async function seed() {
   
   for (const n of notices) {
     const postData = JSON.stringify({
-      source_channel: n.channel || 'DUT_CHUNG',
+      source_channel: n.channel || 'DUT_GENERAL',
       title: n.title,
       content: n.content,
       raw_html: n.raw_html || n.content,

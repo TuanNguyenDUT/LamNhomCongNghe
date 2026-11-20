@@ -1,670 +1,635 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../../core/config/app_config.dart';
-import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/presentation/app_toast.dart';
+import '../../../core/presentation/warm_pearl_tokens.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../courses/presentation/enrolled_courses_screen.dart';
+import 'widgets/followed_fanpages_card.dart';
+import 'widgets/gcal_settings_card.dart';
+import 'widgets/holo_student_pass.dart';
 import 'widgets/interest_topics_card.dart';
 import 'widgets/quick_reminders_settings_card.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authControllerProvider);
-    final session = authState.session;
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
 
-    final studentCode = session?.studentCode.isNotEmpty == true ? session!.studentCode : '102230026';
-    final fullName = session?.fullName.isNotEmpty == true ? session!.fullName : 'Nguyễn Văn Lợi';
-    final className = session?.className.isNotEmpty == true ? session!.className : '23T_Nhat1';
-    final faculty = session?.faculty.isNotEmpty == true ? session!.faculty : 'Khoa Công nghệ Thông tin';
-    final cohort = session?.cohort.isNotEmpty == true ? session!.cohort : 'K2023';
-    final major = session?.major?.isNotEmpty == true ? session!.major! : 'Công nghệ Thông tin';
-    final program = session?.program?.isNotEmpty == true ? session!.program! : 'Công nghệ Thông tin K2023 Nhật';
-    final dob = session?.dob?.isNotEmpty == true ? session!.dob! : '07/09/2005';
-    final gender = session?.gender?.isNotEmpty == true ? session!.gender! : 'Nam';
-    final schoolEmail = session?.schoolEmail?.isNotEmpty == true ? session!.schoolEmail! : '$studentCode@sv1.dut.udn.vn';
-    final personalEmail = session?.personalEmail?.isNotEmpty == true ? session!.personalEmail! : '';
-    final phone = session?.phone?.isNotEmpty == true ? session!.phone! : '';
-    final avatarPath = session?.avatarUrl?.isNotEmpty == true
-        ? session!.avatarUrl!
-        : '/api/v1/avatar/$studentCode.jpg';
-    final avatarUrl = avatarPath.startsWith('http')
-        ? avatarPath
-        : '${AppConfig.apiBaseUrl}$avatarPath';
-    final totalCourses = session?.totalCourses ?? 9;
-    final lastSynced = session?.dutLastSyncedAt ?? 'Hôm nay';
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  String _currentSubTab = 'info'; // 'info' | 'settings'
+  bool _focusGcal = false;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9), // Apple iOS Canvas
-      body: Stack(
-        children: [
-          // Background ambient gradient orb for Apple Liquid Glass
-          Positioned(
-            top: -100,
-            right: -60,
-            child: Container(
-              width: 320,
-              height: 320,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF007AFF).withValues(alpha: 0.22),
-                    Colors.transparent,
-                  ],
-                ),
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final uri = GoRouterState.of(context).uri;
+      final tabParam = uri.queryParameters['tab'];
+      if (tabParam == 'settings') {
+        _currentSubTab = 'settings';
+      } else if (tabParam == 'info') {
+        _currentSubTab = 'info';
+      }
+
+      final focusParam = uri.queryParameters['focus'];
+      if (focusParam == 'gcal') {
+        _currentSubTab = 'settings';
+        _focusGcal = true;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handleReSyncCourses() async {
+    final session = ref.read(authControllerProvider).session;
+    final studentId = session?.studentCode ?? '';
+
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.post(
+        '/api/v1/dut/sync-courses',
+        data: {'student_id': studentId},
+      );
+      ref.invalidate(enrolledCoursesProvider);
+
+      if (mounted) {
+        AppToast.showSuccess(
+          context,
+          'Đã đồng bộ lại danh sách học phần từ cổng sv.dut.udn.vn',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        AppToast.showError(context, 'Lỗi đồng bộ học phần từ sv.dut.udn.vn');
+      }
+    }
+  }
+
+  void _showLogoutConfirmation(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+            decoration: const BoxDecoration(
+              color: WarmPearlColors.sheetBg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border(
+                top: BorderSide(color: Colors.white, width: 1.5),
               ),
-            ),
-          ),
-          Positioned(
-            top: 260,
-            left: -80,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFF5856D6).withValues(alpha: 0.16),
-                    Colors.transparent,
-                  ],
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x29182036),
+                  blurRadius: 48,
+                  offset: Offset(0, -18),
                 ),
-              ),
+              ],
             ),
-          ),
-
-          SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // Apple Style App Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hồ Sơ Sinh Viên',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                                letterSpacing: -0.8,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Dữ liệu thực tế từ sv.dut.udn.vn/PageCaNhan.aspx',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        LiquidGlassBadge(
-                          text: 'sv.dut.udn.vn',
-                          icon: Icons.verified_rounded,
-                          color: const Color(0xFF34C759), // Apple Green
-                        ),
-                      ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4.5,
+                    decoration: BoxDecoration(
+                      color: WarmPearlColors.sheetHandle,
+                      borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                 ),
+                const SizedBox(height: 18),
 
-                // Main Profile Card (Liquid Glass with Avatar & Full Name)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: LiquidGlassContainer(
-                      borderRadius: 26,
-                      blurSigma: 24,
-                      opacity: 0.90,
-                      padding: const EdgeInsets.all(22),
+                // Icon & Title
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: WarmPearlColors.roseSoft,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: WarmPearlColors.roseBorder),
+                      ),
+                      child: const Icon(
+                        Icons.logout_rounded,
+                        color: WarmPearlColors.rose,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: Column(
-                        children: [
-                          // Avatar & Name
-                          Row(
-                            children: [
-                              Container(
-                                width: 76,
-                                height: 76,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color(0xFF007AFF),
-                                      Color(0xFF5856D6),
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF007AFF).withValues(alpha: 0.35),
-                                      blurRadius: 18,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
-                                  child: Image.network(
-                                    avatarUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Center(
-                                      child: Text(
-                                        studentCode.length >= 2
-                                            ? studentCode.substring(studentCode.length - 2)
-                                            : 'SV',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: -0.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 18),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      fullName,
-                                      style: const TextStyle(
-                                        fontSize: 21,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF0F172A),
-                                        letterSpacing: -0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 9,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF007AFF).withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            'MSSV: $studentCode',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF007AFF),
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF5856D6).withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            className,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF5856D6),
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 7,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF34C759).withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            cohort,
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF34C759),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 22),
-                          const Divider(height: 1, color: Color(0x1A0F172A)),
-                          const SizedBox(height: 18),
-
-                          // Academic details grid
-                          _buildDetailRow(
-                            icon: Icons.badge_rounded,
-                            iconColor: const Color(0xFF007AFF),
-                            label: 'Họ và tên đầy đủ',
-                            value: fullName,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            icon: Icons.groups_rounded,
-                            iconColor: const Color(0xFF5856D6),
-                            label: 'Lớp sinh hoạt & Khóa',
-                            value: '$className (Khóa $cohort)',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            icon: Icons.account_balance_rounded,
-                            iconColor: const Color(0xFF007AFF),
-                            label: 'Khoa quản lý & Ngành',
-                            value: '$faculty\nNgành: $major',
-                          ),
-                          if (program.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            _buildDetailRow(
-                              icon: Icons.auto_stories_rounded,
-                              iconColor: const Color(0xFF0284C7),
-                              label: 'Chương trình đào tạo',
-                              value: program,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Đăng xuất khỏi thiết bị?',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.displayFont,
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w800,
+                              color: WarmPearlColors.inkPrimary,
                             ),
-                          ],
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            icon: Icons.cake_rounded,
-                            iconColor: const Color(0xFFFF2D55),
-                            label: 'Ngày sinh & Giới tính',
-                            value: '$dob  •  $gender',
                           ),
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            icon: Icons.school_rounded,
-                            iconColor: const Color(0xFFFF9500),
-                            label: 'Học phần học kỳ hiện tại',
-                            value: '$totalCourses học phần đang theo học',
-                          ),
-                          const SizedBox(height: 12),
-                          _buildDetailRow(
-                            icon: Icons.sync_rounded,
-                            iconColor: const Color(0xFF34C759),
-                            label: 'Thời gian đồng bộ cổng trường',
-                            value: _formatSyncTime(lastSynced),
+                          SizedBox(height: 2),
+                          Text(
+                            'Phiên đăng nhập trên thiết bị này sẽ kết thúc.',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.bodyFont,
+                              fontSize: 12,
+                              color: WarmPearlColors.inkSecondary,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 24),
 
-                // Section: Chủ đề quan tâm & Cá nhân hóa thông báo
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 10),
-                    child: InterestTopicsCard(),
-                  ),
-                ),
-
-                // Section: Cấu hình Nhắc nhở Nhanh & Lịch Google
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 6, 20, 10),
-                    child: QuickRemindersSettingsCard(),
-                  ),
-                ),
-
-                // Section: Thông tin liên lạc
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
-                    child: const Text(
-                      'THÔNG TIN LIÊN LẠC & TÀI KHOẢN TRƯỜNG CẤP',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: LiquidGlassContainer(
-                      borderRadius: 22,
-                      blurSigma: 20,
-                      opacity: 0.85,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          _buildContactItem(
-                            icon: Icons.email_rounded,
-                            iconColor: const Color(0xFF007AFF),
-                            title: 'Email Office365 trường cấp',
-                            value: schoolEmail,
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(ctx).pop(),
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: WarmPearlColors.glassBorderStrong,
+                            ),
                           ),
-                          if (personalEmail.isNotEmpty) ...[
-                            const Divider(height: 20, color: Color(0x1A0F172A)),
-                            _buildContactItem(
-                              icon: Icons.alternate_email_rounded,
-                              iconColor: const Color(0xFF5856D6),
-                              title: 'Email cá nhân liên hệ',
-                              value: personalEmail,
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Hủy',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.displayFont,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: WarmPearlColors.inkPrimary,
                             ),
-                          ],
-                          if (phone.isNotEmpty) ...[
-                            const Divider(height: 20, color: Color(0x1A0F172A)),
-                            _buildContactItem(
-                              icon: Icons.phone_android_rounded,
-                              iconColor: const Color(0xFF34C759),
-                              title: 'Số điện thoại',
-                              value: phone,
-                            ),
-                          ],
-                        ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-
-                // Section: Thao tác tiện ích
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
-                    child: const Text(
-                      'TIỆN ÍCH & TÙY CHỌN',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        LiquidGlassCard(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          onTap: () {
-                            ref.invalidate(enrolledCoursesProvider);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Đang làm mới danh sách học phần từ sv.dut.udn.vn...'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF007AFF).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.sync_rounded,
-                                  color: Color(0xFF007AFF),
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Đồng bộ lại danh sách học phần',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Cập nhật lại lịch học và thông báo mới',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: Color(0xFF94A3B8),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.of(ctx).pop();
+                          await ref
+                              .read(authControllerProvider.notifier)
+                              .logout();
+                          if (context.mounted) {
+                            context.go('/login');
+                          }
+                        },
+                        child: Container(
+                          height: 44,
+                          decoration: BoxDecoration(
+                            gradient: WarmPearlGradients.roseButton,
+                            borderRadius: BorderRadius.circular(999),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x3DE11D48),
+                                blurRadius: 16,
+                                offset: Offset(0, 4),
                               ),
                             ],
                           ),
-                        ),
-
-                        LiquidGlassCard(
-                          margin: const EdgeInsets.only(bottom: 24),
-                          onTap: () => _confirmLogout(context, ref),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFF3B30).withValues(alpha: 0.12), // Apple Red
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.logout_rounded,
-                                  color: Color(0xFFFF3B30),
-                                  size: 22,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Đăng xuất khỏi thiết bị',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFFFF3B30),
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Xóa phiên đăng nhập sv.dut.udn.vn',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Color(0xFF64748B),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: Color(0xFFFF3B30),
-                              ),
-                            ],
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Đăng xuất',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.displayFont,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-
-                // Spacing for floating Bottom Navigation Bar
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 100),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildDetailRow({
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(authControllerProvider).session;
+
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 120),
+      children: [
+        // 2-Segment Switcher (Hồ sơ sinh viên | Cài đặt & Đồng bộ)
+        Container(
+          height: 42,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: WarmPearlColors.segSwitcherBg,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: WarmPearlColors.glassBorderStrong,
+              width: 1,
+            ),
+            boxShadow: WarmPearlShadows.glassSm,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _currentSubTab = 'info'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: WarmPearlMotion.spring,
+                    decoration: BoxDecoration(
+                      gradient: _currentSubTab == 'info'
+                          ? WarmPearlGradients.coralButton
+                          : null,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: _currentSubTab == 'info'
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x33182036),
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Hồ sơ sinh viên',
+                      style: TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _currentSubTab == 'info'
+                            ? Colors.white
+                            : WarmPearlColors.inkSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _currentSubTab = 'settings'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: WarmPearlMotion.spring,
+                    decoration: BoxDecoration(
+                      gradient: _currentSubTab == 'settings'
+                          ? WarmPearlGradients.coralButton
+                          : null,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: _currentSubTab == 'settings'
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x33182036),
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'Cài đặt & Đồng bộ',
+                      style: TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: _currentSubTab == 'settings'
+                            ? Colors.white
+                            : WarmPearlColors.inkSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        // SUB-VIEW 1: HỒ SƠ SINH VIÊN
+        if (_currentSubTab == 'info') ...[
+          // 3D Holographic Pass
+          HoloStudentPass(session: session),
+
+          const SizedBox(height: 14),
+
+          // 7-Row Structured Detail Glass Card
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: WarmPearlColors.glassBgStrong,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: WarmPearlColors.glassBorderStrong,
+                width: 1,
+              ),
+              boxShadow: WarmPearlShadows.glassSm,
+            ),
+            child: Column(
+              children: [
+                _buildProfileDetailRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Họ và tên đầy đủ',
+                  value: session?.fullName ?? '—',
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                _buildProfileDetailRow(
+                  icon: Icons.badge_outlined,
+                  label: 'Lớp sinh hoạt & Khóa',
+                  value: '${session?.className ?? '—'} • ${session?.cohort ?? '—'}',
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                _buildProfileDetailRow(
+                  icon: Icons.account_balance_outlined,
+                  label: 'Khoa quản lý & Ngành',
+                  value: '${session?.faculty ?? '—'}\n${session?.major ?? '—'}',
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                _buildProfileDetailRow(
+                  icon: Icons.school_outlined,
+                  label: 'Chương trình đào tạo',
+                  value: session?.program ?? '—',
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                _buildProfileDetailRow(
+                  icon: Icons.cake_outlined,
+                  label: 'Ngày sinh & Giới tính',
+                  value: '${session?.dob ?? '—'} • ${session?.gender ?? '—'}',
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                GestureDetector(
+                  onTap: () => context.go('/courses'),
+                  behavior: HitTestBehavior.opaque,
+                  child: _buildProfileDetailRow(
+                    icon: Icons.menu_book_rounded,
+                    label: 'Học phần học kỳ hiện tại',
+                    value: '${session?.totalCourses ?? 0} môn (Xem chi tiết →)',
+                    valueColor: WarmPearlColors.coralInk,
+                  ),
+                ),
+                const Divider(height: 1, color: WarmPearlColors.glassDivider),
+                _buildProfileDetailRow(
+                  icon: Icons.history_rounded,
+                  label: 'Thời gian đồng bộ cổng trường',
+                  value: session?.dutLastSyncedAt ?? 'Hôm nay',
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Office365 Email Box
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: WarmPearlColors.glassBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.alternate_email_rounded,
+                    color: Color(0xFFD97706),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Email trường cấp (Office365)',
+                        style: TextStyle(
+                          fontFamily: WarmPearlTypography.bodyFont,
+                          fontSize: 11,
+                          color: WarmPearlColors.inkMuted,
+                        ),
+                      ),
+                      Text(
+                        session?.schoolEmail?.isNotEmpty == true
+                            ? session!.schoolEmail!
+                            : '${session?.studentCode ?? 'sv'}@sv1.dut.udn.vn',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: WarmPearlTypography.displayFont,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: WarmPearlColors.inkPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.copy_rounded,
+                    size: 16,
+                    color: WarmPearlColors.inkMuted,
+                  ),
+                  onPressed: () {
+                    final email = session?.schoolEmail ??
+                        '${session?.studentCode ?? 'sv'}@sv1.dut.udn.vn';
+                    Clipboard.setData(ClipboardData(text: email));
+                    AppToast.showSuccess(context, 'Đã sao chép email sinh viên');
+                  },
+                ),
+              ],
+            ),
+          ),
+        ]
+
+        // SUB-VIEW 2: CÀI ĐẶT & ĐỒNG BỘ
+        else ...[
+          // Google Calendar Card
+          GCalSettingsCard(highlightPulse: _focusGcal),
+
+          const SizedBox(height: 12),
+
+          // Quick Reminders Settings Card
+          const QuickRemindersSettingsCard(),
+
+          const SizedBox(height: 12),
+
+          // Interest Topics Card
+          const InterestTopicsCard(),
+
+          const SizedBox(height: 12),
+
+          // Followed Fanpages Card
+          const FollowedFanpagesCard(),
+
+          const SizedBox(height: 14),
+
+          // Re-sync Courses Utility Row
+          GestureDetector(
+            onTap: _handleReSyncCourses,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: WarmPearlColors.glassBorder),
+              ),
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.sync_rounded,
+                    size: 20,
+                    color: WarmPearlColors.mint,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Đồng bộ lại danh sách học phần từ cổng',
+                      style: TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: WarmPearlColors.inkPrimary,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: WarmPearlColors.inkMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Logout Utility Row (Rose border)
+          GestureDetector(
+            onTap: () => _showLogoutConfirmation(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: WarmPearlColors.roseSoft,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: WarmPearlColors.roseBorder),
+              ),
+              child: Row(
+                children: const [
+                  Icon(
+                    Icons.logout_rounded,
+                    size: 20,
+                    color: WarmPearlColors.rose,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Đăng xuất khỏi thiết bị',
+                      style: TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: WarmPearlColors.rose,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: WarmPearlColors.rose,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProfileDetailRow({
     required IconData icon,
-    required Color iconColor,
     required String label,
     required String value,
+    Color? valueColor,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: WarmPearlColors.inkSecondary),
           ),
-          child: Icon(icon, color: iconColor, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: WarmPearlTypography.bodyFont,
+                    fontSize: 11,
+                    color: WarmPearlColors.inkMuted,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontFamily: WarmPearlTypography.displayFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: valueColor ?? WarmPearlColors.inkPrimary,
+                    height: 1.25,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContactItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: iconColor, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatSyncTime(String raw) {
-    try {
-      final dt = DateTime.parse(raw).toLocal();
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} ngày ${dt.day}/${dt.month}/${dt.year}';
-    } catch (_) {
-      return raw;
-    }
-  }
-
-  void _confirmLogout(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white.withValues(alpha: 0.95),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text(
-          'Đăng xuất',
-          style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-        ),
-        content: const Text(
-          'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không? Lần sau bạn sẽ cần nhập lại mật khẩu sv.dut.udn.vn.',
-          style: TextStyle(color: Color(0xFF475569), fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ref.read(authControllerProvider.notifier).logout();
-              context.go('/login');
-            },
-            child: const Text(
-              'Đăng xuất',
-              style: TextStyle(color: Color(0xFFFF3B30), fontWeight: FontWeight.w700),
+              ],
             ),
           ),
         ],

@@ -18,8 +18,17 @@ class UserSession {
     this.dutLastSyncedAt,
     this.totalCourses = 0,
     this.isPersonalizedEnabled = true,
-    this.interestedTopics = const ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
+    this.interestedTopics = defaultInterestedTopics,
   });
+
+  static const List<String> defaultInterestedTopics = [
+    'ACADEMIC',
+    'GRADE',
+    'ADMINISTRATIVE',
+    'EVENT',
+    'CAREER',
+    'SCHOLARSHIP',
+  ];
 
   final String studentCode;
   final String fullName;
@@ -42,35 +51,66 @@ class UserSession {
   final List<String> interestedTopics;
 
   factory UserSession.fromJson(Map<String, dynamic> json) {
-    final student = json['student'] as Map<String, dynamic>? ?? json;
-    List<String> topics = const ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+    final rawStudent = json['student'];
+    final Map<String, dynamic> student = rawStudent is Map<String, dynamic>
+        ? rawStudent
+        : (rawStudent is Map
+            ? Map<String, dynamic>.from(rawStudent)
+            : json);
+
+    List<String> topics = defaultInterestedTopics;
     if (student['interested_topics'] is List) {
-      topics = (student['interested_topics'] as List).map((e) => e.toString()).toList();
+      topics = (student['interested_topics'] as List)
+          .map((e) => e.toString())
+          .toList();
     } else if (json['interested_topics'] is List) {
-      topics = (json['interested_topics'] as List).map((e) => e.toString()).toList();
+      topics = (json['interested_topics'] as List)
+          .map((e) => e.toString())
+          .toList();
+    }
+
+    final rawTotalCourses = student['total_courses'] ?? json['total_courses'];
+    final int parsedTotalCourses;
+    if (rawTotalCourses is num) {
+      parsedTotalCourses = rawTotalCourses.toInt();
+    } else if (rawTotalCourses is String) {
+      parsedTotalCourses = int.tryParse(rawTotalCourses) ??
+          (json['courses'] as List?)?.length ??
+          0;
+    } else {
+      parsedTotalCourses = (json['courses'] as List?)?.length ?? 0;
     }
 
     return UserSession(
-      studentCode: (student['student_code'] ?? json['student_code'] ?? '').toString(),
-      studentId: (student['id'] ?? json['student_id'] ?? json['id'])?.toString(),
-      fullName: (student['full_name'] ?? json['full_name'] ?? 'Sinh viên DUT').toString(),
-      className: (student['class_name'] ?? json['class_name'] ?? '23T_Nhat1').toString(),
-      faculty: (student['faculty'] ?? json['faculty'] ?? 'Khoa Công nghệ Thông tin').toString(),
-      cohort: (student['cohort'] ?? json['cohort'] ?? 'K23').toString(),
+      studentCode:
+          (student['student_code'] ?? json['student_code'] ?? '').toString(),
+      studentId:
+          (student['id'] ?? json['student_id'] ?? json['id'])?.toString(),
+      fullName: (student['full_name'] ?? json['full_name'] ?? '').toString(),
+      className:
+          (student['class_name'] ?? json['class_name'] ?? '').toString(),
+      faculty: (student['faculty'] ?? json['faculty'] ?? '').toString(),
+      cohort: (student['cohort'] ?? json['cohort'] ?? '').toString(),
       token: (json['token'] ?? '').toString(),
       major: (student['major'] ?? json['major'])?.toString(),
       program: (student['program'] ?? json['program'])?.toString(),
       avatarUrl: (student['avatar_url'] ?? json['avatar_url'])?.toString(),
       dob: (student['dob'] ?? json['dob'])?.toString(),
       gender: (student['gender'] ?? json['gender'])?.toString(),
-      schoolEmail: (student['school_email'] ?? json['school_email'])?.toString(),
-      personalEmail: (student['personal_email'] ?? json['personal_email'])?.toString(),
+      schoolEmail:
+          (student['school_email'] ?? json['school_email'])?.toString(),
+      personalEmail:
+          (student['personal_email'] ?? json['personal_email'])?.toString(),
       phone: (student['phone'] ?? json['phone'])?.toString(),
-      dutLastSyncedAt: (student['dut_last_synced_at'] ?? json['dut_last_synced_at'])?.toString(),
-      totalCourses: (student['total_courses'] ?? json['total_courses'] ?? 0) as int,
+      dutLastSyncedAt:
+          (student['dut_last_synced_at'] ?? json['dut_last_synced_at'])
+              ?.toString(),
+      totalCourses: parsedTotalCourses,
       isPersonalizedEnabled: student['is_personalized_enabled'] != null
           ? student['is_personalized_enabled'] == true
-          : (json['is_personalized_enabled'] != null ? json['is_personalized_enabled'] == true : true),
+          : (json['is_personalized_enabled'] != null
+              ? json['is_personalized_enabled'] == true
+              : true),
       interestedTopics: topics,
     );
   }
@@ -138,7 +178,8 @@ class UserSession {
       phone: phone ?? this.phone,
       dutLastSyncedAt: dutLastSyncedAt ?? this.dutLastSyncedAt,
       totalCourses: totalCourses ?? this.totalCourses,
-      isPersonalizedEnabled: isPersonalizedEnabled ?? this.isPersonalizedEnabled,
+      isPersonalizedEnabled:
+          isPersonalizedEnabled ?? this.isPersonalizedEnabled,
       interestedTopics: interestedTopics ?? this.interestedTopics,
     );
   }
