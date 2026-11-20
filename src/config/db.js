@@ -3,7 +3,12 @@
  * Hỗ trợ chạy Dual-mode: kết nối Postgres thật khi có CSDL hoặc Mock Store khi test/local.
  */
 
-const { Pool } = require('pg');
+let Pool = null;
+try {
+  Pool = require('pg').Pool;
+} catch (_) {
+  // pg module chưa cài đặt (chế độ in-memory test)
+}
 const crypto = require('node:crypto');
 
 let globalPool = null;
@@ -56,6 +61,7 @@ class InMemoryDbStore {
     this.student_notifications = []; // { student_id, notification_id, is_read, read_at, is_acknowledged, acknowledged_at }
     this.deadlines = new Map();
     this.device_tokens = new Map();
+    this.followed_fb_pages = new Map(); // id -> { id, student_id, page_url, page_name, page_username, channel_code, is_active, created_at }
     this._seedDefaults();
     if (this.pool) {
       this._preloadFromPostgres().catch((err) =>
@@ -221,6 +227,24 @@ class InMemoryDbStore {
       this.saveCourse(c);
       this.enrollStudentCourse(defaultStudent.id, c.course_code);
     }
+
+    // Seed 2 Fanpage chính thức mặc định
+    this.saveFollowedPage({
+      student_id: defaultStudent.id,
+      page_url: 'https://www.facebook.com/ctsvdhbkdhdn',
+      page_name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
+      page_username: 'ctsvdhbkdhdn',
+      channel_code: 'FB_CTSV',
+      is_active: true,
+    });
+    this.saveFollowedPage({
+      student_id: defaultStudent.id,
+      page_url: 'https://www.facebook.com/tuvansinhvien.dut',
+      page_name: 'Tư vấn Sinh viên DUT / Tổ Tư vấn Tuyển sinh & Hỗ trợ SV',
+      page_username: 'tuvansinhvien.dut',
+      channel_code: 'FB_TUVAN_SV',
+      is_active: true,
+    });
   }
 
   // --- Helpers for In-Memory Queries ---
@@ -558,6 +582,102 @@ class InMemoryDbStore {
     }
     list.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
     return list;
+  }
+
+  // ==========================================
+  // QUẢN LÝ FANPAGE FACEBOOK THEO DÕI (FOLLOWED FB PAGES)
+  // ==========================================
+  saveFollowedPage(page) {
+    if (!page.id) page.id = crypto.randomUUID();
+    page.created_at = page.created_at || new Date().toISOString();
+    page.updated_at = new Date().toISOString();
+    if (page.is_active === undefined) page.is_active = true;
+
+    // Chống trùng lặp theo student_id và page_url
+    for (const existing of this.followed_fb_pages.values()) {
+      if (
+        (existing.student_id === page.student_id || !existing.student_id) &&
+        (existing.page_url === page.page_url || existing.page_username === page.page_username)
+      ) {
+        existing.is_active = true;
+        existing.page_name = page.page_name || existing.page_name;
+        existing.updated_at = new Date().toISOString();
+        return existing;
+      }
+    }
+
+    this.followed_fb_pages.set(page.id, page);
+
+    if (this.pool) {
+      this.pool
+        .query(
+          `INSERT INTO followed_fb_pages (id, student_id, page_url, page_name, page_username, channel_code, is_active, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (student_id, page_url) DO UPDATE SET
+             page_name = EXCLUDED.page_name,
+             is_active = TRUE,
+             updated_at = NOW()`,
+          [
+            page.id,
+            page.student_id || null,
+            page.page_url,
+            page.page_name,
+            page.page_username,
+            page.channel_code,
+            page.is_active,
+            page.created_at,
+            page.updated_at,
+          ]
+        )
+        .catch((err) => console.warn('PG sync error (followed_fb_pages):', err.message));
+    }
+
+    return page;
+  }
+
+  getFollowedPages(studentId) {
+    const list = [];
+    for (const page of this.followed_fb_pages.values()) {
+      if (page.is_active && (!studentId || !page.student_id || page.student_id === studentId)) {
+        list.push(page);
+      }
+    }
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return list;
+  }
+
+  deleteFollowedPage(pageId, studentId) {
+    let found = null;
+    for (const [id, page] of this.followed_fb_pages.entries()) {
+      if (id === pageId || page.page_username === pageId || page.page_url === pageId) {
+        if (!studentId || !page.student_id || page.student_id === studentId) {
+          page.is_active = false;
+          found = page;
+          this.followed_fb_pages.delete(id);
+          break;
+        }
+      }
+    }
+
+    if (this.pool && found) {
+      this.pool
+        .query('UPDATE followed_fb_pages SET is_active = FALSE WHERE id = $1', [found.id])
+        .catch(() => {});
+    }
+
+    return Boolean(found);
+  }
+
+  getAllActiveFollowedPages() {
+    const uniqueMap = new Map();
+    for (const page of this.followed_fb_pages.values()) {
+      if (page.is_active && page.page_url) {
+        if (!uniqueMap.has(page.page_url)) {
+          uniqueMap.set(page.page_url, page);
+        }
+      }
+    }
+    return Array.from(uniqueMap.values());
   }
 }
 

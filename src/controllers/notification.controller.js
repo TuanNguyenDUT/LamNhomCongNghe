@@ -688,6 +688,119 @@ class NotificationController {
       },
     };
   }
+
+  // ==========================================
+  // 5. QUẢN LÝ THEO DÕI FANPAGE FACEBOOK (CUSTOM FB PAGES)
+  // ==========================================
+  async followFacebookPage(payload = {}) {
+    const pageUrl = payload.page_url || payload.url;
+    if (!pageUrl) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: 'Vui lòng cung cấp "page_url" của Fanpage Facebook' },
+      };
+    }
+    const studentId = payload.student_id || payload.student_code || '102200001';
+    const pageName = payload.page_name || payload.name;
+
+    try {
+      const { fbCrawlerService } = require('../services/fb-crawler.service');
+      const result = await fbCrawlerService.followPage({
+        studentId,
+        pageUrl,
+        pageName,
+      });
+      return {
+        statusCode: 201,
+        body: result,
+      };
+    } catch (err) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: err.message },
+      };
+    }
+  }
+
+  async getFollowedFacebookPages(queryParams = {}) {
+    const studentId = queryParams.student_id || queryParams.student_code || '102200001';
+    try {
+      const { fbCrawlerService } = require('../services/fb-crawler.service');
+      const list = fbCrawlerService.getFollowedPages(studentId);
+      return {
+        statusCode: 200,
+        body: {
+          status: 'success',
+          total: list.length,
+          data: list,
+        },
+      };
+    } catch (err) {
+      return {
+        statusCode: 500,
+        body: { status: 'error', message: err.message },
+      };
+    }
+  }
+
+  async unfollowFacebookPage(pageId, queryParams = {}) {
+    if (!pageId) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: 'Vui lòng cung cấp ID của Fanpage cần hủy theo dõi' },
+      };
+    }
+    const studentId = queryParams.student_id || queryParams.student_code;
+    try {
+      const { fbCrawlerService } = require('../services/fb-crawler.service');
+      const ok = fbCrawlerService.unfollowPage(pageId, studentId);
+      return {
+        statusCode: 200,
+        body: {
+          status: 'success',
+          message: ok ? 'Đã hủy theo dõi Fanpage thành công' : 'Không tìm thấy Fanpage để hủy',
+          data: { id: pageId, unfollowed: ok },
+        },
+      };
+    } catch (err) {
+      return {
+        statusCode: 500,
+        body: { status: 'error', message: err.message },
+      };
+    }
+  }
+
+  async crawlCustomFacebookPage(payload = {}) {
+    const pageUrl = payload.page_url || payload.url;
+    if (!pageUrl) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: 'Vui lòng cung cấp "page_url"' },
+      };
+    }
+    const monthsLimit = payload.months_limit ? Number(payload.months_limit) : 2;
+    const pageName = payload.page_name || payload.name;
+
+    try {
+      const { fbCrawlerService } = require('../services/fb-crawler.service');
+      const result = await fbCrawlerService.scrapeCustomFacebookPage(pageUrl, {
+        monthsLimit,
+        pageName,
+      });
+      return {
+        statusCode: 200,
+        body: {
+          status: 'success',
+          data: result,
+        },
+      };
+    } catch (err) {
+      return {
+        statusCode: 400,
+        body: { status: 'error', message: err.message },
+      };
+    }
+  }
 }
 
 const notificationController = new NotificationController();

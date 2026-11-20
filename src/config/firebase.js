@@ -4,13 +4,17 @@
  * Firebase credentials. Credential chỉ bắt buộc tại thời điểm gửi push thật.
  */
 
-const {
-  applicationDefault,
-  cert,
-  getApps,
-  initializeApp,
-} = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+let applicationDefault, cert, getApps, initializeApp, getMessaging;
+try {
+  const firebaseApp = require('firebase-admin/app');
+  applicationDefault = firebaseApp.applicationDefault;
+  cert = firebaseApp.cert;
+  getApps = firebaseApp.getApps;
+  initializeApp = firebaseApp.initializeApp;
+  getMessaging = require('firebase-admin/messaging').getMessaging;
+} catch (_) {
+  // firebase-admin chưa cài đặt (chế độ mock / local test)
+}
 
 class FirebaseConfigurationError extends Error {
   constructor(message) {
@@ -41,7 +45,7 @@ function shouldUseApplicationDefault() {
 }
 
 function getFirebaseConfigurationStatus() {
-  if (getApps().length > 0) {
+  if (typeof getApps === 'function' && getApps().length > 0) {
     return { configured: true, credential_source: 'initialized' };
   }
   if (hasExplicitServiceAccountEnv()) {
@@ -54,6 +58,9 @@ function getFirebaseConfigurationStatus() {
 }
 
 function getFirebaseApp() {
+  if (typeof getApps !== 'function' || typeof initializeApp !== 'function') {
+    throw new FirebaseConfigurationError('Firebase Admin SDK chưa được cài đặt (chế độ mock / local)');
+  }
   const existing = getApps()[0];
   if (existing) {
     return existing;

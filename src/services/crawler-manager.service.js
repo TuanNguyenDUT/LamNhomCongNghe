@@ -78,7 +78,14 @@ class CrawlerManagerService {
       console.log(`▶ 2. Đang cào 2 Fanpage Facebook (CTSV & Tư vấn SV)...`);
       const fbResults = await this.fbCrawler.scrapeAllFanpages({ monthsLimit: this.monthsLimit });
 
-      const allNotices = [...dutResults.valid_notices, ...fbResults];
+      // 2.1 Cào các Fanpage Facebook được người dùng theo dõi (Custom followed FB pages)
+      let customFbResults = [];
+      if (typeof this.fbCrawler.scrapeAllFollowedPages === 'function') {
+        console.log(`▶ 2.1 Đang cào các Fanpage Facebook được sinh viên theo dõi...`);
+        customFbResults = await this.fbCrawler.scrapeAllFollowedPages({ monthsLimit: this.monthsLimit }).catch(() => []);
+      }
+
+      const allNotices = [...dutResults.valid_notices, ...fbResults, ...customFbResults];
       stats.total_scraped = allNotices.length;
 
       console.log(`▶ 3. Đã thu thập được tổng cộng ${allNotices.length} thông báo trong vòng ${this.monthsLimit} tháng.`);

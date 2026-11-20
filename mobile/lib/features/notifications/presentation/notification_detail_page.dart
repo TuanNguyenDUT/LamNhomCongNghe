@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
@@ -147,20 +148,49 @@ class NotificationDetailPage extends ConsumerWidget {
                     ),
                     const SizedBox(width: 10),
 
-                    // Nút Điều Hướng Facebook hoặc Liên Kết Gốc
+                    // Nút Điều Hướng Facebook hoặc Liên Kết Gốc (kèm Sao chép link)
                     if (isFb)
                       Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                          label: const Text('Mở Facebook'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1877F2),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            elevation: 1,
-                          ),
-                          onPressed: () => _openUrl(context, fbUrl),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                                label: const Text('Mở bài viết'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1877F2),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  elevation: 1,
+                                ),
+                                onPressed: () => _openUrl(context, fbUrl),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: fbUrl));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Đã sao chép link bài viết Facebook!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1877F2).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFF1877F2).withValues(alpha: 0.35)),
+                                ),
+                                child: const Icon(Icons.copy_rounded, color: Color(0xFF1877F2), size: 18),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     else if (item.sourceUrl != null && item.sourceUrl!.startsWith('http'))
