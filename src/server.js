@@ -22,6 +22,13 @@ function createServer(pgPool = getPool()) {
   const deviceController = new DeviceController(deviceRepository);
 
   const server = http.createServer(async (req, res) => {
+    const startTime = Date.now();
+    if (process.env.NODE_ENV !== 'test') {
+      res.on('finish', () => {
+        console.log(`[HTTP] ${req.method} ${req.url} - ${res.statusCode} (${Date.now() - startTime}ms)`);
+      });
+    }
+
     if (req.url?.startsWith('/api/devices') || req.url?.startsWith('/api/push')) {
       await deviceRouter(req, res, deviceController);
       return;
