@@ -18,7 +18,7 @@ class UserSession {
     this.dutLastSyncedAt,
     this.totalCourses = 0,
     this.isPersonalizedEnabled = true,
-    this.interestedTopics = const ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+    this.interestedTopics = const ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
   });
 
   final String studentCode;

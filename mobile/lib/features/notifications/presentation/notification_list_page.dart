@@ -207,6 +207,7 @@ Color _categoryColor(String? category) {
   return switch (category) {
     'GRADE' => Colors.purple,
     'CAREER' => Colors.teal,
+    'SCHOLARSHIP' => Colors.amber.shade800,
     'ADMINISTRATIVE' => Colors.deepOrange,
     'EVENT' => Colors.green,
     'ACADEMIC' => Colors.blue,

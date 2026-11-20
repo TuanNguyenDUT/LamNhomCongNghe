@@ -28,11 +28,6 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
   final List<Map<String, String>> _categories = const [
     {'code': 'ALL', 'label': '🌟 Tất cả'},
-    {'code': 'ACADEMIC', 'label': '📖 Học tập'},
-    {'code': 'GRADE', 'label': '📊 Điểm số'},
-    {'code': 'ADMINISTRATIVE', 'label': '📑 Hành chính'},
-    {'code': 'EVENT', 'label': '🎉 Hoạt động sự kiện'},
-    {'code': 'CAREER', 'label': '💼 Nghề nghiệp'},
     {'code': 'DUT_COURSE_CLASS', 'label': '📚 Lớp học phần'},
     {'code': 'DUT_TRAINING', 'label': '🎓 Đào tạo'},
     {'code': 'DUT_TUITION_FEE', 'label': '💰 Học phí, lệ phí'},
@@ -44,6 +39,15 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
     {'code': 'FB_TUVAN_SV', 'label': '💬 Tư vấn SV'},
   ];
 
+  final List<Map<String, String>> _topicFilterOptions = const [
+    {'code': 'ACADEMIC', 'label': '📖 Học tập'},
+    {'code': 'GRADE', 'label': '📊 Điểm số'},
+    {'code': 'ADMINISTRATIVE', 'label': '📑 Hành chính'},
+    {'code': 'EVENT', 'label': '🎉 Hoạt động sự kiện'},
+    {'code': 'CAREER', 'label': '💼 Nghề nghiệp'},
+    {'code': 'SCHOLARSHIP', 'label': '🎓 Học bổng'},
+  ];
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -53,6 +57,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedCategory = ref.watch(selectedCategoryProvider);
+    final selectedTopics = ref.watch(selectedTopicCategoriesProvider);
     final courseFilter = ref.watch(selectedCourseFilterProvider);
     final feedAsync = ref.watch(notificationFeedProvider);
     final authState = ref.watch(authControllerProvider);
@@ -270,6 +275,82 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                   ),
                 ),
 
+                // 3.1 Bộ lọc 6 loại thông báo (Chọn 1 hoặc nhiều option)
+                SizedBox(
+                  height: 42,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                    children: [
+                      GestureDetector(
+                        onTap: () => ref.read(selectedTopicCategoriesProvider.notifier).clear(),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: selectedTopics.isEmpty
+                                ? const Color(0xFF0F172A)
+                                : Colors.white.withValues(alpha: 0.72),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: selectedTopics.isEmpty
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              'Tất cả loại',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: selectedTopics.isEmpty ? Colors.white : const Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      ..._topicFilterOptions.map((opt) {
+                        final code = opt['code']!;
+                        final isChecked = selectedTopics.contains(code);
+                        final catColor = _getCategoryColor(code);
+                        return GestureDetector(
+                          onTap: () => ref.read(selectedTopicCategoriesProvider.notifier).toggle(code),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isChecked ? catColor : Colors.white.withValues(alpha: 0.75),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isChecked ? catColor : const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isChecked) ...[
+                                  const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                                  const SizedBox(width: 4),
+                                ],
+                                Text(
+                                  opt['label']!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isChecked ? Colors.white : const Color(0xFF334155),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
                 // 3.5 Banner hiển thị bộ lọc môn học riêng (nếu có)
                 if (courseFilter != null)
                   Padding(
@@ -343,13 +424,20 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
                     data: (page) {
                       var items = page.items;
 
-                      // Lọc theo Category / Loại thông báo / Kênh
+                      // Lọc theo Kênh nguồn (Phòng CTSV, Đào tạo, Tất cả...)
                       if (selectedCategory != 'ALL') {
                         items = items.where((item) {
                           return item.sourceChannel == selectedCategory ||
-                              item.sourceType == selectedCategory ||
-                              item.category == selectedCategory ||
-                              item.categoryCode == selectedCategory;
+                              item.sourceType == selectedCategory;
+                        }).toList();
+                      }
+
+                      // Lọc kết hợp theo 6 loại thông báo (Chọn 1 hoặc nhiều option: Học bổng, Điểm số...)
+                      if (selectedTopics.isNotEmpty) {
+                        items = items.where((item) {
+                          final cat = (item.category ?? '').toUpperCase();
+                          final catCode = (item.categoryCode ?? '').toUpperCase();
+                          return selectedTopics.contains(cat) || selectedTopics.contains(catCode);
                         }).toList();
                       }
 
@@ -849,6 +937,8 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
         return const Color(0xFFAF52DE);
       case 'CAREER':
         return const Color(0xFF30B0C7);
+      case 'SCHOLARSHIP':
+        return const Color(0xFFD97706);
       case 'ADMINISTRATIVE':
         return const Color(0xFFFF9500);
       case 'EVENT':

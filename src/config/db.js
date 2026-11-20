@@ -134,7 +134,7 @@ class InMemoryDbStore {
       class_name: '20TCLC_DT1',
       dut_session_encrypted: null,
       is_personalized_enabled: true,
-      interested_topics: ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+      interested_topics: ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
       dut_last_synced_at: new Date().toISOString(),
       fcm_tokens: ['fcm_token_test_device_1'],
       google_refresh_token: null,
@@ -155,7 +155,7 @@ class InMemoryDbStore {
       class_name: '23T_Nhat1',
       dut_session_encrypted: null,
       is_personalized_enabled: true,
-      interested_topics: ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+      interested_topics: ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
       dut_last_synced_at: new Date().toISOString(),
       fcm_tokens: ['fcm_token_test_device_loi'],
       google_refresh_token: null,
@@ -216,7 +216,7 @@ class InMemoryDbStore {
     student.created_at = student.created_at || new Date().toISOString();
     student.updated_at = new Date().toISOString();
     if (student.is_personalized_enabled === undefined) student.is_personalized_enabled = true;
-    if (!student.interested_topics) student.interested_topics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+    if (!student.interested_topics) student.interested_topics = ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'];
     if (student.is_calendar_sync_enabled === undefined) student.is_calendar_sync_enabled = true;
     if (!student.quick_reminder_options) student.quick_reminder_options = ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week'];
 

@@ -7,6 +7,9 @@ class DeadlineItem {
     this.description,
     this.courseCode,
     this.notificationId,
+    this.category,
+    this.categoryCode,
+    this.categoryName,
     this.status = 'PENDING',
     this.itemType = 'DEADLINE',
     this.googleEventId,
@@ -19,6 +22,9 @@ class DeadlineItem {
   final String? description;
   final String? courseCode;
   final String? notificationId;
+  final String? category;
+  final String? categoryCode;
+  final String? categoryName;
   final DateTime dueDate;
   final String status;
   final String itemType;
@@ -43,6 +49,9 @@ class DeadlineItem {
       description: json['description']?.toString(),
       courseCode: json['course_code']?.toString(),
       notificationId: json['notification_id']?.toString(),
+      category: json['category']?.toString(),
+      categoryCode: json['category_code']?.toString(),
+      categoryName: json['category_name']?.toString(),
       dueDate: DateTime.tryParse(json['due_date']?.toString() ?? '') ?? DateTime.now(),
       status: json['status']?.toString() ?? 'PENDING',
       itemType: inferredType,

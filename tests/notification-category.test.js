@@ -180,7 +180,25 @@ test('5. Phân loại chuẩn xác: Thông báo nghề nghiệp (CAREER)', () =>
   assert.ok(r3.tags.includes('#NghềNghiệp'));
 });
 
-test('6. REST API: GET /api/v1/notifications/categories trả về đủ 5 loại thông báo', async () => {
+test('6. Phân loại chuẩn xác: Học bổng (SCHOLARSHIP)', () => {
+  const r1 = detectNotificationCategory({
+    title: 'Thông báo xét cấp học bổng khuyến khích học tập học kỳ 1 năm học 2026-2027',
+    content: 'Sinh viên đủ điều kiện nộp hồ sơ học bổng tại phòng Công tác Sinh viên.',
+  });
+  assert.equal(r1.category, 'SCHOLARSHIP');
+  assert.equal(r1.category_code, 'hoc_bong');
+  assert.equal(r1.category_name, 'Học bổng');
+  assert.equal(r1.category_tag, '#HọcBổng');
+
+  const r2 = classifyNotification({
+    title: 'Doanh nghiệp trao học bổng tài trợ cho sinh viên vượt khó học giỏi',
+    content: 'Quỹ học bổng doanh nghiệp thông báo danh sách nhận học bổng đợt 2.',
+  });
+  assert.equal(r2.category, 'SCHOLARSHIP');
+  assert.ok(r2.tags.includes('#HọcBổng'));
+});
+
+test('7. REST API: GET /api/v1/notifications/categories trả về đủ 6 loại thông báo', async () => {
   const res = await callApi({
     method: 'GET',
     url: '/api/v1/notifications/categories',
@@ -189,30 +207,75 @@ test('6. REST API: GET /api/v1/notifications/categories trả về đủ 5 loạ
   assert.equal(res.status, 200);
   assert.equal(res.json.status, 'success');
   const cats = res.json.data;
-  assert.equal(cats.length, 5);
+  assert.equal(cats.length, 6);
 
   const codes = cats.map((c) => c.category);
-  assert.deepEqual(codes.sort(), ['ACADEMIC', 'ADMINISTRATIVE', 'CAREER', 'EVENT', 'GRADE'].sort());
+  assert.deepEqual(
+    codes.sort(),
+    ['ACADEMIC', 'ADMINISTRATIVE', 'CAREER', 'EVENT', 'GRADE', 'SCHOLARSHIP'].sort()
+  );
 
-  const academic = cats.find((c) => c.category === 'ACADEMIC');
-  assert.equal(academic.category_name, 'Thông báo học tập');
-  assert.equal(academic.category_tag, '#HọcTập');
+  const scholarship = cats.find((c) => c.category === 'SCHOLARSHIP');
+  assert.equal(scholarship.category_name, 'Học bổng');
+  assert.equal(scholarship.category_tag, '#HọcBổng');
+});
 
-  const grade = cats.find((c) => c.category === 'GRADE');
-  assert.equal(grade.category_name, 'Thông báo điểm số');
-  assert.equal(grade.category_tag, '#ĐiểmSố');
+test('8. Lọc đa lựa chọn (Multi-select): Chọn Học bổng + Điểm số kết hợp nguồn Phòng CTSV / Tất cả', async () => {
+  const { deadlineService } = require('../src/services/deadline.service');
 
-  const admin = cats.find((c) => c.category === 'ADMINISTRATIVE');
-  assert.equal(admin.category_name, 'Thông báo hành chính');
-  assert.equal(admin.category_tag, '#HànhChính');
+  await notificationService.ingestNotification({
+    title: 'Thông báo xét học bổng khuyến khích học tập Phòng CTSV đợt 1',
+    content: 'Sinh viên nộp hồ sơ học bổng trước ngày 25/12/2026.',
+    source_channel: 'DUT_STUDENT_AFFAIRS',
+  });
+  await notificationService.ingestNotification({
+    title: 'Phúc khảo điểm và cảnh báo kết quả học tập học kỳ 1',
+    content: 'Phòng CTSV tiếp nhận đơn phúc khảo điểm trước ngày 28/12/2026.',
+    source_channel: 'DUT_STUDENT_AFFAIRS',
+  });
+  await notificationService.ingestNotification({
+    title: 'Hoạt động tình nguyện Mùa hè xanh Phòng CTSV',
+    content: 'Đăng ký tham gia chiến dịch tình nguyện.',
+    source_channel: 'DUT_STUDENT_AFFAIRS',
+  });
 
-  const event = cats.find((c) => c.category === 'EVENT');
-  assert.equal(event.category_name, 'Hoạt động sự kiện');
-  assert.equal(event.category_tag, '#HoạtĐộngSựKiện');
+  // Lọc kết hợp: nguồn DUT_STUDENT_AFFAIRS + multi-select categories = SCHOLARSHIP,GRADE
+  const filteredFeed = await notificationService.getFeedNotifications({
+    source_channel: 'DUT_STUDENT_AFFAIRS',
+    categories: 'SCHOLARSHIP,GRADE',
+  });
+  assert.ok(filteredFeed.notifications.length >= 2);
+  assert.ok(
+    filteredFeed.notifications.every(
+      (n) =>
+        (n.source_channel === 'DUT_STUDENT_AFFAIRS' || n.source_type === 'DUT_STUDENT_AFFAIRS') &&
+        ['SCHOLARSHIP', 'GRADE'].includes(n.category)
+    )
+  );
 
-  const career = cats.find((c) => c.category === 'CAREER');
-  assert.equal(career.category_name, 'Thông báo nghề nghiệp');
-  assert.equal(career.category_tag, '#NghềNghiệp');
+  // Kiểm tra cá nhân hóa 6 option áp dụng cho cả Thông báo & Hạn chót (Deadlines)
+  const student = notificationService.dbStore.findStudentByCodeOrId('102200001');
+  const prevTopics = student.interested_topics;
+  student.is_personalized_enabled = true;
+  student.interested_topics = ['SCHOLARSHIP', 'GRADE'];
+
+  try {
+    const personalizedFeed = await notificationService.getFeedNotifications({
+      student_id: student.student_code,
+    });
+    assert.ok(
+      personalizedFeed.notifications.every(
+        (n) => n.is_emergency || ['SCHOLARSHIP', 'GRADE'].includes(n.category)
+      )
+    );
+
+    const personalizedDeadlines = await deadlineService.getDeadlines(student.student_code);
+    assert.ok(
+      personalizedDeadlines.every((d) => ['SCHOLARSHIP', 'GRADE'].includes(d.category))
+    );
+  } finally {
+    student.interested_topics = prevTopics;
+  }
 });
 
 test('7. REST API: POST /api/v1/notifications/classify trả về trường category', async () => {

@@ -142,7 +142,7 @@ class NotificationController {
           student_id: student ? student.id : null,
           student_code: student ? student.student_code : studentId,
           is_personalized_enabled: student ? student.is_personalized_enabled !== false : true,
-          interested_topics: (student && student.interested_topics) ? student.interested_topics : ['hoc_vu', 'hoc_bong', 'tuyen_dung'],
+          interested_topics: (student && student.interested_topics) ? student.interested_topics : ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
           is_calendar_sync_enabled: student ? Boolean(student.is_calendar_sync_enabled) : true,
           quick_reminder_options: (student && Array.isArray(student.quick_reminder_options))
             ? student.quick_reminder_options
