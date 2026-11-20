@@ -36,12 +36,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dut_notifications
-      PGHOST: postgres
-      PGPORT: 5432
-      PGDATABASE: dut_notifications
-      PGUSER: postgres
-      PGPASSWORD: postgres
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/dut_notifications}
     ports:
       - "3000:3000" # Mở cổng 3000 cho Web App và REST APIs
 

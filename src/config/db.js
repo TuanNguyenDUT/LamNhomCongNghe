@@ -10,6 +10,26 @@ try {
   // pg module chưa cài đặt (chế độ in-memory test)
 }
 const crypto = require('node:crypto');
+const dns = require('node:dns');
+
+// Fix cho Node.js 18/20+ khi chạy trong Docker/WSL (không có IPv6 route):
+// Ép buộc phân giải IPv4 khi kết nối CSDL Cloud (Neon/AWS/Supabase) để tránh lỗi ETIMEDOUT / ENETUNREACH do IPv6
+const originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  if (typeof options === 'number') {
+    options = { family: options };
+  } else if (!options) {
+    options = {};
+  }
+  if (!options.family && typeof hostname === 'string' && (hostname.includes('neon.tech') || hostname.includes('supabase.co') || hostname.includes('aws.'))) {
+    options.family = 4;
+  }
+  return originalLookup.call(dns, hostname, options, callback);
+};
 
 let globalPool = null;
 
@@ -19,17 +39,31 @@ function getPool() {
     return null;
   }
   try {
-    globalPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      host: process.env.PGHOST || 'localhost',
-      port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-      database: process.env.PGDATABASE || 'dut_notifications',
-      user: process.env.PGUSER || 'postgres',
-      password: process.env.PGPASSWORD || 'postgres',
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+    const isCloudUrl = Boolean(
+      process.env.DATABASE_URL &&
+      (process.env.DATABASE_URL.includes('neon.tech') || process.env.DATABASE_URL.includes('sslmode=require'))
+    );
+
+    const poolConfig = process.env.DATABASE_URL
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          ssl: isCloudUrl ? { rejectUnauthorized: false } : undefined,
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,
+        }
+      : {
+          host: process.env.PGHOST || 'localhost',
+          port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+          database: process.env.PGDATABASE || 'dut_notifications',
+          user: process.env.PGUSER || 'postgres',
+          password: process.env.PGPASSWORD || 'postgres',
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 2000,
+        };
+
+    globalPool = new Pool(poolConfig);
     globalPool.on('error', (err) => {
       console.error('Lỗi kết nối PostgreSQL pool:', err);
     });
