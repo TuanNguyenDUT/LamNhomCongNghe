@@ -206,7 +206,7 @@ class NotificationRepository {
   async listByChannels(channels = [], client = null) {
     const runner = client || this.db;
     const { rows } = await runner.query(
-      'SELECT * FROM notifications WHERE source_channel = ANY($1::text[]) ORDER BY published_at DESC',
+      'SELECT * FROM notifications WHERE source_channel::text = ANY($1::text[]) ORDER BY published_at DESC',
       [channels]
     );
     return rows.map(normalizeNotificationRow);
