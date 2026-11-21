@@ -636,7 +636,7 @@ class _DeadlinesScreenState extends ConsumerState<DeadlinesScreen> {
                           item.notificationId!.isNotEmpty) ...[
                         GestureDetector(
                           onTap: () {
-                            context.go(
+                            context.push(
                               '/notifications/${item.notificationId}',
                             );
                           },

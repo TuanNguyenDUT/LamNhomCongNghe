@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -25,6 +26,14 @@ class NotificationDetailPage extends ConsumerStatefulWidget {
 class _NotificationDetailPageState
     extends ConsumerState<NotificationDetailPage> {
   bool _isTogglingRead = false;
+
+  void _handleBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/notifications');
+    }
+  }
 
   Future<void> _openUrl(String urlString) async {
     final uri = Uri.tryParse(urlString);
@@ -111,7 +120,7 @@ class _NotificationDetailPageState
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    onTap: () => _handleBack(context),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -507,7 +516,7 @@ class _NotificationDetailPageState
                       child: Row(
                         children: [
                           GestureDetector(
-                            onTap: () => Navigator.of(context).pop(),
+                            onTap: () => _handleBack(context),
                             child: Container(
                               width: 36,
                               height: 36,

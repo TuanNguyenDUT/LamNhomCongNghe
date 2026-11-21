@@ -463,7 +463,7 @@ class _SpotlightSearchOverlayState
                                   return GestureDetector(
                                     onTap: () {
                                       Navigator.of(context).pop();
-                                      context.go('/notifications/${n.id}');
+                                      context.push('/notifications/${n.id}');
                                     },
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 8),

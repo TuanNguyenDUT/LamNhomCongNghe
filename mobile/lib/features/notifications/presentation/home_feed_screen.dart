@@ -212,8 +212,10 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               // Apply topic filters
               if (selectedTopics.isNotEmpty) {
                 items = items.where((item) {
-                  return item.categoryCode != null &&
-                      selectedTopics.contains(item.categoryCode);
+                  final cat = (item.category ?? '').toUpperCase();
+                  final catCode = (item.categoryCode ?? '').toUpperCase();
+                  return (cat.isNotEmpty && selectedTopics.contains(cat)) ||
+                      (catCode.isNotEmpty && selectedTopics.contains(catCode));
                 }).toList();
               }
 
@@ -302,7 +304,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () => context.go('/notifications/${item.id}'),
+            onTap: () => context.push('/notifications/${item.id}'),
             child: Text(
               item.title,
               style: const TextStyle(
@@ -924,7 +926,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
 
                       // Title
                       GestureDetector(
-                        onTap: () => context.go('/notifications/${item.id}'),
+                        onTap: () => context.push('/notifications/${item.id}'),
                         child: Text(
                           item.title,
                           style: TextStyle(

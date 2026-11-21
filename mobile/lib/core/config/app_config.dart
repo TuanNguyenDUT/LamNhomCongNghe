@@ -26,7 +26,13 @@ abstract final class AppConfig {
     if (_configuredBaseUrl.isNotEmpty) {
       return _configuredBaseUrl;
     }
-    if (kIsWeb) return '';
+    if (kIsWeb) {
+      try {
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty && origin != 'null') return origin;
+      } catch (_) {}
+      return '';
+    }
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return 'http://10.0.2.2:3000';
     }
