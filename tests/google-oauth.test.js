@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+process.env.GOOGLE_CLIENT_ID = 'test-google-client.apps.googleusercontent.com';
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-secret';
 const { createServer } = require('../src/server');
 const { googleCalendarService } = require('../src/services/google-calendar.service');
 const { notificationController } = require('../src/controllers/notification.controller');
@@ -17,8 +19,8 @@ test('Google OAuth2 - Nhận diện Client ID và Secret từ file hoặc biến
   assert.ok(process.env.GOOGLE_CLIENT_ID, 'GOOGLE_CLIENT_ID phải được thiết lập');
   assert.ok(process.env.GOOGLE_CLIENT_SECRET, 'GOOGLE_CLIENT_SECRET phải được thiết lập');
   assert.ok(
-    process.env.GOOGLE_CLIENT_ID.includes('1022604367361'),
-    'Client ID phải khớp với file của người dùng'
+    process.env.GOOGLE_CLIENT_ID.includes('test-google-client'),
+    'Test dùng OAuth client giả, không đọc secret của người dùng'
   );
 });
 
@@ -33,7 +35,12 @@ test('Google OAuth2 - getOAuthConsentUrl sinh URL ủy quyền chính xác với
 });
 
 test('Google OAuth2 - API GET /api/v1/calendar/google/auth-url trả về URL ủy quyền', async () => {
-  const res = await notificationController.getGoogleAuthUrl({ student_id: '102230026' });
+  const { NotificationController } = require('../src/controllers/notification.controller');
+  const isolated = new NotificationController({
+    studentRepo:{requireStudent:async()=>({id:'fake-student'})},
+    authService:{createOAuthState:async()=> 'one-time-random-state'},
+  });
+  const res = await isolated.getGoogleAuthUrl({ student_id: '102230026' });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.status, 'success');
   assert.equal(res.body.data.configured, true);

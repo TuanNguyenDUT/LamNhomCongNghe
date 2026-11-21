@@ -22,6 +22,8 @@ const { notificationService } = require('../services/notification.service');
 const { fbCrawlerService } = require('../services/fb-crawler.service');
 const { crawlerManagerService } = require('../services/crawler-manager.service');
 const { ValidationError, NotFoundError } = require('../utils/errors');
+const { AppError } = require('../utils/errors');
+const { AuthService } = require('../services/auth.service');
 
 const VALID_SOURCE_TYPES = [
   'DUT_GENERAL',
@@ -40,6 +42,7 @@ const VALID_SOURCE_TYPES = [
   'STUDENT_EMAIL',
   'EXTRACURRICULAR',
 ];
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function validateNotificationPayload(payload = {}) {
   const errors = [];
@@ -65,6 +68,7 @@ class NotificationController {
     const deps = isRepo ? { repository: repositoryOrDeps } : (repositoryOrDeps || {});
 
     this.db = deps.db || defaultDb;
+    this.authService = deps.authService || new AuthService(this.db);
     this.repository = deps.repository || new NotificationRepository(this.db);
     this.studentRepo = deps.studentRepo || new StudentRepository(this.db);
     this.courseSvc = deps.courseSvc || courseService;
@@ -155,7 +159,8 @@ class NotificationController {
     };
   }
 
-  async logout() {
+  async logout(token) {
+    await this.authService.revoke(token);
     return {
       statusCode: 200,
       body: { status: 'success', message: 'Đăng xuất thành công' },
@@ -287,6 +292,7 @@ class NotificationController {
 
   async acknowledgeNotification(id, payload = {}) {
     const studentId = this._extractStudentIdentifier(payload);
+    await this.notificationSvc.assertCanRead(id, studentId);
     const result = await this.notificationSvc.acknowledgeEmergencyNotification(id, studentId);
     return {
       statusCode: 200,
@@ -320,6 +326,7 @@ class NotificationController {
         body: { status: 'error', message: 'Nhắc nhở/hạn chót phải đi kèm với mã thông báo từ bản tin (notification_id)' },
       };
     }
+    await this.notificationSvc.assertCanRead(payload.notification_id, this._extractStudentIdentifier(payload));
     const deadline = await this.deadlineSvc.createDeadline(payload);
 
     let calendarWarning = null;
@@ -356,12 +363,9 @@ class NotificationController {
 
   async updateDeadline(id, payload = {}) {
     const existing = await this.deadlineSvc.getDeadlineById(id);
+    await this._assertDeadlineOwner(existing, this._extractStudentIdentifier(payload));
     if (payload.status === 'COMPLETED' && existing.google_event_id) {
-      try {
-        await this.calendarSvc.deleteEventFromCalendar(existing.student_id, id);
-      } catch (err) {
-        console.warn('Lỗi tự động xóa khỏi Google Calendar khi hoàn thành nhắc việc:', err.message);
-      }
+      await this.calendarSvc.deleteEventFromCalendar(existing.student_id, id);
     }
 
     const updated = await this.deadlineSvc.updateDeadline(id, payload);
@@ -371,18 +375,23 @@ class NotificationController {
     };
   }
 
-  async deleteDeadline(id) {
+  async deleteDeadline(id, studentId = null) {
     const existing = await this.deadlineSvc.getDeadlineById(id);
+    await this._assertDeadlineOwner(existing, studentId);
     if (existing.google_event_id) {
-      try {
-        await this.calendarSvc.deleteEventFromCalendar(existing.student_id, id);
-      } catch (err) {
-        console.warn('Lỗi tự động xóa khỏi Google Calendar khi xóa nhắc việc:', err.message);
-      }
+      await this.calendarSvc.deleteEventFromCalendar(existing.student_id, id);
     }
 
     const res = await this.deadlineSvc.deleteDeadline(id);
     return { statusCode: 200, body: { status: 'success', message: res.message } };
+  }
+
+  async _assertDeadlineOwner(deadline, studentIdentifier) {
+    if (!studentIdentifier) return; // Internal callers; HTTP always supplies the authenticated UUID.
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    if (deadline.student_id !== student.id) {
+      throw new AppError('Không có quyền truy cập nhắc việc này', { httpStatus: 403, code: 'FORBIDDEN' });
+    }
   }
 
   // ==========================================
@@ -393,8 +402,11 @@ class NotificationController {
     if (!studentId) {
       throw new ValidationError('Vui lòng cung cấp student_id hoặc student_code');
     }
-    const redirectUri = queryParams.redirect_uri || process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
-    const authData = this.calendarSvc.getOAuthConsentUrl(redirectUri, studentId);
+    const student = await this.studentRepo.requireStudent(studentId);
+    const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
+    const state = this.calendarSvc.hasGoogleCredentials()
+      ? await this.authService.createOAuthState(student.id) : '';
+    const authData = this.calendarSvc.getOAuthConsentUrl(redirectUri, state);
     return {
       statusCode: 200,
       body: {
@@ -428,7 +440,7 @@ class NotificationController {
   async handleGoogleCallback(queryParams = {}) {
     const code = queryParams.code;
     const error = queryParams.error;
-    const studentId = queryParams.state || this._extractStudentIdentifier(queryParams);
+    let studentId;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback';
 
     if (error) {
@@ -438,7 +450,7 @@ class NotificationController {
         rawBody: `<!DOCTYPE html>
 <html lang="vi">
 <head><meta charset="UTF-8"><title>Lỗi ủy quyền Google Calendar</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}.card{background:#fff;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.08);max-width:440px;text-align:center;}.btn{display:inline-block;margin-top:20px;padding:10px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:10px;font-weight:600;}</style></head>
-<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">⚠️</div><h2>Cấp quyền không thành công</h2><p style="color:#64748b;font-size:14px;">Google từ chối hoặc bạn đã hủy ủy quyền: <strong>${error}</strong></p><a href="/" class="btn">Quay lại ứng dụng</a></div></body></html>`,
+<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">⚠️</div><h2>Cấp quyền không thành công</h2><p style="color:#64748b;font-size:14px;">Google từ chối hoặc bạn đã hủy ủy quyền: <strong>${escapeHtml(error)}</strong></p><a href="/" class="btn">Quay lại ứng dụng</a></div></body></html>`,
       };
     }
 
@@ -449,7 +461,7 @@ class NotificationController {
       };
     }
 
-    if (!studentId) {
+    if (!queryParams.state) {
       return {
         statusCode: 400,
         body: { status: 'error', message: 'Thiếu state định danh sinh viên từ Google Callback' },
@@ -457,9 +469,11 @@ class NotificationController {
     }
 
     try {
+      studentId = await this.authService.consumeOAuthState(queryParams.state);
       const tokens = await this.calendarSvc.exchangeAuthCodeForTokens(code, redirectUri);
+      if (!tokens.refresh_token) throw new ValidationError('Google chưa cấp refresh token; vui lòng cấp quyền lại');
       await this.calendarSvc.connectGoogleAccount(studentId, {
-        refresh_token: tokens.refresh_token || tokens.access_token || 'real_google_oauth2_authorized',
+        refresh_token: tokens.refresh_token,
         calendar_id: 'primary',
       });
       const syncResult = await this.calendarSvc.syncDeadlinesToCalendar(studentId);
@@ -487,7 +501,7 @@ class NotificationController {
   <div class="card">
     <div class="icon">✓</div>
     <h2>Kết nối Google Calendar thành công!</h2>
-    <div class="badge">Sinh viên: ${studentId} • Đã đồng bộ ${syncResult.synced_count} hạn chót</div>
+    <div class="badge">Đã đồng bộ ${syncResult.synced_count} nhắc việc</div>
     <p>Tài khoản Google Calendar của bạn đã được liên kết chính thức. Tất cả hạn chót và thông báo học tập quan trọng sẽ được cập nhật tự động vào Lịch Google của bạn.</p>
     <a href="/deadlines?scope=personal" class="btn">Quay lại ứng dụng DUT ngay</a>
     <div class="hint">Hệ thống sẽ tự động chuyển trang sau vài giây...</div>
@@ -507,7 +521,7 @@ class NotificationController {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
         rawBody: `<!DOCTYPE html>
 <html lang="vi"><head><meta charset="UTF-8"><title>Lỗi kết nối</title><style>body{font-family:sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}.card{background:#fff;padding:32px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.08);max-width:440px;text-align:center;}</style></head>
-<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">❌</div><h2>Đổi mã Token thất bại</h2><p style="color:#64748b;font-size:14px;">${err.message}</p><a href="/" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:10px;">Quay lại</a></div></body></html>`,
+<body><div class="card"><div style="font-size:48px;margin-bottom:12px;">❌</div><h2>Đổi mã Token thất bại</h2><p style="color:#64748b;font-size:14px;">${escapeHtml(err.message)}</p><a href="/" style="display:inline-block;margin-top:20px;padding:10px 20px;background:#007AFF;color:#fff;text-decoration:none;border-radius:10px;">Quay lại</a></div></body></html>`,
       };
     }
   }
@@ -532,6 +546,9 @@ class NotificationController {
           data: result,
         },
       };
+    }
+    if (result.errors?.length) {
+      return {statusCode:502, body:{status:'error', code:'GOOGLE_SYNC_FAILED', message:'Một số sự kiện chưa đồng bộ được. Vui lòng thử lại', data:result}};
     }
     return {
       statusCode: 200,
@@ -628,6 +645,7 @@ class NotificationController {
   }
 
   async getNotificationDetail(id, studentId = null) {
+    if (studentId) await this.notificationSvc.assertCanRead(id, studentId);
     const item = await this.repository.getNotificationById(id, studentId);
     if (!item) {
       throw new NotFoundError('Không tìm thấy thông báo');
@@ -637,6 +655,7 @@ class NotificationController {
 
   async setReadStatus(id, payload = {}) {
     const studentId = String(this._extractStudentIdentifier(payload) || '').trim();
+    await this.notificationSvc.assertCanRead(id, studentId);
     const isRead = payload.is_read !== undefined ? Boolean(payload.is_read) : true;
     const result = await this.repository.setReadStatus(id, studentId, isRead);
     return { statusCode: 200, body: { status: 'success', data: result } };

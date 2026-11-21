@@ -286,7 +286,7 @@ class _HomeFeedScreenState extends ConsumerState<HomeFeedScreen> {
               ),
               SizedBox(width: 6),
               Text(
-                'CẢNH BÁO KHẨN CẤP / LỊCH NGHỈ BÙ',
+                'THÔNG BÁO QUAN TRỌNG',
                 style: TextStyle(
                   fontFamily: WarmPearlTypography.displayFont,
                   fontSize: 11.5,

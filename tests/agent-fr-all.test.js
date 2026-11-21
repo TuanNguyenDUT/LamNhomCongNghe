@@ -305,7 +305,10 @@ test.describe('FR-01..FR-09 Direct PostgreSQL Integration Suite', () => {
   });
 
   test('FR-09: Đồng bộ Google Calendar và Xuất tệp .ics', async () => {
-    const { controller } = createServer(pool);
+    const { controller, services } = createServer(pool);
+    services.calendarSvc.hasGoogleCredentials = () => true;
+    services.calendarSvc.refreshAccessToken = async () => 'fake-access-token';
+    services.calendarSvc._postHttps = async (_host, _path, payload) => ({id:JSON.parse(payload).id || 'fake-event'});
 
     const connectRes = await callApi(controller, {
       method: 'POST',

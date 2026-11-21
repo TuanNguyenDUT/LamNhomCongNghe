@@ -8,6 +8,8 @@ const crypto = require('node:crypto');
 const { db: defaultDb, createDbAdapter } = require('../config/db');
 const { StudentRepository } = require('../db/student.repository');
 const { DeadlineRepository } = require('../db/deadline.repository');
+const { encryptSecret, decryptSecret } = require('../config/secrets');
+const { AppError, ValidationError } = require('../utils/errors');
 
 class GoogleCalendarService {
   constructor({ pool = null, db = null, studentRepo = null, deadlineRepo = null } = {}) {
@@ -96,7 +98,7 @@ class GoogleCalendarService {
     const student = studentIdentifier
       ? await this.studentRepo.resolveStudent(studentIdentifier)
       : null;
-    const hasRealToken = Boolean(student?.google_refresh_token && !student.google_refresh_token.startsWith('mock_'));
+    const hasRealToken = Boolean(student?.google_refresh_token?.startsWith('v1:'));
     const isMock = Boolean(student?.google_refresh_token?.startsWith('mock_'));
 
     return {
@@ -137,9 +139,10 @@ class GoogleCalendarService {
     const student = await this.studentRepo.requireStudent(studentIdentifier);
     const isRealToken = Boolean(authData.refresh_token && !authData.refresh_token.startsWith('mock_'));
     const isConfigured = this.hasGoogleCredentials();
+    if (!isRealToken) throw new ValidationError('Google chưa cấp refresh token. Vui lòng liên kết lại tài khoản');
 
     await this.studentRepo.updateGoogleTokens(student.id, {
-      refreshToken: authData.refresh_token || 'mock_google_oauth2_refresh_token',
+      refreshToken: encryptSecret(authData.refresh_token),
       calendarId: authData.calendar_id || 'primary',
       enabled: true,
     });
@@ -192,20 +195,23 @@ class GoogleCalendarService {
     let studentDeadlines = [];
     if (deadlineId) {
       const single = await this.deadlineRepo.getDeadlineById(deadlineId);
+      if (single && single.student_id !== targetStudentId) {
+        throw new AppError('Không có quyền truy cập nhắc việc này', {httpStatus:403, code:'FORBIDDEN'});
+      }
       if (single) {
         studentDeadlines = [single];
       }
     } else {
       studentDeadlines = await this.deadlineRepo.getDeadlinesByStudent(targetStudentId, {
-        status: 'PENDING',
       });
       studentDeadlines = studentDeadlines.filter(
-        (d) => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]'))
+        (d) => d.status !== 'COMPLETED' && (d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]')))
       );
     }
 
     const isConfigured = this.hasGoogleCredentials();
-    const refreshToken = student.google_refresh_token;
+    const refreshToken = student.google_refresh_token?.startsWith('v1:')
+      ? decryptSecret(student.google_refresh_token) : null;
     const canCallRealGoogle = isConfigured && refreshToken && !refreshToken.startsWith('mock_');
 
     if (!canCallRealGoogle) {
@@ -236,6 +242,7 @@ class GoogleCalendarService {
     }
 
     const syncedEvents = [];
+    const errors = [];
 
     for (const d of studentDeadlines) {
       const gcalUrl = this.generateGoogleCalendarUrl(d);
@@ -254,6 +261,7 @@ class GoogleCalendarService {
           mode: 'REAL_API',
         });
       } catch (err) {
+        errors.push({deadline_id:d.deadline_id, message:'Không thể đồng bộ sự kiện Google Calendar'});
         console.warn(`Lỗi khi đẩy event lên Google Calendar thật (${d.title}):`, err.message);
       }
     }
@@ -265,6 +273,7 @@ class GoogleCalendarService {
       configured: isConfigured,
       note: 'Đã đồng bộ với Google Calendar API',
       events: syncedEvents,
+      errors,
     };
   }
 
@@ -272,7 +281,10 @@ class GoogleCalendarService {
     const startDate = new Date(deadline.due_date);
     const endDate = new Date(startDate.getTime() + 3600000);
 
-    const body = JSON.stringify({
+    const eventId = deadline.google_event_id && !deadline.google_event_id.startsWith('mock_')
+      ? deadline.google_event_id
+      : crypto.createHash('sha256').update(`dut:${deadline.student_id}:${deadline.deadline_id}`).digest('hex');
+    const event = {
       summary: deadline.title,
       description: deadline.description || deadline.title,
       start: { dateTime: startDate.toISOString() },
@@ -284,14 +296,18 @@ class GoogleCalendarService {
           { method: 'popup', minutes: 120 },
         ],
       },
-    });
-
-    return this._postHttps(
-      'www.googleapis.com',
-      `/calendar/v3/calendars/${encodeURIComponent(calendarId || 'primary')}/events`,
-      body,
-      { Authorization: `Bearer ${accessToken}` }
-    );
+    };
+    const eventsPath = `/calendar/v3/calendars/${encodeURIComponent(calendarId || 'primary')}/events`;
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    if (deadline.google_event_id && !deadline.google_event_id.startsWith('mock_')) {
+      try { return await this._postHttps('www.googleapis.com', `${eventsPath}/${encodeURIComponent(eventId)}`, JSON.stringify(event), headers, 'PUT'); }
+      catch (error) { if (error.httpStatus !== 404) throw error; }
+    }
+    try { return await this._postHttps('www.googleapis.com', eventsPath, JSON.stringify({...event, id:eventId}), headers); }
+    catch (error) {
+      if (error.httpStatus !== 409) throw error;
+      return this._postHttps('www.googleapis.com', `${eventsPath}/${encodeURIComponent(eventId)}`, JSON.stringify(event), headers, 'PUT');
+    }
   }
 
   _deleteHttps(hostname, path, extraHeaders = {}) {
@@ -323,6 +339,7 @@ class GoogleCalendarService {
         }
       );
       req.on('error', reject);
+      req.setTimeout(15000, () => req.destroy(new Error('Google API timeout')));
       req.end();
     });
   }
@@ -337,6 +354,11 @@ class GoogleCalendarService {
       return { success: false, message: 'Không tìm thấy nhắc việc' };
     }
 
+    const owner = await this.studentRepo.requireStudent(studentIdentifier);
+    if (owner.id !== deadline.student_id) {
+      throw new AppError('Không có quyền truy cập nhắc việc này', {httpStatus:403, code:'FORBIDDEN'});
+    }
+
     const eventId = deadline.google_event_id;
     if (!eventId) {
       return { success: true, message: 'Nhắc việc chưa được lưu trên Google Calendar' };
@@ -345,7 +367,8 @@ class GoogleCalendarService {
     const targetStudentRef = studentIdentifier || deadline.student_id;
     const student = targetStudentRef ? await this.studentRepo.resolveStudent(targetStudentRef) : null;
     const isConfigured = this.hasGoogleCredentials();
-    const refreshToken = student?.google_refresh_token;
+    const refreshToken = student?.google_refresh_token?.startsWith('v1:')
+      ? decryptSecret(student.google_refresh_token) : null;
     const canCallRealGoogle = isConfigured && refreshToken && !refreshToken.startsWith('mock_');
 
     if (canCallRealGoogle && !eventId.startsWith('mock_')) {
@@ -358,10 +381,12 @@ class GoogleCalendarService {
             `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
             { Authorization: `Bearer ${accessToken}` }
           );
-        }
+        } else { throw new AppError('Phiên Google đã hết hạn. Vui lòng liên kết lại', {httpStatus:502, code:'GOOGLE_AUTH_EXPIRED'}); }
       } catch (err) {
-        console.warn(`Lỗi khi xóa event trên Google Calendar (${eventId}):`, err.message);
+        throw new AppError('Không thể xóa sự kiện trên Google Calendar; vui lòng thử lại', {httpStatus:502, code:'GOOGLE_DELETE_FAILED'});
       }
+    } else if (!eventId.startsWith('mock_')) {
+      throw new AppError('Vui lòng liên kết Google để xóa sự kiện đã đồng bộ', {httpStatus:400, code:'GOOGLE_NOT_CONNECTED'});
     }
 
     deadline.google_event_id = null;
@@ -377,13 +402,13 @@ class GoogleCalendarService {
     };
   }
 
-  _postHttps(hostname, path, payload, extraHeaders = {}) {
+  _postHttps(hostname, path, payload, extraHeaders = {}, method = 'POST') {
     return new Promise((resolve, reject) => {
       const req = https.request(
         {
           hostname,
           path,
-          method: 'POST',
+          method,
           headers: {
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(payload),
@@ -399,7 +424,9 @@ class GoogleCalendarService {
               if (res.statusCode >= 200 && res.statusCode < 300) {
                 return resolve(parsed);
               }
-              reject(new Error(parsed.error_description || parsed.error?.message || `HTTP ${res.statusCode}`));
+              const error = new Error(parsed.error_description || parsed.error?.message || `HTTP ${res.statusCode}`);
+              error.httpStatus = res.statusCode;
+              reject(error);
             } catch (e) {
               reject(e);
             }
@@ -407,6 +434,7 @@ class GoogleCalendarService {
         }
       );
       req.on('error', reject);
+      req.setTimeout(15000, () => req.destroy(new Error('Google API timeout')));
       req.write(payload);
       req.end();
     });

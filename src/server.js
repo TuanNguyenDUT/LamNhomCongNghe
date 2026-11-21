@@ -6,6 +6,13 @@
 
 const http = require('node:http');
 const { loadRuntimeEnv } = require('./config/env');
+loadRuntimeEnv();
+const { encryptionKey } = require('./config/secrets');
+const { migrate } = require('./db/migrate');
+const { AuthService } = require('./services/auth.service');
+const { authorize } = require('./api/auth');
+const { PushDeliveryService } = require('./services/push-delivery.service');
+const { ReminderWorker } = require('./workers/reminder.worker');
 const { getPool, createDbAdapter, verifyDbConnection, closePool } = require('./config/db');
 const { StudentRepository } = require('./db/student.repository');
 const { CourseRepository } = require('./db/course.repository');
@@ -28,6 +35,7 @@ const { getFirebaseConfigurationStatus } = require('./config/firebase');
 
 function createServer(pgPool = null) {
   const dbAdapter = pgPool ? createDbAdapter(pgPool) : createDbAdapter();
+  const authService = new AuthService(dbAdapter);
   const studentRepo = new StudentRepository(dbAdapter);
   const courseRepo = new CourseRepository(dbAdapter);
   const deadlineRepo = new DeadlineRepository(dbAdapter);
@@ -37,6 +45,8 @@ function createServer(pgPool = null) {
   const pushService = new PushNotificationService({ deviceRepository });
 
   const deadlineSvc = new DeadlineService({ db: dbAdapter, studentRepo, deadlineRepo });
+  const deliveryService = new PushDeliveryService({db:dbAdapter,pushService});
+  const reminderWorker = new ReminderWorker(deadlineSvc, deliveryService);
   const calendarSvc = new GoogleCalendarService({ db: dbAdapter, studentRepo, deadlineRepo });
   const notificationSvc = new NotificationService({
     db: dbAdapter,
@@ -66,6 +76,7 @@ function createServer(pgPool = null) {
 
   const controller = new NotificationController({
     db: dbAdapter,
+    authService,
     repository,
     studentRepo,
     courseSvc,
@@ -74,6 +85,7 @@ function createServer(pgPool = null) {
     notificationSvc,
     fbCrawlerSvc,
     crawlerMgrSvc,
+    reminderWorker,
   });
   const deviceController = new DeviceController(deviceRepository, pushService, studentRepo);
 
@@ -81,15 +93,22 @@ function createServer(pgPool = null) {
     const startTime = Date.now();
     if (process.env.NODE_ENV !== 'test') {
       res.on('finish', () => {
-        console.log(`[HTTP] ${req.method} ${req.url} - ${res.statusCode} (${Date.now() - startTime}ms)`);
+        console.log(`[HTTP] ${req.method} ${new URL(req.url, 'http://localhost').pathname} - ${res.statusCode} (${Date.now() - startTime}ms)`);
       });
     }
 
-    if (req.url?.startsWith('/api/devices') || req.url?.startsWith('/api/push')) {
-      await deviceRouter(req, res, deviceController);
-      return;
+    try {
+      await authorize(req, authService);
+      if (req.url?.startsWith('/api/devices') || req.url?.startsWith('/api/push')) {
+        await deviceRouter(req, res, deviceController);
+        return;
+      }
+      await notificationRouter(req, res, controller);
+    } catch (error) {
+      const status = error.httpStatus || 500;
+      res.writeHead(status, {'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({status:'error', code:error.code || 'INTERNAL_ERROR', message:status >= 500 ? 'Lỗi máy chủ nội bộ' : error.message}));
     }
-    await notificationRouter(req, res, controller);
   });
 
   return {
@@ -97,9 +116,11 @@ function createServer(pgPool = null) {
     db: dbAdapter,
     repository,
     controller,
+    authService,
     deviceRepository,
     deviceController,
     crawlerMgrSvc,
+    reminderWorker,
     services: {
       courseSvc,
       deadlineSvc,
@@ -107,17 +128,20 @@ function createServer(pgPool = null) {
       notificationSvc,
       fbCrawlerSvc,
       crawlerMgrSvc,
+      deliveryService,
     },
   };
 }
 
 async function startServer() {
   loadRuntimeEnv();
+  encryptionKey();
   const pool = getPool();
   await verifyDbConnection(pool);
+  await migrate(pool);
 
   const PORT = process.env.PORT || 3000;
-  const { server, crawlerMgrSvc } = createServer(pool);
+  const { server, crawlerMgrSvc, reminderWorker } = createServer(pool);
 
   await new Promise((resolve) => {
     server.listen(PORT, resolve);
@@ -137,6 +161,7 @@ async function startServer() {
   console.log(`===================================================================`);
 
   crawlerMgrSvc.startPeriodicCrawl(30);
+  reminderWorker.start();
   setTimeout(() => {
     crawlerMgrSvc.crawlAllSources().catch((err) => {
       console.warn('Lỗi cào khởi đầu:', err.message);
@@ -145,6 +170,7 @@ async function startServer() {
 
   const shutdown = async () => {
     crawlerMgrSvc.stopPeriodicCrawl();
+    await reminderWorker.stop();
     await new Promise((resolve) => server.close(resolve));
     await closePool();
     process.exit(0);

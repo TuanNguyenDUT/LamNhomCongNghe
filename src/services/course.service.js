@@ -10,6 +10,8 @@ const { StudentRepository, isUuid } = require('../db/student.repository');
 const { CourseRepository } = require('../db/course.repository');
 const { NotificationRepository } = require('../db/postgres');
 const { ValidationError, AuthenticationError } = require('../utils/errors');
+const { encryptSecret, decryptSecret } = require('../config/secrets');
+const { AuthService } = require('./auth.service');
 
 class CourseService {
   constructor({
@@ -50,7 +52,7 @@ class CourseService {
     const enrolledCourses = authResult.courses || [];
     const profile = authResult.profile || {};
     const kYear = cleanCode.length >= 5 ? cleanCode.slice(3, 5) : '23';
-    const encryptedPass = Buffer.from(cleanPass, 'utf8').toString('base64');
+    const encryptedPass = encryptSecret(cleanPass);
 
     // 2. Lưu/cập nhật sinh viên, môn học & đăng ký môn học trong transaction
     const student = await this.db.withTransaction(async (tx) => {
@@ -101,7 +103,7 @@ class CourseService {
     const coursesWithStats = await this.getEnrolledCoursesWithStats(student.id);
 
     return {
-      token: `dut_token_${Buffer.from(cleanCode + ':' + Date.now()).toString('base64')}`,
+      token: await new AuthService(this.db).createSession(student.id),
       student: {
         id: student.id,
         student_code: student.student_code,
@@ -152,9 +154,9 @@ class CourseService {
     let effectivePassword = (password || '').trim();
     if (!effectivePassword && student.dut_session_encrypted) {
       try {
-        effectivePassword = Buffer.from(student.dut_session_encrypted, 'base64').toString('utf8');
+        effectivePassword = decryptSecret(student.dut_session_encrypted);
       } catch (err) {
-        console.warn('Không thể giải mã session mật khẩu sv.dut:', err.message);
+        throw err;
       }
     }
 
@@ -170,7 +172,7 @@ class CourseService {
         {
           ...student,
           dut_session_encrypted: effectivePassword
-            ? Buffer.from(effectivePassword, 'utf8').toString('base64')
+            ? encryptSecret(effectivePassword)
             : student.dut_session_encrypted,
           dut_last_synced_at: syncedAt,
         },
@@ -205,6 +207,11 @@ class CourseService {
     if (studentIdentifier) {
       const student = await this.studentRepo.resolveStudent(studentIdentifier);
       studentUuid = student ? student.id : null;
+      const enrolled = student ? await this.courseRepo.getStudentCourses(student.id) : [];
+      if (!enrolled.some(course => course.course_code === courseCode)) {
+        const { AppError } = require('../utils/errors');
+        throw new AppError('Bạn chưa đăng ký học phần này', {httpStatus:403, code:'FORBIDDEN'});
+      }
     }
     return this.notificationRepo.listByCourse(courseCode, studentUuid);
   }

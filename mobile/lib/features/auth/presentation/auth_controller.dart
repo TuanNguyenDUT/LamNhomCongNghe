@@ -3,14 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_storage_service.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/notifications/push_notification_service.dart';
 import '../domain/user_session.dart';
 
 class AuthState {
-  const AuthState({
-    this.session,
-    this.isLoading = false,
-    this.errorMessage,
-  });
+  const AuthState({this.session, this.isLoading = false, this.errorMessage});
 
   final UserSession? session;
   final bool isLoading;
@@ -77,6 +75,7 @@ class AuthController extends Notifier<AuthState> {
             isLoading: false,
             clearError: true,
           );
+          await _registerPush(session.studentId);
           return;
         }
       }
@@ -101,17 +100,15 @@ class AuthController extends Notifier<AuthState> {
     try {
       final response = await _dio.post<dynamic>(
         '/api/v1/auth/login',
-        data: {
-          'student_code': cleanCode,
-          'password': cleanPass,
-        },
+        data: {'student_code': cleanCode, 'password': cleanPass},
       );
 
       final body = response.data as Map<String, dynamic>;
       final data = Map<String, dynamic>.from(body['data'] as Map);
       final parsed = UserSession.fromJson(data);
-      final persistedCode =
-          parsed.studentCode.isNotEmpty ? parsed.studentCode : cleanCode;
+      final persistedCode = parsed.studentCode.isNotEmpty
+          ? parsed.studentCode
+          : cleanCode;
       final session = parsed.copyWith(studentCode: persistedCode);
 
       await _storage.saveAccessToken(session.token);
@@ -122,17 +119,16 @@ class AuthController extends Notifier<AuthState> {
         isLoading: false,
         clearError: true,
       );
+      await _registerPush(session.studentId);
       return true;
     } on DioException catch (dioErr) {
-      String msg =
-          'Tên đăng nhập hoặc mật khẩu sv.dut.udn.vn không chính xác!';
+      String msg = 'Tên đăng nhập hoặc mật khẩu sv.dut.udn.vn không chính xác!';
       final errData = dioErr.response?.data;
       if (errData is Map) {
         msg = (errData['message'] ?? msg).toString();
       } else if (dioErr.type == DioExceptionType.connectionTimeout ||
           dioErr.type == DioExceptionType.connectionError) {
-        msg =
-            'Không thể kết nối đến máy chủ xác thực. Vui lòng kiểm tra kết nối mạng!';
+        msg = 'Không thể kết nối đến máy chủ xác thực. Vui lòng kiểm tra kết nối mạng!';
       }
       state = state.copyWith(isLoading: false, errorMessage: msg);
       return false;
@@ -143,10 +139,33 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await _storage.clearSession();
-    state = const AuthState();
+    try {
+      if (AppConfig.enableFirebase) {
+        try {
+          await ref.read(pushNotificationServiceProvider).clearStudent();
+        } catch (_) {}
+      }
+      await _dio.post<dynamic>('/api/v1/auth/logout');
+    } catch (_) {
+      // Local sign-out remains available when the server is unreachable.
+    } finally {
+      await _storage.clearSession();
+      state = const AuthState();
+    }
+  }
+
+  Future<void> _registerPush(String? studentId) async {
+    if (!AppConfig.enableFirebase || studentId == null || studentId.isEmpty) {
+      return;
+    }
+    try {
+      await ref
+          .read(pushNotificationServiceProvider)
+          .registerStudent(studentId);
+    } catch (_) {}
   }
 }
 
-final authControllerProvider =
-    NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);
