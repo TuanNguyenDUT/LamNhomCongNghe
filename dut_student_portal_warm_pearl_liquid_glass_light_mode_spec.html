@@ -1,0 +1,3700 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DUT Student Portal — Warm Pearl Liquid Glass (iOS 26 Light Mode)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ==========================================================================
+       1. DESIGN TOKENS — STRICTLY LIGHT MODE ONLY (WARM PEARL LIQUID GLASS)
+       Agent Refactoring Guide: Copy these CSS variables to your global theme.css
+       ========================================================================== */
+    :root {
+      /* Typography */
+      --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+
+      /* Motion Curves */
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+      /* Base Canvas & Text Hierarchy */
+      --stage-bg: #EFECE6;
+      --canvas-bg: #F6F4EF;
+      --ink-primary: #141926;
+      --ink-secondary: #525C70;
+      --ink-muted: #7E8799;
+
+      /* Ambient Refraction Orbs (Behind Frosted Glass) */
+      --orb-coral: rgba(255, 194, 166, 0.56);
+      --orb-mint: rgba(166, 240, 220, 0.52);
+      --orb-violet: rgba(201, 195, 255, 0.50);
+
+      /* Authentic Apple Liquid Glass Surfaces (iOS 26 Light Mode) */
+      --glass-bg: rgba(255, 255, 255, 0.58);
+      --glass-bg-strong: rgba(255, 255, 255, 0.78);
+      --glass-bg-subtle: rgba(255, 255, 255, 0.42);
+      --glass-border: rgba(255, 255, 255, 0.85);
+      --glass-border-soft: rgba(20, 25, 38, 0.07);
+      --glass-divider: rgba(20, 25, 38, 0.07);
+      --glass-blur: blur(26px) saturate(190%);
+      --glass-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 10px 30px rgba(24, 32, 54, 0.06);
+      --glass-shadow-sm:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 6px 18px rgba(24, 32, 54, 0.06);
+
+      /* Semantic Accents (Distinct from Generic Portal Blue) */
+      --coral-from: #FF5A36;
+      --coral-to: #FF8A3D;
+      --coral-ink: #EA4B28;
+      --coral-soft: rgba(255, 90, 54, 0.12);
+      --coral-border: rgba(255, 90, 54, 0.30);
+      --coral-glow: rgba(255, 90, 54, 0.30);
+
+      --mint: #0D9F6E;
+      --mint-bright: #10B981;
+      --mint-soft: rgba(16, 185, 129, 0.12);
+      --mint-border: rgba(16, 185, 129, 0.30);
+
+      --violet: #6D4AFF;
+      --violet-soft: rgba(109, 74, 255, 0.11);
+      --violet-border: rgba(109, 74, 255, 0.28);
+
+      --rose: #E11D48;
+      --rose-soft: rgba(225, 29, 72, 0.10);
+      --rose-border: rgba(225, 29, 72, 0.26);
+
+      --fb-blue: #1877F2;
+      --fb-soft: rgba(24, 119, 242, 0.11);
+
+      /* Floating Dock & Overlays */
+      --dock-bg: rgba(255, 255, 255, 0.72);
+      --dock-shadow:
+        inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+        0 16px 40px rgba(24, 32, 54, 0.12);
+      --scrim: rgba(20, 25, 38, 0.28);
+      --track-bg: rgba(20, 25, 38, 0.055);
+    }
+
+    /* ==========================================================================
+       2. BASE RESET & PREVIEW STAGE (WITH SINGLE DATA-MODE UTILITY BAR)
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      font-family: var(--font-body);
+      color: var(--ink-primary);
+      background: var(--stage-bg);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: var(--font-display);
+      margin: 0;
+    }
+
+    p { margin: 0; }
+
+    button, input {
+      font-family: inherit;
+      color: inherit;
+    }
+
+    button {
+      border: none;
+      background: none;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .stage {
+      min-height: 100dvh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 12px 20px;
+      gap: 10px;
+      background:
+        radial-gradient(circle at 18% 15%, var(--orb-mint), transparent 40%),
+        radial-gradient(circle at 82% 22%, var(--orb-coral), transparent 42%),
+        radial-gradient(circle at 50% 88%, var(--orb-violet), transparent 45%),
+        var(--stage-bg);
+    }
+
+    /* Minimal External Preview Bar — ONLY Data State Toggle (No Dark Mode) */
+    .preview-bar {
+      width: 100%;
+      max-width: 416px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px 6px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+      backdrop-filter: blur(22px) saturate(180%);
+      -webkit-backdrop-filter: blur(22px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 24px rgba(24, 32, 54, 0.06);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-secondary);
+    }
+
+    .preview-seg {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 999px;
+      background: var(--track-bg);
+      gap: 2px;
+    }
+
+    .preview-seg button {
+      height: 28px;
+      padding: 0 11px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--ink-secondary);
+      transition: all 0.28s var(--spring);
+      white-space: nowrap;
+    }
+
+    .preview-seg button.active {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      box-shadow: 0 4px 12px rgba(255, 90, 54, 0.28);
+    }
+
+    /* ==========================================================================
+       3. MOBILE APP SHELL & SLOWLY DRIFTING AMBIENT ORBS
+       ========================================================================== */
+    .app-shell {
+      width: 100%;
+      max-width: 416px;
+      height: min(856px, calc(100dvh - 76px));
+      min-height: 640px;
+      border-radius: 44px;
+      position: relative;
+      overflow: hidden;
+      background: var(--canvas-bg);
+      border: 1.5px solid rgba(255, 255, 255, 0.95);
+      box-shadow:
+        0 28px 72px -18px rgba(24, 32, 54, 0.16),
+        0 4px 16px rgba(24, 32, 54, 0.05);
+      display: flex;
+      flex-direction: column;
+      isolation: isolate;
+    }
+
+    .ambient-layer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(62px);
+      will-change: transform;
+    }
+
+    .orb-1 {
+      width: 300px;
+      height: 300px;
+      top: -85px;
+      left: -70px;
+      background: radial-gradient(circle, var(--orb-coral) 0%, transparent 72%);
+      animation: floatA 22s ease-in-out infinite alternate;
+    }
+
+    .orb-2 {
+      width: 310px;
+      height: 310px;
+      top: 210px;
+      right: -95px;
+      background: radial-gradient(circle, var(--orb-mint) 0%, transparent 72%);
+      animation: floatB 26s ease-in-out infinite alternate;
+    }
+
+    .orb-3 {
+      width: 320px;
+      height: 320px;
+      bottom: 40px;
+      left: -80px;
+      background: radial-gradient(circle, var(--orb-violet) 0%, transparent 72%);
+      animation: floatC 24s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatA {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(60px, 75px) scale(1.12); }
+    }
+    @keyframes floatB {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-65px, -55px) scale(1.14); }
+    }
+    @keyframes floatC {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(75px, -50px) scale(1.08); }
+    }
+
+    /* ==========================================================================
+       4. SHARED LIQUID GLASS PRIMITIVES
+       ========================================================================== */
+    .glass-card {
+      position: relative;
+      border-radius: 24px;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      overflow: hidden;
+      transition: transform 0.32s var(--spring), box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(155deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0) 44%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glass-card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .pressable:active {
+      transform: scale(0.975);
+    }
+
+    .glass-icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-primary);
+      background: rgba(255, 255, 255, 0.68);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      box-shadow: var(--glass-shadow-sm);
+      transition: transform 0.28s var(--spring), color 0.2s ease, background 0.2s ease;
+    }
+
+    .glass-icon-btn:active {
+      transform: scale(0.89);
+    }
+
+    .coral-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      height: 44px;
+      padding: 0 20px;
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--coral-from) 0%, var(--coral-to) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow:
+        inset 0 1px 1.5px rgba(255, 255, 255, 0.52),
+        0 10px 24px -6px var(--coral-glow);
+      transition: transform 0.28s var(--spring), filter 0.2s ease;
+    }
+
+    .coral-btn:hover { filter: brightness(1.04); }
+    .coral-btn:active { transform: scale(0.96); }
+
+    .ghost-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      font-size: 12.2px;
+      font-weight: 600;
+      color: var(--ink-primary);
+      background: rgba(255, 255, 255, 0.66);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      box-shadow: var(--glass-shadow-sm);
+      transition: transform 0.25s var(--spring);
+    }
+
+    .ghost-btn:active { transform: scale(0.95); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .badge-coral {
+      color: var(--coral-ink);
+      background: var(--coral-soft);
+      border: 1px solid var(--coral-border);
+    }
+    .badge-mint {
+      color: var(--mint);
+      background: var(--mint-soft);
+      border: 1px solid var(--mint-border);
+    }
+    .badge-violet {
+      color: var(--violet);
+      background: var(--violet-soft);
+      border: 1px solid var(--violet-border);
+    }
+    .badge-rose {
+      color: var(--rose);
+      background: var(--rose-soft);
+      border: 1px solid var(--rose-border);
+    }
+    .badge-neutral {
+      color: var(--ink-secondary);
+      background: rgba(20, 25, 38, 0.055);
+      border: 1px solid rgba(20, 25, 38, 0.07);
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mint-bright);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.20);
+      flex-shrink: 0;
+    }
+
+    .spin svg {
+      animation: spin360 0.72s linear infinite;
+    }
+
+    @keyframes spin360 {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Smooth iOS Liquid Glass Switch */
+    .ios-switch {
+      position: relative;
+      width: 48px;
+      height: 28px;
+      border-radius: 999px;
+      flex-shrink: 0;
+      background: rgba(20, 25, 38, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      box-shadow: inset 0 2px 4px rgba(20, 25, 38, 0.10);
+      transition: background 0.28s var(--smooth);
+    }
+
+    .ios-switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 2px 6px rgba(20, 25, 38, 0.20);
+      transition: transform 0.32s var(--spring);
+    }
+
+    .ios-switch.on {
+      background: linear-gradient(135deg, var(--mint), var(--mint-bright));
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 4px 12px rgba(16, 185, 129, 0.28);
+    }
+
+    .ios-switch.on.coral-on {
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 4px 12px var(--coral-glow);
+    }
+
+    .ios-switch.on::after {
+      transform: translateX(20px);
+    }
+
+    /* ==========================================================================
+       5. FLOATING TOP DYNAMIC BAR (COMPACT GLASS PILL)
+       ========================================================================== */
+    .top-bar-wrap {
+      position: relative;
+      z-index: 30;
+      padding: 14px 14px 8px;
+      flex-shrink: 0;
+    }
+
+    .top-glass-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 8px 7px 9px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      box-shadow: var(--glass-shadow);
+    }
+
+    .top-identity {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+      cursor: pointer;
+    }
+
+    .student-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      overflow: hidden;
+      border: 1.5px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(24, 32, 54, 0.14);
+      position: relative;
+      background: #dbeafe;
+    }
+
+    .student-avatar svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .identity-text {
+      min-width: 0;
+    }
+
+    .identity-name {
+      font-family: var(--font-display);
+      font-size: 13.5px;
+      font-weight: 800;
+      color: var(--ink-primary);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .identity-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      margin-top: 1px;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    /* ==========================================================================
+       6. SCROLLABLE MAIN VIEWPORT (134px BOTTOM CLEARANCE FOR FLOATING DOCK)
+       ========================================================================== */
+    .viewport {
+      position: relative;
+      z-index: 10;
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 6px 14px 134px;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .viewport::-webkit-scrollbar { display: none; }
+    .viewport { scrollbar-width: none; }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      gap: 13px;
+      animation: fadeSlideIn 0.36s var(--smooth) forwards;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ==========================================================================
+       7. TAB 1: BẢNG TIN (URGENT RECEIPT + BENTO PULSE + FILTERS + FEED)
+       ========================================================================== */
+    .urgent-receipt-card {
+      padding: 15px;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at 95% 0%, rgba(255, 90, 54, 0.20) 0%, transparent 60%),
+        rgba(255, 248, 245, 0.78);
+      border: 1px solid rgba(255, 90, 54, 0.34);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 12px 30px rgba(255, 90, 54, 0.11);
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+      transition: all 0.35s var(--smooth);
+    }
+
+    .urgent-receipt-card.confirmed {
+      background:
+        radial-gradient(circle at 95% 0%, rgba(16, 185, 129, 0.16) 0%, transparent 60%),
+        rgba(246, 255, 251, 0.78);
+      border-color: var(--mint-border);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        0 10px 26px rgba(16, 185, 129, 0.10);
+    }
+
+    .urgent-kicker {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-display);
+      font-size: 11.2px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--coral-ink);
+      text-transform: uppercase;
+    }
+
+    .urgent-receipt-card.confirmed .urgent-kicker {
+      color: var(--mint);
+    }
+
+    .urgent-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      line-height: 1.36;
+      color: var(--ink-primary);
+      cursor: pointer;
+    }
+
+    .receipt-btn {
+      width: 100%;
+      height: 42px;
+      border-radius: 999px;
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 8px 20px -4px var(--coral-glow);
+      transition: transform 0.28s var(--spring), background 0.3s ease;
+    }
+
+    .receipt-btn:active { transform: scale(0.97); }
+
+    .receipt-btn.confirmed {
+      color: var(--mint);
+      background: var(--mint-soft);
+      border: 1px solid var(--mint-border);
+      box-shadow: none;
+    }
+
+    /* Bento Pulse 3-Tile Strip */
+    .pulse-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+    }
+
+    .pulse-tile {
+      padding: 12px 11px;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .pulse-lbl {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .pulse-num {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Filter System */
+    .filter-block {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .source-rail {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 2px 1px 4px;
+      scrollbar-width: none;
+    }
+
+    .source-rail::-webkit-scrollbar { display: none; }
+
+    .filter-pill {
+      height: 34px;
+      padding: 0 13px;
+      border-radius: 999px;
+      font-size: 12.2px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--ink-secondary);
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.88);
+      box-shadow: var(--glass-shadow-sm);
+      transition: all 0.28s var(--spring);
+    }
+
+    .filter-pill.active {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      border-color: rgba(255, 255, 255, 0.45);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 6px 14px -4px var(--coral-glow);
+    }
+
+    .filter-pill.follow-fb-pill {
+      color: var(--fb-blue);
+      background: rgba(24, 119, 242, 0.09);
+      border: 1px dashed rgba(24, 119, 242, 0.42);
+      font-weight: 700;
+    }
+
+    .cat-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .cat-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 11.8px;
+      font-weight: 700;
+      color: var(--ink-secondary);
+      background: rgba(255, 255, 255, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.85);
+    }
+
+    .cat-toggle-btn.active {
+      color: var(--violet);
+      background: var(--violet-soft);
+      border-color: var(--violet-border);
+    }
+
+    .cat-drawer {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 0.3s var(--smooth), opacity 0.25s ease;
+    }
+
+    .cat-drawer.open {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
+
+    .cat-drawer-inner {
+      overflow: hidden;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 2px;
+    }
+
+    .cat-chip {
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      font-size: 11.6px;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      background: rgba(255, 255, 255, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.86);
+      transition: all 0.24s var(--spring);
+    }
+
+    .cat-chip.active {
+      color: var(--violet);
+      background: var(--violet-soft);
+      border-color: var(--violet-border);
+      font-weight: 700;
+    }
+
+    /* Announcement Cards */
+    .feed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .post-card {
+      padding: 15px 15px 13px 17px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .post-card::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 16px;
+      bottom: 16px;
+      width: 3.5px;
+      border-radius: 0 4px 4px 0;
+      background: rgba(20, 25, 38, 0.14);
+      z-index: 2;
+    }
+
+    .post-card.prio-urgent::after {
+      background: linear-gradient(180deg, var(--coral-from), var(--coral-to));
+    }
+
+    .post-card.prio-high::after {
+      background: var(--violet);
+    }
+
+    .post-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .post-tags {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    .post-time {
+      font-size: 11.2px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      white-space: nowrap;
+    }
+
+    .post-clickable {
+      cursor: pointer;
+    }
+
+    .post-title {
+      font-size: 14.5px;
+      font-weight: 800;
+      line-height: 1.38;
+      letter-spacing: -0.015em;
+      color: var(--ink-primary);
+      margin-bottom: 5px;
+    }
+
+    .post-excerpt {
+      font-size: 12.8px;
+      line-height: 1.52;
+      color: var(--ink-secondary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .post-status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .unread-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11.2px;
+      font-weight: 700;
+      color: var(--coral-ink);
+    }
+
+    .unread-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--coral-from);
+      box-shadow: 0 0 0 3px var(--coral-soft);
+    }
+
+    .post-footer {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding-top: 9px;
+      border-top: 1px solid var(--glass-divider);
+    }
+
+    .post-remind-btn {
+      flex: 1.15;
+      height: 36px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12.2px;
+      font-weight: 700;
+      color: var(--coral-ink);
+      background: var(--coral-soft);
+      border: 1px solid var(--coral-border);
+      transition: transform 0.25s var(--spring);
+    }
+
+    .post-remind-btn.saved {
+      color: var(--mint);
+      background: var(--mint-soft);
+      border-color: var(--mint-border);
+    }
+
+    .post-remind-btn:active { transform: scale(0.95); }
+
+    /* ==========================================================================
+       8. FULL SLIDE-OVER VIEW: CHI TIẾT THÔNG BÁO
+       ========================================================================== */
+    .detail-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 60;
+      background: var(--canvas-bg);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(102%);
+      transition: transform 0.38s var(--smooth);
+      isolation: isolate;
+    }
+
+    .detail-overlay.open {
+      transform: translateX(0);
+    }
+
+    .detail-header {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 14px 10px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .detail-scroll {
+      position: relative;
+      z-index: 5;
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 14px 104px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .detail-scroll::-webkit-scrollbar { display: none; }
+
+    .detail-content-box {
+      padding: 16px;
+      font-size: 13.8px;
+      line-height: 1.65;
+      color: var(--ink-primary);
+      white-space: pre-line;
+    }
+
+    .detail-link {
+      color: var(--coral-ink);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      word-break: break-all;
+      cursor: pointer;
+    }
+
+    .attach-row {
+      padding: 13px 14px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .hashtag-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .hashtag-chip {
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--violet);
+      background: var(--violet-soft);
+      border: 1px solid var(--violet-border);
+      transition: transform 0.25s var(--spring);
+    }
+
+    .hashtag-chip:active { transform: scale(0.94); }
+
+    .detail-sticky-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 15;
+      padding: 12px 14px 18px;
+      background: linear-gradient(180deg, rgba(246, 244, 239, 0) 0%, rgba(246, 244, 239, 0.92) 32%, rgba(246, 244, 239, 0.98) 100%);
+    }
+
+    .mark-read-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      background: linear-gradient(135deg, #1E293B, #334155);
+      box-shadow: 0 12px 26px rgba(20, 25, 38, 0.18);
+      transition: transform 0.25s var(--spring), background 0.25s ease;
+    }
+
+    .mark-read-btn.is-read {
+      color: var(--mint);
+      background: rgba(255, 255, 255, 0.85);
+      border: 1.5px solid var(--mint-border);
+      box-shadow: var(--glass-shadow);
+    }
+
+    .mark-read-btn:active { transform: scale(0.97); }
+
+    /* ==========================================================================
+       9. TAB 2: HỌC PHẦN (BENTO MATRIX & ORBITAL SYNC EMPTY STATE)
+       ========================================================================== */
+    .course-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .course-tile {
+      padding: 14px;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 164px;
+      cursor: pointer;
+    }
+
+    .course-tile.span-2 {
+      grid-column: span 2;
+      min-height: 132px;
+    }
+
+    .course-tile.tint-coral {
+      background: radial-gradient(circle at 96% 8%, rgba(255, 90, 54, 0.16), transparent 62%), var(--glass-bg);
+    }
+    .course-tile.tint-mint {
+      background: radial-gradient(circle at 96% 8%, rgba(16, 185, 129, 0.16), transparent 62%), var(--glass-bg);
+    }
+    .course-tile.tint-violet {
+      background: radial-gradient(circle at 96% 8%, rgba(109, 74, 255, 0.15), transparent 62%), var(--glass-bg);
+    }
+    .course-tile.tint-amber {
+      background: radial-gradient(circle at 96% 8%, rgba(245, 158, 11, 0.16), transparent 62%), var(--glass-bg);
+    }
+
+    /* Orbital Sync Empty State */
+    .empty-glass {
+      padding: 34px 20px 28px;
+      border-radius: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+    }
+
+    .orbital-wrap {
+      width: 112px;
+      height: 112px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .orbit-r {
+      position: absolute;
+      border-radius: 50%;
+    }
+
+    .orbit-r.r1 {
+      inset: 0;
+      border: 1.5px dashed var(--coral-border);
+      animation: spin360 18s linear infinite;
+    }
+
+    .orbit-r.r2 {
+      inset: 14px;
+      border: 1.5px solid var(--mint-border);
+      animation: spin360 12s linear infinite reverse;
+    }
+
+    .orbit-r.r1::after {
+      content: "";
+      position: absolute;
+      bottom: -4px;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--coral-from);
+    }
+
+    .orbit-r.r2::after {
+      content: "";
+      position: absolute;
+      top: -4px;
+      left: 50%;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--mint-bright);
+    }
+
+    .orbit-center {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid #ffffff;
+      box-shadow: var(--glass-shadow);
+    }
+
+    /* ==========================================================================
+       10. TAB 3: HẠN & NHẮC (CLEAN, NO GOOGLE CALENDAR CARD HERE — FIX #1)
+       ========================================================================== */
+    .section-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 2px 2px 0;
+    }
+
+    .seg-switcher {
+      position: relative;
+      display: grid;
+      padding: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.64);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      box-shadow: var(--glass-shadow-sm);
+    }
+
+    .seg-switcher.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .seg-switcher.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .seg-lens {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 6px 16px -4px var(--coral-glow);
+      transition: transform 0.36s var(--spring), width 0.36s var(--spring), background 0.3s ease;
+      z-index: 0;
+    }
+
+    .seg-lens.violet-lens {
+      background: linear-gradient(135deg, #6D4AFF, #8B5CF6);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 6px 16px -4px rgba(109, 74, 255, 0.32);
+    }
+
+    .seg-tab {
+      position: relative;
+      z-index: 1;
+      height: 34px;
+      font-size: 12.2px;
+      font-weight: 700;
+      color: var(--ink-secondary);
+      transition: color 0.24s ease;
+      white-space: nowrap;
+    }
+
+    .seg-tab.active {
+      color: #ffffff;
+    }
+
+    .task-card {
+      padding: 14px;
+      border-radius: 22px;
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+    }
+
+    .task-card.done {
+      opacity: 0.62;
+    }
+
+    .task-card.done .task-title {
+      text-decoration: line-through;
+      color: var(--ink-muted);
+    }
+
+    .check-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.8px solid rgba(20, 25, 38, 0.22);
+      background: rgba(255, 255, 255, 0.7);
+      color: transparent;
+      transition: all 0.28s var(--spring);
+    }
+
+    .check-circle.checked {
+      background: var(--mint-bright);
+      border-color: var(--mint-bright);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.34);
+    }
+
+    /* ==========================================================================
+       11. TAB 4: HỒ SƠ & CÀI ĐẶT (3D HOLOGRAPHIC CARD + ALL SETTINGS)
+       ========================================================================== */
+    .pass-stage {
+      perspective: 900px;
+    }
+
+    .holo-card {
+      position: relative;
+      padding: 18px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(166, 240, 220, 0.45) 0%, transparent 52%),
+        radial-gradient(circle at 92% 85%, rgba(255, 194, 166, 0.48) 0%, transparent 56%),
+        radial-gradient(circle at 60% 30%, rgba(201, 195, 255, 0.38) 0%, transparent 55%),
+        rgba(255, 255, 255, 0.76);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1.2px solid rgba(255, 255, 255, 0.96);
+      box-shadow: var(--glass-shadow);
+      transform-style: preserve-3d;
+      transition: transform 0.2s ease-out;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: hidden;
+      --mx: 50%;
+      --my: 25%;
+    }
+
+    .holo-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(240px circle at var(--mx) var(--my), rgba(255, 255, 255, 0.75), transparent 62%);
+      pointer-events: none;
+      z-index: 2;
+      mix-blend-mode: soft-light;
+    }
+
+    .detail-list {
+      padding: 6px 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--glass-divider);
+    }
+
+    .detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .row-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .settings-section {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .settings-section.highlight-pulse {
+      animation: highlightRing 1.4s ease;
+    }
+
+    @keyframes highlightRing {
+      0%, 100% { box-shadow: var(--glass-shadow); border-color: var(--glass-border); }
+      35% { box-shadow: 0 0 0 3px var(--mint-border), 0 14px 34px rgba(16, 185, 129, 0.18); border-color: var(--mint-bright); }
+    }
+
+    .setting-subbox {
+      padding: 12px 13px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .preset-chip {
+      height: 35px;
+      padding: 0 12px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.2px;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(20, 25, 38, 0.10);
+      transition: all 0.25s var(--spring);
+    }
+
+    .preset-chip.selected {
+      color: var(--coral-ink);
+      background: var(--coral-soft);
+      border-color: var(--coral-border);
+      font-weight: 700;
+    }
+
+    .preset-chip.violet-sel.selected {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--violet), #8B5CF6);
+      border-color: rgba(255, 255, 255, 0.4);
+      box-shadow: 0 6px 14px -4px rgba(109, 74, 255, 0.32);
+    }
+
+    .utility-row {
+      padding: 14px 15px;
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    /* ==========================================================================
+       12. FLOATING BOTTOM LIQUID GLASS DOCK + DETACHED SPOTLIGHT ORB
+       ========================================================================== */
+    .dock-wrap {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 16px;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.3s var(--smooth);
+    }
+
+    .dock-wrap.hidden {
+      opacity: 0;
+      transform: translateY(24px);
+      pointer-events: none;
+    }
+
+    .dock-pill {
+      pointer-events: auto;
+      position: relative;
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 6px;
+      border-radius: 999px;
+      background: var(--dock-bg);
+      backdrop-filter: blur(30px) saturate(210%);
+      -webkit-backdrop-filter: blur(30px) saturate(210%);
+      border: 1px solid rgba(255, 255, 255, 0.94);
+      box-shadow: var(--dock-shadow);
+    }
+
+    .dock-lens {
+      position: absolute;
+      top: 6px;
+      bottom: 6px;
+      left: 6px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(255, 90, 54, 0.14), rgba(255, 138, 61, 0.14));
+      border: 1px solid rgba(255, 90, 54, 0.28);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 4px 12px rgba(255, 90, 54, 0.14);
+      transition: transform 0.4s var(--spring), width 0.4s var(--spring);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .dock-item {
+      position: relative;
+      z-index: 1;
+      height: 50px;
+      border-radius: 999px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: var(--ink-muted);
+      transition: color 0.22s ease, transform 0.25s var(--spring);
+    }
+
+    .dock-item svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .dock-item span {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .dock-item.active {
+      color: var(--coral-ink);
+    }
+
+    .dock-item:active {
+      transform: scale(0.92);
+    }
+
+    .dock-badge {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 999px;
+      font-size: 9.5px;
+      font-weight: 800;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--coral-from), var(--coral-to));
+      box-shadow: 0 2px 8px var(--coral-glow);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dock-badge.show {
+      display: inline-flex;
+    }
+
+    .spotlight-orb {
+      pointer-events: auto;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-primary);
+      background: var(--dock-bg);
+      backdrop-filter: blur(30px) saturate(210%);
+      -webkit-backdrop-filter: blur(30px) saturate(210%);
+      border: 1px solid rgba(255, 255, 255, 0.94);
+      box-shadow: var(--dock-shadow);
+      transition: transform 0.3s var(--spring), border-color 0.25s ease;
+    }
+
+    .spotlight-orb:hover { border-color: var(--coral-border); transform: translateY(-2px); }
+    .spotlight-orb:active { transform: scale(0.9); }
+
+    /* ==========================================================================
+       13. LIQUID GLASS MODALS, BOTTOM SHEETS, SPOTLIGHT SEARCH & TOAST
+       ========================================================================== */
+    .toast-bar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 95;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.90);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      border: 1px solid #ffffff;
+      box-shadow: 0 16px 40px rgba(24, 32, 54, 0.16);
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--ink-primary);
+      opacity: 0;
+      transform: translateY(-24px) scale(0.95);
+      pointer-events: none;
+      transition: all 0.35s var(--spring);
+    }
+
+    .toast-bar.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    .sheet-backdrop {
+      position: absolute;
+      inset: 0;
+      z-index: 80;
+      background: var(--scrim);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex;
+      align-items: flex-end;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+
+    .sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sheet-panel {
+      width: 100%;
+      max-height: 86%;
+      overflow-y: auto;
+      padding: 12px 16px 26px;
+      border-radius: 32px 32px 0 0;
+      background: rgba(255, 255, 255, 0.90);
+      backdrop-filter: blur(34px) saturate(200%);
+      -webkit-backdrop-filter: blur(34px) saturate(200%);
+      border-top: 1.5px solid #ffffff;
+      box-shadow: 0 -18px 48px rgba(24, 32, 54, 0.16);
+      transform: translateY(100%);
+      transition: transform 0.38s var(--smooth);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .sheet-backdrop.open .sheet-panel {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4.5px;
+      border-radius: 999px;
+      background: rgba(20, 25, 38, 0.16);
+      margin: 0 auto 2px;
+    }
+
+    .glass-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 46px;
+      padding: 0 13px;
+      border-radius: 16px;
+      background: rgba(246, 244, 239, 0.85);
+      border: 1px solid rgba(20, 25, 38, 0.10);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .glass-input-wrap:focus-within {
+      border-color: var(--coral-from);
+      background: #ffffff;
+      box-shadow: 0 0 0 3px var(--coral-soft);
+    }
+
+    .glass-input-wrap input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 13.5px;
+      color: var(--ink-primary);
+    }
+
+    .glass-input-wrap input::placeholder {
+      color: var(--ink-muted);
+    }
+
+    /* Full-Screen Spotlight Search Overlay */
+    .spotlight-screen {
+      position: absolute;
+      inset: 0;
+      z-index: 85;
+      padding: 16px 14px 20px;
+      background: rgba(246, 244, 239, 0.82);
+      backdrop-filter: blur(32px) saturate(200%);
+      -webkit-backdrop-filter: blur(32px) saturate(200%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      opacity: 0;
+      transform: scale(1.03);
+      pointer-events: none;
+      transition: opacity 0.28s ease, transform 0.34s var(--smooth);
+    }
+
+    .spotlight-screen.open {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+
+    /* ==========================================================================
+       14. FULL-BLEED MOBILE RESPONSIVENESS
+       ========================================================================== */
+    @media (max-width: 479px) {
+      .stage {
+        padding: 8px 0 0;
+        justify-content: flex-start;
+        gap: 8px;
+      }
+      .preview-bar {
+        max-width: calc(100% - 20px);
+      }
+      .app-shell {
+        max-width: 100%;
+        height: calc(100dvh - 56px);
+        min-height: 0;
+        border-radius: 30px 30px 0 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <!-- External Minimal Preview Utility Bar (ONLY Data Mode Toggle — No Dark Mode) -->
+    <div class="preview-bar" role="region" aria-label="Chế độ xem dữ liệu mẫu">
+      <span>Chế độ xem:</span>
+      <div class="preview-seg">
+        <button id="modePopBtn" class="active" type="button" onclick="setDataMode('populated')">Có dữ liệu</button>
+        <button id="modeEmptyBtn" type="button" onclick="setDataMode('empty')">Trống (Empty State)</button>
+      </div>
+    </div>
+
+    <!-- Main Mobile-First App Container -->
+    <main class="app-shell" aria-label="Cổng thông tin Sinh viên DUT">
+      <!-- Ambient Drifting Orbs Behind Frosted Glass -->
+      <div class="ambient-layer" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+      </div>
+
+      <!-- 1. FLOATING TOP DYNAMIC BAR -->
+      <header class="top-bar-wrap">
+        <div class="top-glass-pill">
+          <div class="top-identity" onclick="switchTab('profile', 'info')">
+            <div class="student-avatar" id="headerAvatar" aria-hidden="true"></div>
+            <div class="identity-text">
+              <div class="identity-name">Nguyễn Văn Lợi • 23T_Nhat1</div>
+              <div class="identity-meta">
+                <span class="live-dot"></span>
+                <span>102230026 • sv.dut.udn.vn</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="top-actions">
+            <!-- Follow Facebook Fanpage -->
+            <button class="glass-icon-btn" type="button" title="Theo dõi Fanpage Facebook" onclick="openFollowFanpageSheet()">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--fb-blue)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                <line x1="19" y1="16" x2="19" y2="22"/>
+                <line x1="16" y1="19" x2="22" y2="19"/>
+              </svg>
+            </button>
+
+            <!-- Sync Portal -->
+            <button class="glass-icon-btn" type="button" title="Đồng bộ cổng trường" onclick="triggerPortalSync(this)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                <path d="M16 16h5v5"/>
+              </svg>
+            </button>
+
+            <!-- Quick Jump to Settings -->
+            <button class="glass-icon-btn" type="button" title="Cài đặt & Đồng bộ" onclick="jumpToSettings()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-primary)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- MAIN SCROLLABLE VIEWPORT -->
+      <div id="mainViewport" class="viewport">
+
+        <!-- ==============================================================
+             TAB 1: BẢNG TIN (FEED)
+             ============================================================== -->
+        <section id="tab-feed" class="screen active" aria-label="Bảng tin">
+          <!-- Urgent Alert Card with Read Receipt -->
+          <div id="urgentAlertCard" class="urgent-receipt-card"></div>
+
+          <!-- Bento Pulse 3-Tile Strip -->
+          <div id="bentoPulseStrip" class="pulse-grid"></div>
+
+          <!-- Clean Filter System (Sources + Follow Fanpage Pill + Expandable Categories) -->
+          <div class="filter-block">
+            <div id="sourceFilterRail" class="source-rail"></div>
+            <div class="cat-toggle-row">
+              <button id="catToggleBtn" class="cat-toggle-btn" type="button" onclick="toggleCategoryDrawer()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                  <line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/>
+                </svg>
+                <span id="catToggleText">Lọc loại tin ▾</span>
+              </button>
+              <span id="feedCountMeta" style="font-size:11.5px;font-weight:600;color:var(--ink-muted);"></span>
+            </div>
+            <div id="categoryDrawer" class="cat-drawer">
+              <div id="categoryFilterChips" class="cat-drawer-inner"></div>
+            </div>
+          </div>
+
+          <!-- Announcement Feed Cards -->
+          <div id="feedCardsList" class="feed-list"></div>
+        </section>
+
+        <!-- ==============================================================
+             TAB 2: HỌC PHẦN (COURSES)
+             ============================================================== -->
+        <section id="tab-courses" class="screen" aria-label="Học phần">
+          <div id="coursesContent"></div>
+        </section>
+
+        <!-- ==============================================================
+             TAB 3: HẠN & NHẮC (UNIFIED DEADLINES & REMINDERS — NO GCAL HERE)
+             ============================================================== -->
+        <section id="tab-tasks" class="screen" aria-label="Hạn và Nhắc việc">
+          <div class="section-top-row">
+            <div>
+              <h2 style="font-size:19px;font-weight:800;letter-spacing:-0.02em;">Hạn &amp; Nhắc việc</h2>
+              <p style="font-size:11.8px;color:var(--ink-muted);margin-top:2px;">Hạn chót học vụ &amp; nhắc nhở cá nhân</p>
+            </div>
+            <!-- Subtle Header Button Jumping to Settings -> Google Calendar -->
+            <button class="ghost-btn" style="height:34px;padding:0 12px;font-size:11.8px;" type="button" onclick="jumpToSettings('gcal')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span>Cài đặt lịch</span>
+            </button>
+          </div>
+
+          <!-- 3-Segment Switcher -->
+          <div id="taskSegSwitcher" class="seg-switcher cols-3" role="tablist">
+            <div id="taskSegLens" class="seg-lens"></div>
+            <button class="seg-tab active" data-scope="all" type="button" onclick="setTaskScope('all')">Tất cả</button>
+            <button class="seg-tab" data-scope="academic" type="button" onclick="setTaskScope('academic')">Hạn học vụ</button>
+            <button class="seg-tab" data-scope="personal" type="button" onclick="setTaskScope('personal')">Nhắc cá nhân</button>
+          </div>
+
+          <!-- Status Filter Row -->
+          <div id="taskStatusRow" class="source-rail"></div>
+
+          <!-- Tasks List / Empty States -->
+          <div id="tasksListWrap" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </section>
+
+        <!-- ==============================================================
+             TAB 4: HỒ SƠ & CÀI ĐẶT (PROFILE + ALL SETTINGS & GOOGLE CALENDAR)
+             ============================================================== -->
+        <section id="tab-profile" class="screen" aria-label="Hồ sơ và Cài đặt">
+          <!-- 2-Segment Switcher -->
+          <div id="profileSegSwitcher" class="seg-switcher cols-2" role="tablist">
+            <div id="profileSegLens" class="seg-lens"></div>
+            <button class="seg-tab active" data-sub="info" type="button" onclick="setProfileSubTab('info')">Hồ sơ sinh viên</button>
+            <button class="seg-tab" data-sub="settings" type="button" onclick="setProfileSubTab('settings')">Cài đặt &amp; Đồng bộ</button>
+          </div>
+
+          <!-- Sub-view 1: Hồ sơ sinh viên -->
+          <div id="profileSubInfo" style="display:flex;flex-direction:column;gap:13px;"></div>
+
+          <!-- Sub-view 2: Cài đặt & Đồng bộ (ALL SETTINGS CENTRALIZED HERE) -->
+          <div id="profileSubSettings" style="display:none;flex-direction:column;gap:13px;"></div>
+        </section>
+      </div>
+
+      <!-- FULL SLIDE-OVER VIEW: CHI TIẾT THÔNG BÁO -->
+      <aside id="detailOverlay" class="detail-overlay" aria-hidden="true">
+        <div class="ambient-layer" aria-hidden="true">
+          <div class="orb orb-1"></div>
+          <div class="orb orb-2"></div>
+        </div>
+
+        <div class="detail-header">
+          <button class="glass-icon-btn" type="button" aria-label="Quay lại" onclick="closePostDetail()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <h2 style="font-size:16.5px;font-weight:800;">Chi tiết thông báo</h2>
+        </div>
+
+        <div id="detailScrollBody" class="detail-scroll"></div>
+
+        <div class="detail-sticky-bar">
+          <button id="detailMarkReadBtn" class="mark-read-btn" type="button"></button>
+        </div>
+      </aside>
+
+      <!-- FLOATING TOP LIQUID GLASS TOAST -->
+      <div id="toastBar" class="toast-bar" role="status" aria-live="polite">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span class="live-dot"></span>
+          <span id="toastText" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+        </div>
+        <button id="toastAction" type="button" style="display:none;padding:5px 11px;border-radius:999px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--coral-from),var(--coral-to));flex-shrink:0;"></button>
+      </div>
+
+      <!-- FLOATING BOTTOM GLASS DOCK + DETACHED SPOTLIGHT ORB -->
+      <nav id="bottomDockWrap" class="dock-wrap" aria-label="Điều hướng chính">
+        <div id="dockPill" class="dock-pill">
+          <div id="dockLens" class="dock-lens"></div>
+
+          <button class="dock-item active" data-tab="feed" type="button" onclick="switchTab('feed')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
+              <path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/>
+            </svg>
+            <span>Bảng tin</span>
+          </button>
+
+          <button class="dock-item" data-tab="courses" type="button" onclick="switchTab('courses')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+              <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+            </svg>
+            <span>Học phần</span>
+          </button>
+
+          <button class="dock-item" data-tab="tasks" type="button" onclick="switchTab('tasks')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="3"/>
+              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+              <path d="M9 14l2 2 4-4"/>
+            </svg>
+            <span>Hạn &amp; Nhắc</span>
+            <span id="dockTasksBadge" class="dock-badge">0</span>
+          </button>
+
+          <button class="dock-item" data-tab="profile" type="button" onclick="switchTab('profile')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span>Hồ sơ</span>
+          </button>
+        </div>
+
+        <!-- Detached Circular Spotlight Search Glass Orb -->
+        <button class="spotlight-orb" type="button" aria-label="Tìm kiếm Spotlight" title="Tìm kiếm nhanh" onclick="openSpotlight()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7.5"/>
+            <line x1="20.5" y1="20.5" x2="16.4" y2="16.4"/>
+          </svg>
+        </button>
+      </nav>
+
+      <!-- REUSABLE LIQUID GLASS BOTTOM SHEET (Follow Fanpage / Quick Reminder / Course / Logout) -->
+      <div id="sheetBackdrop" class="sheet-backdrop" role="dialog" aria-modal="true" aria-hidden="true" onclick="closeSheet()">
+        <div class="sheet-panel" onclick="event.stopPropagation()">
+          <div class="sheet-handle"></div>
+          <div id="sheetContent"></div>
+        </div>
+      </div>
+
+      <!-- FULL-SCREEN LIQUID GLASS SPOTLIGHT SEARCH OVERLAY -->
+      <div id="spotlightScreen" class="spotlight-screen" role="dialog" aria-modal="true" aria-hidden="true">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="glass-input-wrap" style="flex:1;height:48px;border-radius:999px;background:rgba(255,255,255,0.88);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--coral-from)" stroke-width="2.4" stroke-linecap="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="spotlightInput" type="text" placeholder="Tìm thông báo, mã học phần, #hashtag..." autocomplete="off" />
+          </div>
+          <button class="glass-icon-btn" style="width:44px;height:44px;" type="button" aria-label="Đóng" onclick="closeSpotlight()">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="cat-chip" type="button" onclick="setSpotlightQuery('#LịchThi')">#LịchThi</button>
+          <button class="cat-chip" type="button" onclick="setSpotlightQuery('#KhẩnCấp')">#KhẩnCấp</button>
+          <button class="cat-chip" type="button" onclick="setSpotlightQuery('IT401')">IT401</button>
+          <button class="cat-chip" type="button" onclick="setSpotlightQuery('Fanpage CTSV')">Fanpage CTSV</button>
+          <button class="cat-chip" type="button" onclick="setSpotlightQuery('Học bổng')">Học bổng</button>
+        </div>
+
+        <div id="spotlightResults" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding-bottom:16px;"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * DUT STUDENT PORTAL — WARM PEARL LIQUID GLASS (LIGHT MODE ONLY)
+     * Complete State & Interactive Logic Blueprint for FE Refactoring
+     * =========================================================================
+     */
+
+    // Crisp Inline Vector Portrait Avatar (Nguyễn Văn Lợi) — Zero broken external images
+    const STUDENT_AVATAR_SVG = `
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="bgSky" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="#0284C7"/>
+          </linearGradient>
+        </defs>
+        <rect width="100" height="100" fill="url(#bgSky)"/>
+        <!-- White collared student shirt -->
+        <path d="M16 100 C20 78, 34 73, 50 73 C66 73, 80 78, 84 100 Z" fill="#F8FAFC"/>
+        <path d="M39 74 L50 88 L61 74" fill="none" stroke="#CBD5E1" stroke-width="2.5"/>
+        <!-- Neck -->
+        <rect x="42" y="60" width="16" height="16" rx="6" fill="#E8B89A"/>
+        <!-- Head -->
+        <ellipse cx="50" cy="45" rx="20" ry="23" fill="#F2C6AA"/>
+        <!-- Ears -->
+        <circle cx="30" cy="46" r="4.2" fill="#E8B89A"/>
+        <circle cx="70" cy="46" r="4.2" fill="#E8B89A"/>
+        <!-- Hair -->
+        <path d="M29 42 C29 22, 41 18, 51 18 C64 18, 72 25, 71 42 C68 33, 62 29, 50 30 C39 30, 33 34, 29 42 Z" fill="#1E293B"/>
+        <!-- Eyes & Brows -->
+        <circle cx="42" cy="45" r="2.1" fill="#1E293B"/>
+        <circle cx="58" cy="45" r="2.1" fill="#1E293B"/>
+        <path d="M37 40 Q42 38 46 40" stroke="#1E293B" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path d="M54 40 Q58 38 63 40" stroke="#1E293B" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <!-- Gentle Smile -->
+        <path d="M44 55 Q50 59 56 55" stroke="#B9755A" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+    `;
+
+    // -------------------------------------------------------------------------
+    // 1. REALISTIC DUT DATA MODELS
+    // -------------------------------------------------------------------------
+    const ANNOUNCEMENTS = [
+      {
+        id: 'post-lichthi',
+        source: 'Tư vấn SV',
+        sourceCode: 'FB_TUVAN_SV',
+        category: 'Học tập',
+        time: '11/11/2026 15:36',
+        shortTime: '11/11 15:36',
+        priority: 'urgent',
+        priorityLabel: 'KHẨN',
+        unread: true,
+        title: '[LỊCH THI CUỐI KỲ I NĂM HỌC 2026 - 2027 VÀ ĐĂNG KÝ THI BỔ SUNG]',
+        excerpt: 'Sinh viên xem lịch thi cuối kỳ tại: https://bom.so/piUmQ2. Sinh viên hoãn thi từ các kỳ trước đăng ký thi bổ sung từ ngày 11/11/2026 đến 19/11/2026...',
+        fullText: 'Sinh viên xem lịch thi cuối kỳ tại: https://bom.so/piUmQ2. Sinh viên hoãn thi từ các kỳ trước đăng ký thi bổ sung từ ngày 11/11/2026 đến 19/11/2026 tại form: https://bom.so/f2NIZM.',
+        externalLabel: 'Mở bài viết',
+        attachments: [
+          { name: 'Xem lịch thi', size: 'PDF • 1.4 MB' },
+          { name: 'Đăng ký thi bổ sung', size: 'Biểu mẫu trực tuyến' }
+        ],
+        hashtags: ['#HọcTập', '#KhẩnCấp', '#LịchThi', '#ThôngBáoChung', '#thong_bao']
+      },
+      {
+        id: 'post-suckhoe',
+        source: 'Fanpage CTSV',
+        sourceCode: 'Fanpage CTSV',
+        category: 'Học tập',
+        time: '16/11/2026 07:32',
+        shortTime: '16/11 07:32',
+        priority: 'low',
+        priorityLabel: 'THẤP',
+        unread: true,
+        title: 'CHỦ ĐỘNG PHÒNG BỆNH – VÌ MỘT VIỆT NAM KHỎE MẠNH',
+        excerpt: 'CHỦ ĐỘNG PHÒNG BỆNH – VÌ MỘT VIỆT NAM KHỎE MẠNH. Sức khỏe là nền tảng để học tập, làm việc và phát triển toàn diện tại Bách khoa Đà Nẵng...',
+        fullText: 'CHỦ ĐỘNG PHÒNG BỆNH – VÌ MỘT VIỆT NAM KHỎE MẠNH.\n\nSức khỏe là nền tảng để học tập, làm việc và cống hiến. Phòng Công tác Sinh viên khuyến nghị sinh viên giữ gìn sức khỏe trong thời tiết giao mùa tại Đà Nẵng, bổ sung dinh dưỡng và liên hệ Trạm Y tế trường khi cần hỗ trợ.\n\nChi tiết xem tại: https://bom.so/dut-ctsv-health',
+        externalLabel: 'Xem Facebook',
+        attachments: [
+          { name: 'Cẩm nang phòng bệnh mùa mưa Đà Nẵng', size: 'PDF • 820 KB' }
+        ],
+        hashtags: ['#HọcTập', '#CTSV', '#SứcKhỏe', '#ThôngBáoChung']
+      },
+      {
+        id: 'post-aiot',
+        source: 'Fanpage CTSV',
+        sourceCode: 'Fanpage CTSV',
+        category: 'Hoạt động sự kiện',
+        time: '16/11/2026 01:01',
+        shortTime: '16/11 01:01',
+        priority: 'low',
+        priorityLabel: 'THẤP',
+        unread: false,
+        title: 'TỰ HÀO SINH VIÊN BÁCH KHOA! ROBOT TỰ HÀNH CHINH PHỤC GIẢI NHẤT AIoT DEVELOPER INNOWORKS 2026',
+        excerpt: 'Đội tuyển sinh viên Bách khoa Đà Nẵng xuất sắc vượt qua nhiều đội mạnh để chinh phục Giải Nhất AIoT Developer InnoWorks 2026...',
+        fullText: 'TỰ HÀO SINH VIÊN BÁCH KHOA!\n\nĐội tuyển sinh viên Đại học Bách khoa – Đại học Đà Nẵng với mô hình Robot tự hành tích hợp AIoT và thị giác máy tính đã xuất sắc chinh phục Giải Nhất chung cuộc AIoT Developer InnoWorks 2026.\n\nXem bài viết gốc tại: https://bom.so/dut-aiot-2026',
+        externalLabel: 'Xem Facebook',
+        attachments: [],
+        hashtags: ['#HoạtĐộngSựKiện', '#AIoT', '#SinhViênDUT']
+      },
+      {
+        id: 'post-pbl6',
+        source: 'Lớp học phần',
+        sourceCode: 'IT499 • 23T_Nhat1',
+        category: 'Điểm số',
+        time: '19/11/2026 14:10',
+        shortTime: '19/11 14:10',
+        priority: 'high',
+        priorityLabel: 'CAO',
+        unread: true,
+        title: 'NỘP BÁO CÁO TIẾN ĐỘ & CÔNG BỐ ĐIỂM SPRINT 2 — ĐỒ ÁN CHUYÊN NGÀNH PBL6 (IT499)',
+        excerpt: 'Các nhóm lớp 23T_Nhat1 kiểm tra điểm quá trình Sprint 1 và nộp slide demo Sprint 2 trước 23:59 ngày 22/11/2026 trên hệ thống E-Learning.',
+        fullText: 'Giảng viên hướng dẫn học phần IT499 - Đồ án chuyên ngành PBL6 thông báo:\n1. Điểm đánh giá Sprint 1 đã được công bố trên cổng sv.dut.udn.vn.\n2. Các nhóm nộp báo cáo Sprint 2 và link mã nguồn GitHub trước 23:59 ngày 22/11/2026 tại: https://elearning.dut.udn.vn/it499',
+        externalLabel: 'Mở bài viết',
+        attachments: [
+          { name: 'Bảng điểm Sprint 1 - 23T_Nhat1.xlsx', size: 'XLSX • 240 KB' },
+          { name: 'Mẫu báo cáo Sprint 2 PBL6.docx', size: 'DOCX • 510 KB' }
+        ],
+        hashtags: ['#ĐiểmSố', '#IT499', '#PBL6', '#23T_Nhat1']
+      },
+      {
+        id: 'post-hocbong',
+        source: 'Đào tạo',
+        sourceCode: 'Phòng Đào tạo',
+        category: 'Học bổng',
+        time: '18/11/2026 09:05',
+        shortTime: '18/11 09:05',
+        priority: 'high',
+        priorityLabel: 'CAO',
+        unread: false,
+        title: 'THÔNG BÁO XÉT HỌC BỔNG DOANH NGHIỆP NHẬT BẢN KỲ I NĂM HỌC 2026 - 2027 (CNTT NHẬT)',
+        excerpt: 'Sinh viên chương trình CNTT K2023 Nhật có điểm GPA từ 3.2 trở lên và trình độ JLPT N3 nộp hồ sơ xét tuyển học bổng trước 28/11/2026.',
+        fullText: 'Phòng Đào tạo phối hợp Khoa CNTT thông báo mở cổng đăng ký Học bổng Doanh nghiệp Nhật Bản dành riêng cho sinh viên chương trình Công nghệ Thông tin K2023 Nhật.\nHạn chót nộp hồ sơ trực tuyến: 17:00 ngày 28/11/2026 tại https://sv.dut.udn.vn/hocbong-jp',
+        externalLabel: 'Mở bài viết',
+        attachments: [
+          { name: 'Tiêu chí xét học bổng Nhật Bản 2026.pdf', size: 'PDF • 690 KB' }
+        ],
+        hashtags: ['#HọcBổng', '#NghềNghiệp', '#K2023Nhật', '#HànhChính']
+      }
+    ];
+
+    const COURSES_LIST = [
+      {
+        id: 'c-it499',
+        span2: true,
+        tint: 'coral',
+        code: 'IT499',
+        name: 'Đồ án chuyên ngành PBL6',
+        credits: 4,
+        schedule: 'Thứ 6 (Tiết 1–4)',
+        room: 'Lab F208',
+        lecturer: 'TS. Nguyễn Văn Hiệu',
+        unread: 2
+      },
+      {
+        id: 'c-it401',
+        span2: false,
+        tint: 'violet',
+        code: 'IT401',
+        name: 'Hệ quản trị CSDL',
+        credits: 3,
+        schedule: 'Thứ 2 (Tiết 1–3)',
+        room: 'C204',
+        lecturer: 'TS. Đặng Hoài Phương',
+        unread: 1
+      },
+      {
+        id: 'c-it408',
+        span2: false,
+        tint: 'mint',
+        code: 'IT408',
+        name: 'Mạng máy tính nâng cao',
+        credits: 3,
+        schedule: 'Thứ 4 (Tiết 1–3)',
+        room: 'C105',
+        lecturer: 'TS. Lê Trần Đức',
+        unread: 1
+      },
+      {
+        id: 'c-jp302',
+        span2: true,
+        tint: 'amber',
+        code: 'JP302',
+        name: 'Tiếng Nhật chuyên ngành IT',
+        credits: 4,
+        schedule: 'Thứ 3 & Thứ 5 (Tiết 6–7)',
+        room: 'B202',
+        lecturer: 'ThS. Trần Thị Minh Ngọc',
+        unread: 0
+      }
+    ];
+
+    const INITIAL_TASKS = [
+      {
+        id: 'task-ac-1',
+        type: 'academic', // 'academic' | 'personal'
+        postId: 'post-lichthi',
+        title: 'Đăng ký thi bổ sung học kỳ I năm học 2026 - 2027',
+        source: 'FB_TUVAN_SV',
+        countdown: 'Còn 1 ngày',
+        dueLabel: '21/11 • 17:00',
+        urgent: true,
+        syncedGCal: true,
+        done: false
+      },
+      {
+        id: 'task-ac-2',
+        type: 'academic',
+        postId: 'post-pbl6',
+        title: 'Nộp slide demo & GitHub Sprint 2 — IT499 PBL6',
+        source: 'IT499 • 23T_Nhat1',
+        countdown: 'Còn 2 ngày',
+        dueLabel: '22/11 • 23:59',
+        urgent: true,
+        syncedGCal: true,
+        done: false
+      },
+      {
+        id: 'task-ac-3',
+        type: 'academic',
+        postId: 'post-hocbong',
+        title: 'Nộp hồ sơ Học bổng Doanh nghiệp Nhật Bản K2023',
+        source: 'Phòng Đào tạo',
+        countdown: 'Còn 8 ngày',
+        dueLabel: '28/11 • 17:00',
+        urgent: false,
+        syncedGCal: false,
+        done: false
+      },
+      {
+        id: 'task-per-1',
+        type: 'personal',
+        postId: 'post-suckhoe',
+        title: 'Xem cẩm nang phòng bệnh mùa mưa Đà Nẵng từ CTSV',
+        source: 'Fanpage CTSV',
+        countdown: 'Tối nay (20:00)',
+        dueLabel: '20/11 • 20:00',
+        urgent: false,
+        syncedGCal: true,
+        done: false
+      }
+    ];
+
+    const ALL_CATEGORIES = [
+      'Tất cả loại', 'Học tập', 'Điểm số', 'Hành chính',
+      'Hoạt động sự kiện', 'Nghề nghiệp', 'Học bổng'
+    ];
+
+    const ALL_PRESET_OPTIONS = [
+      '+1 giờ', 'Tối nay (20:00)', 'Sáng mai (08:00)', '+1 ngày', '+3 ngày', '+1 tuần'
+    ];
+
+    const ALL_TOPIC_PREFS = [
+      'Thông báo học tập',
+      'Thông báo điểm số',
+      'Thông báo hành chính',
+      'Hoạt động sự kiện',
+      'Thông báo nghề nghiệp',
+      'Học bổng'
+    ];
+
+    // -------------------------------------------------------------------------
+    // 2. APPLICATION STATE
+    // -------------------------------------------------------------------------
+    const state = {
+      dataMode: 'populated',      // 'populated' | 'empty'
+      activeTab: 'feed',          // 'feed' | 'courses' | 'tasks' | 'profile'
+      profileSubTab: 'info',      // 'info' | 'settings'
+      sourceFilter: 'Tất cả',
+      categoryFilter: 'Tất cả loại',
+      categoryDrawerOpen: false,
+      urgentReceiptConfirmed: false,
+      taskScope: 'all',           // 'all' | 'academic' | 'personal'
+      taskStatus: 'all',          // 'all' | 'soon' | 'pending' | 'done'
+      coursesSyncedManually: false,
+      activeDetailPostId: null,
+      lastSyncText: 'Hôm nay',
+
+      // Unified tasks (populated defaults + user-created personal reminders)
+      tasks: INITIAL_TASKS.map(t => ({ ...t })),
+      userReminders: [],
+
+      // Followed Facebook Fanpages (Built-in + User Custom)
+      followedFanpages: [
+        { id: 'fb-ctsv', name: 'Fanpage CTSV', url: 'https://www.facebook.com/ctsv.dut.udn.vn', builtIn: true },
+        { id: 'fb-tuvan', name: 'Tư vấn SV', url: 'https://www.facebook.com/tuvansv.dut.udn.vn', builtIn: true }
+      ],
+
+      // Settings State (Centralized in Tab 4 -> Cài đặt & Đồng bộ)
+      gcalConnected: true,
+      gcalDefaultSync: true,
+      savedPresets: ['+1 giờ', 'Tối nay (20:00)', 'Sáng mai (08:00)', '+1 ngày', '+3 ngày', '+1 tuần'],
+      draftPresets: ['+1 giờ', 'Tối nay (20:00)', 'Sáng mai (08:00)', '+1 ngày', '+3 ngày', '+1 tuần'],
+      selectedTopics: new Set(ALL_TOPIC_PREFS),
+      personalizedFeed: true
+    };
+
+    let toastTimeout = null;
+
+    // -------------------------------------------------------------------------
+    // 3. UTILITIES: TOAST, CLIPBOARD, BOTTOM SHEET
+    // -------------------------------------------------------------------------
+    function showToast(message, actionLabel = null, actionFn = null) {
+      const bar = document.getElementById('toastBar');
+      const text = document.getElementById('toastText');
+      const btn = document.getElementById('toastAction');
+      text.textContent = message;
+
+      if (actionLabel && typeof actionFn === 'function') {
+        btn.textContent = actionLabel;
+        btn.style.display = 'inline-flex';
+        btn.onclick = () => {
+          bar.classList.remove('show');
+          actionFn();
+        };
+      } else {
+        btn.style.display = 'none';
+        btn.onclick = null;
+      }
+
+      bar.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => bar.classList.remove('show'), 3200);
+    }
+
+    function copyText(value, successMsg = 'Đã sao chép vào bộ nhớ tạm') {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(successMsg);
+      } catch (err) {
+        showToast('Không thể sao chép nội dung');
+      }
+    }
+
+    function openSheet(html) {
+      document.getElementById('sheetContent').innerHTML = html;
+      const bg = document.getElementById('sheetBackdrop');
+      bg.classList.add('open');
+      bg.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSheet() {
+      const bg = document.getElementById('sheetBackdrop');
+      bg.classList.remove('open');
+      bg.setAttribute('aria-hidden', 'true');
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. DATA MODE & NAVIGATION ENGINE
+    // -------------------------------------------------------------------------
+    function setDataMode(mode) {
+      state.dataMode = mode;
+      if (mode === 'empty') {
+        state.coursesSyncedManually = false;
+      }
+      document.getElementById('modePopBtn').classList.toggle('active', mode === 'populated');
+      document.getElementById('modeEmptyBtn').classList.toggle('active', mode === 'empty');
+      renderAll();
+      showToast(mode === 'empty' ? 'Đang xem trạng thái Trống (Empty State)' : 'Đang xem chế độ Có dữ liệu');
+    }
+
+    function getVisibleTasks() {
+      if (state.dataMode === 'empty') {
+        return state.userReminders;
+      }
+      return [...state.userReminders, ...state.tasks];
+    }
+
+    function isCoursesPopulated() {
+      return state.dataMode === 'populated' || state.coursesSyncedManually;
+    }
+
+    function positionLens(containerId, lensId, activeSelector, pad) {
+      const wrap = document.getElementById(containerId);
+      const lens = document.getElementById(lensId);
+      if (!wrap || !lens) return;
+      const active = wrap.querySelector(activeSelector);
+      if (!active) return;
+      const wRect = wrap.getBoundingClientRect();
+      const aRect = active.getBoundingClientRect();
+      if (aRect.width === 0) return;
+      lens.style.width = `${aRect.width}px`;
+      lens.style.transform = `translateX(${aRect.left - wRect.left - pad}px)`;
+    }
+
+    function switchTab(tabId, subTab = null) {
+      closePostDetail(true);
+      state.activeTab = tabId;
+
+      document.querySelectorAll('.screen').forEach(s => {
+        s.classList.toggle('active', s.id === `tab-${tabId}`);
+      });
+      document.querySelectorAll('.dock-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.tab === tabId);
+      });
+
+      if (tabId === 'profile' && subTab) {
+        state.profileSubTab = subTab;
+      }
+
+      renderProfileSubTabs();
+      requestAnimationFrame(() => {
+        positionLens('dockPill', 'dockLens', '.dock-item.active', 6);
+        if (tabId === 'tasks') positionLens('taskSegSwitcher', 'taskSegLens', '.seg-tab.active', 4);
+        if (tabId === 'profile') positionLens('profileSegSwitcher', 'profileSegLens', '.seg-tab.active', 4);
+      });
+
+      document.getElementById('mainViewport').scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function jumpToSettings(anchor = null) {
+      switchTab('profile', 'settings');
+      if (anchor === 'gcal') {
+        setTimeout(() => {
+          const el = document.getElementById('settingsGcalCard');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.remove('highlight-pulse');
+            void el.offsetWidth;
+            el.classList.add('highlight-pulse');
+          }
+        }, 160);
+      }
+    }
+
+    function triggerPortalSync(btn) {
+      btn.classList.add('spin');
+      setTimeout(() => {
+        btn.classList.remove('spin');
+        state.lastSyncText = 'Vừa xong • Hôm nay';
+        renderProfileInfo();
+        showToast('Đã đồng bộ dữ liệu mới từ sv.dut.udn.vn');
+      }, 780);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. TAB 1: BẢNG TIN (FEED) RENDERING & ACTIONS
+    // -------------------------------------------------------------------------
+    function renderUrgentReceipt() {
+      const card = document.getElementById('urgentAlertCard');
+      card.classList.toggle('confirmed', state.urgentReceiptConfirmed);
+
+      card.innerHTML = `
+        <div class="urgent-kicker">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>CẢNH BÁO NGHỈ HỌC / ĐỔI PHÒNG ĐỘT XUẤT</span>
+        </div>
+        <div class="urgent-title" onclick="openPostDetail('post-lichthi')">
+          [LỊCH THI CUỐI KỲ I NĂM HỌC 2026 - 2027 VÀ ĐĂNG KÝ THI BỔ SUNG]
+        </div>
+        <button class="receipt-btn ${state.urgentReceiptConfirmed ? 'confirmed' : ''}" type="button" onclick="confirmUrgentReceipt()">
+          ${state.urgentReceiptConfirmed
+            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Đã xác nhận nhận tin</span>`
+            : `<span>Xác nhận "Đã nhận tin" (Read Receipt)</span>`}
+        </button>
+      `;
+    }
+
+    function confirmUrgentReceipt() {
+      if (state.urgentReceiptConfirmed) {
+        showToast('Bạn đã xác nhận đọc thông báo khẩn này');
+        return;
+      }
+      state.urgentReceiptConfirmed = true;
+      const post = ANNOUNCEMENTS.find(p => p.id === 'post-lichthi');
+      if (post) post.unread = false;
+      renderUrgentReceipt();
+      renderBentoPulse();
+      renderFeedCards();
+      showToast('Đã gửi xác nhận "Đã nhận tin" (Read Receipt)');
+    }
+
+    function renderBentoPulse() {
+      const wrap = document.getElementById('bentoPulseStrip');
+      const unreadCount = ANNOUNCEMENTS.filter(p => p.unread).length;
+      const visibleTasks = getVisibleTasks();
+      const soonDeadlines = visibleTasks.filter(t => t.type === 'academic' && !t.done).length;
+      const personalCount = visibleTasks.filter(t => t.type === 'personal' && !t.done).length;
+
+      wrap.innerHTML = `
+        <div class="glass-card pulse-tile pressable" onclick="filterUnreadFocus()">
+          <span class="pulse-lbl">Chưa đọc</span>
+          <div class="pulse-num" style="color:var(--coral-ink);">
+            <span>${unreadCount}</span>
+            ${unreadCount > 0 ? '<span class="unread-dot"></span>' : ''}
+          </div>
+        </div>
+        <div class="glass-card pulse-tile pressable" onclick="switchTab('tasks'); setTaskScope('academic');">
+          <span class="pulse-lbl">Hạn sắp tới</span>
+          <div class="pulse-num" style="color:var(--violet);">${soonDeadlines}</div>
+        </div>
+        <div class="glass-card pulse-tile pressable" onclick="switchTab('tasks'); setTaskScope('personal');">
+          <span class="pulse-lbl">Nhắc việc</span>
+          <div class="pulse-num" style="color:var(--mint);">${personalCount}</div>
+        </div>
+      `;
+    }
+
+    function filterUnreadFocus() {
+      state.sourceFilter = 'Tất cả';
+      state.categoryFilter = 'Tất cả loại';
+      renderFeedFilters();
+      renderFeedCards();
+      showToast('Đang hiển thị các thông báo mới nhất');
+    }
+
+    function renderFeedFilters() {
+      const rail = document.getElementById('sourceFilterRail');
+      const customNames = state.followedFanpages.filter(f => !f.builtIn).map(f => f.name);
+      const sources = ['Tất cả', 'Lớp học phần', 'Đào tạo', 'Fanpage CTSV', 'Tư vấn SV', ...customNames];
+
+      rail.innerHTML = sources.map(src => `
+        <button class="filter-pill ${state.sourceFilter === src ? 'active' : ''}" type="button" onclick="setSourceFilter('${src.replace(/'/g, "\\'")}')">${src}</button>
+      `).join('') + `
+        <button class="filter-pill follow-fb-pill" type="button" onclick="openFollowFanpageSheet()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>Theo dõi Fanpage</span>
+        </button>
+      `;
+
+      const toggleBtn = document.getElementById('catToggleBtn');
+      const toggleText = document.getElementById('catToggleText');
+      const drawer = document.getElementById('categoryDrawer');
+      toggleBtn.classList.toggle('active', state.categoryDrawerOpen || state.categoryFilter !== 'Tất cả loại');
+      toggleText.textContent = state.categoryFilter === 'Tất cả loại'
+        ? (state.categoryDrawerOpen ? 'Lọc loại tin ▴' : 'Lọc loại tin ▾')
+        : `Loại: ${state.categoryFilter} ${state.categoryDrawerOpen ? '▴' : '▾'}`;
+      drawer.classList.toggle('open', state.categoryDrawerOpen);
+
+      const chipsEl = document.getElementById('categoryFilterChips');
+      chipsEl.innerHTML = ALL_CATEGORIES.map(cat => `
+        <button class="cat-chip ${state.categoryFilter === cat ? 'active' : ''}" type="button" onclick="setCategoryFilter('${cat}')">${cat}</button>
+      `).join('');
+    }
+
+    function setSourceFilter(src) {
+      state.sourceFilter = src;
+      renderFeedFilters();
+      renderFeedCards();
+    }
+
+    function toggleCategoryDrawer() {
+      state.categoryDrawerOpen = !state.categoryDrawerOpen;
+      renderFeedFilters();
+    }
+
+    function setCategoryFilter(cat) {
+      state.categoryFilter = cat;
+      renderFeedFilters();
+      renderFeedCards();
+    }
+
+    function renderFeedCards() {
+      const list = document.getElementById('feedCardsList');
+      const countMeta = document.getElementById('feedCountMeta');
+      const visibleTasks = getVisibleTasks();
+
+      const filtered = ANNOUNCEMENTS.filter(p => {
+        const matchSrc = state.sourceFilter === 'Tất cả' || p.source === state.sourceFilter;
+        const matchCat = state.categoryFilter === 'Tất cả loại' || p.category === state.categoryFilter;
+        return matchSrc && matchCat;
+      });
+
+      countMeta.textContent = `${filtered.length} thông báo`;
+
+      if (!filtered.length) {
+        list.innerHTML = `
+          <div class="glass-card empty-glass" style="padding:28px 18px;">
+            <h3 style="font-size:15.5px;font-weight:800;">Chưa có bài viết từ nguồn này</h3>
+            <p style="font-size:12.8px;color:var(--ink-secondary);line-height:1.5;">Hệ thống đang tự động cào thông báo mới từ Fanpage đã theo dõi. Bạn có thể quay lại xem toàn bộ bảng tin.</p>
+            <button class="coral-btn" style="height:40px;" type="button" onclick="setSourceFilter('Tất cả'); setCategoryFilter('Tất cả loại');">Xem tất cả thông báo</button>
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = filtered.map(post => {
+        const hasReminder = visibleTasks.some(t => t.postId === post.id && t.type === 'personal');
+        const prioClass = post.priority === 'urgent' ? 'prio-urgent' : post.priority === 'high' ? 'prio-high' : '';
+        const prioBadge = post.priority === 'urgent' ? 'badge-coral' : post.priority === 'high' ? 'badge-violet' : 'badge-neutral';
+
+        return `
+          <article class="glass-card post-card ${prioClass}">
+            <div class="post-head">
+              <div class="post-tags">
+                <span class="badge badge-violet">${post.source}</span>
+                <span class="badge badge-neutral">${post.category}</span>
+              </div>
+              <span class="post-time">${post.shortTime}</span>
+            </div>
+
+            <div class="post-clickable" onclick="openPostDetail('${post.id}')">
+              <h3 class="post-title">${post.title}</h3>
+              <p class="post-excerpt">${post.excerpt}</p>
+            </div>
+
+            <div class="post-status-row">
+              <span class="badge ${prioBadge}">${post.priorityLabel}</span>
+              ${post.unread
+                ? `<span class="unread-indicator"><span class="unread-dot"></span>Chưa đọc</span>`
+                : `<span style="font-size:11.2px;font-weight:600;color:var(--mint);">✓ Đã đọc</span>`}
+            </div>
+
+            <div class="post-footer">
+              <button class="post-remind-btn ${hasReminder ? 'saved' : ''}" type="button" onclick="openQuickReminderSheet('${post.id}')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>
+                </svg>
+                <span>${hasReminder ? 'Đã thêm nhắc' : 'Thêm nhắc nhở'}</span>
+              </button>
+
+              <button class="ghost-btn" style="height:36px;flex:0.9;" type="button" onclick="showToast('Đang mở: ${post.externalLabel}')">
+                <span>${post.externalLabel}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </button>
+
+              <button class="glass-icon-btn" type="button" title="Sao chép liên kết" onclick="copyText('${post.title.replace(/'/g, "\\'")}', 'Đã sao chép liên kết bài viết')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. FULL SLIDE-OVER VIEW: CHI TIẾT THÔNG BÁO
+    // -------------------------------------------------------------------------
+    function linkifyText(text) {
+      return text.replace(/(https?:\/\/[^\s.,;]+)/g, url => {
+        const clean = url.replace(/'/g, '');
+        return `<span class="detail-link" onclick="showToast('Đang mở liên kết: ${clean}')">${url}</span>`;
+      });
+    }
+
+    function openPostDetail(postId) {
+      const post = ANNOUNCEMENTS.find(p => p.id === postId);
+      if (!post) return;
+      state.activeDetailPostId = postId;
+
+      const prioBadge = post.priority === 'urgent' ? 'badge-coral' : post.priority === 'high' ? 'badge-violet' : 'badge-neutral';
+      const body = document.getElementById('detailScrollBody');
+
+      body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="badge badge-violet">${post.sourceCode}</span>
+            <span class="badge ${prioBadge}">${post.priorityLabel}</span>
+          </div>
+          <span style="font-size:12px;font-weight:600;color:var(--ink-muted);">${post.time}</span>
+        </div>
+
+        <h1 style="font-size:19px;font-weight:800;line-height:1.34;letter-spacing:-0.02em;color:var(--ink-primary);">
+          ${post.title}
+        </h1>
+
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="coral-btn" style="flex:1.15;height:40px;padding:0 14px;font-size:12.8px;" type="button" onclick="openQuickReminderSheet('${post.id}')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+              <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>
+            </svg>
+            <span>Thêm nhắc nhở</span>
+          </button>
+
+          <button class="ghost-btn" style="flex:1;height:40px;" type="button" onclick="showToast('Đang mở bài viết gốc trên cổng DUT')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            <span>Mở bài viết</span>
+          </button>
+
+          <button class="glass-icon-btn" style="width:40px;height:40px;" type="button" title="Sao chép" onclick="copyText('${post.title.replace(/'/g, "\\'")}\\n${post.fullText.replace(/'/g, "\\'").replace(/\n/g, ' ')}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="glass-card detail-content-box">
+          ${linkifyText(post.fullText)}
+        </div>
+
+        ${post.attachments.length ? `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h3 style="font-size:13.5px;font-weight:800;color:var(--ink-primary);">Tệp đính kèm:</h3>
+            ${post.attachments.map(att => `
+              <div class="glass-card attach-row pressable" onclick="showToast('Đang tải xuống: ${att.name}')">
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                  <div class="row-icon" style="background:var(--violet-soft);color:var(--violet);width:34px;height:34px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                    </svg>
+                  </div>
+                  <div style="min-width:0;">
+                    <div style="font-size:13.2px;font-weight:700;color:var(--ink-primary);">${att.name}</div>
+                    <div style="font-size:11px;color:var(--ink-muted);">${att.size}</div>
+                  </div>
+                </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--coral-ink)" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div class="hashtag-wrap">
+          ${post.hashtags.map(tag => `
+            <button class="hashtag-chip" type="button" onclick="closePostDetail(); openSpotlight('${tag}')">${tag}</button>
+          `).join('')}
+        </div>
+      `;
+
+      updateDetailMarkReadButton(post);
+
+      const overlay = document.getElementById('detailOverlay');
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.getElementById('bottomDockWrap').classList.add('hidden');
+      body.scrollTop = 0;
+    }
+
+    function updateDetailMarkReadButton(post) {
+      const btn = document.getElementById('detailMarkReadBtn');
+      const isRead = !post.unread;
+      btn.classList.toggle('is-read', isRead);
+      btn.innerHTML = isRead
+        ? `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg><span>Đã đọc • Bấm để đánh dấu chưa đọc</span>`
+        : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg><span>Đánh dấu đã đọc</span>`;
+
+      btn.onclick = () => {
+        post.unread = !post.unread;
+        updateDetailMarkReadButton(post);
+        renderBentoPulse();
+        renderFeedCards();
+        showToast(post.unread ? 'Đã đánh dấu Chưa đọc' : 'Đã đánh dấu Đã đọc');
+      };
+    }
+
+    function closePostDetail(silent = false) {
+      const overlay = document.getElementById('detailOverlay');
+      if (!overlay.classList.contains('open')) return;
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.getElementById('bottomDockWrap').classList.remove('hidden');
+      state.activeDetailPostId = null;
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. TAB 2: HỌC PHẦN (COURSES)
+    // -------------------------------------------------------------------------
+    function renderCoursesTab() {
+      const wrap = document.getElementById('coursesContent');
+      if (!isCoursesPopulated()) {
+        wrap.innerHTML = `
+          <div class="glass-card empty-glass">
+            <div class="orbital-wrap">
+              <div class="orbit-r r1"></div>
+              <div class="orbit-r r2"></div>
+              <div class="orbit-center">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--coral-from)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                </svg>
+              </div>
+            </div>
+            <h3 style="font-size:17.5px;font-weight:800;">Chưa có học phần nào được đồng bộ</h3>
+            <p style="font-size:13px;line-height:1.56;color:var(--ink-secondary);max-width:290px;">
+              Đồng bộ trực tiếp với cổng <strong>sv.dut.udn.vn</strong> để tải thời khóa biểu, phòng học, giảng viên và thông báo riêng của lớp <strong>23T_Nhat1</strong>.
+            </p>
+            <button class="coral-btn" type="button" onclick="syncCoursesNow(this)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              </svg>
+              <span>Đồng bộ học phần ngay</span>
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      const totalCredits = COURSES_LIST.reduce((acc, c) => acc + c.credits, 0);
+      wrap.innerHTML = `
+        <div class="glass-card" style="padding:13px 15px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--ink-muted);text-transform:uppercase;">Học kỳ I • 2026–2027</div>
+            <div style="font-family:var(--font-display);font-size:16px;font-weight:800;margin-top:2px;">
+              ${COURSES_LIST.length} học phần • ${totalCredits} tín chỉ
+            </div>
+          </div>
+          <span class="badge badge-mint">✓ Đã đồng bộ</span>
+        </div>
+
+        <div class="course-grid">
+          ${COURSES_LIST.map(c => `
+            <article class="glass-card course-tile ${c.span2 ? 'span-2' : ''} tint-${c.tint} pressable" onclick="openCourseSheet('${c.id}')">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <span class="badge badge-neutral">${c.code} • ${c.credits} TC</span>
+                ${c.unread > 0 ? `<span class="badge badge-coral">${c.unread} mới</span>` : ''}
+              </div>
+              <div>
+                <h3 style="font-size:15px;font-weight:800;line-height:1.3;margin-bottom:4px;">${c.name}</h3>
+                <div style="font-size:11.8px;color:var(--ink-secondary);">${c.schedule} • Phòng ${c.room}</div>
+              </div>
+              <div style="font-size:11.5px;font-weight:600;color:var(--ink-muted);padding-top:8px;border-top:1px solid var(--glass-divider);">
+                GV: ${c.lecturer}
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function syncCoursesNow(btn) {
+      if (btn) {
+        btn.classList.add('spin');
+        const sp = btn.querySelector('span');
+        if (sp) sp.textContent = 'Đang đồng bộ sv.dut...';
+      }
+      setTimeout(() => {
+        state.coursesSyncedManually = true;
+        state.lastSyncText = 'Vừa xong • Hôm nay';
+        renderCoursesTab();
+        renderProfileInfo();
+        showToast('Đã đồng bộ 4 học phần lớp 23T_Nhat1!');
+      }, 900);
+    }
+
+    function openCourseSheet(courseId) {
+      const c = COURSES_LIST.find(x => x.id === courseId);
+      if (!c) return;
+      openSheet(`
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="badge badge-violet">${c.code}</span>
+          <span class="badge badge-coral">${c.credits} Tín chỉ</span>
+        </div>
+        <h3 style="font-size:18px;font-weight:800;">${c.name}</h3>
+        <div class="glass-card" style="padding:13px 14px;display:flex;flex-direction:column;gap:8px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-muted);">Lịch học</span><strong>${c.schedule}</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-muted);">Phòng học</span><strong>${c.room}</strong></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-muted);">Giảng viên</span><strong>${c.lecturer}</strong></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="ghost-btn" style="flex:0.8;height:44px;" type="button" onclick="closeSheet()">Đóng</button>
+          <button class="coral-btn" style="flex:1.2;" type="button" onclick="closeSheet(); setSourceFilter('Lớp học phần'); switchTab('feed');">Xem tin lớp học phần</button>
+        </div>
+      `);
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. TAB 3: HẠN & NHẮC (UNIFIED DEADLINES & PERSONAL REMINDERS — NO GCAL)
+    // -------------------------------------------------------------------------
+    function setTaskScope(scope) {
+      state.taskScope = scope;
+      document.querySelectorAll('#taskSegSwitcher .seg-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scope === scope);
+      });
+      const lens = document.getElementById('taskSegLens');
+      lens.classList.toggle('violet-lens', scope === 'academic');
+      requestAnimationFrame(() => positionLens('taskSegSwitcher', 'taskSegLens', '.seg-tab.active', 4));
+      renderTasksTab();
+    }
+
+    function setTaskStatus(status) {
+      state.taskStatus = status;
+      renderTasksTab();
+    }
+
+    function updateTasksDockBadge() {
+      const pending = getVisibleTasks().filter(t => !t.done).length;
+      const badge = document.getElementById('dockTasksBadge');
+      badge.textContent = pending > 9 ? '9+' : String(pending);
+      badge.classList.toggle('show', pending > 0);
+    }
+
+    function renderTasksTab() {
+      const statuses = [
+        { id: 'all', label: 'Tất cả' },
+        { id: 'soon', label: '⏳ Sắp đến hạn' },
+        { id: 'pending', label: 'Chờ xử lý' },
+        { id: 'done', label: 'Đã xong' }
+      ];
+      document.getElementById('taskStatusRow').innerHTML = statuses.map(s => `
+        <button class="filter-pill ${state.taskStatus === s.id ? 'active' : ''}" type="button" onclick="setTaskStatus('${s.id}')">${s.label}</button>
+      `).join('');
+
+      const listEl = document.getElementById('tasksListWrap');
+      const allTasks = getVisibleTasks();
+
+      const filtered = allTasks.filter(t => {
+        const matchScope = state.taskScope === 'all' || t.type === state.taskScope;
+        let matchStatus = true;
+        if (state.taskStatus === 'soon') matchStatus = !t.done && t.urgent;
+        if (state.taskStatus === 'pending') matchStatus = !t.done;
+        if (state.taskStatus === 'done') matchStatus = t.done;
+        return matchScope && matchStatus;
+      });
+
+      updateTasksDockBadge();
+
+      if (!filtered.length) {
+        if (state.taskScope === 'academic') {
+          listEl.innerHTML = `
+            <div class="glass-card empty-glass">
+              <div class="row-icon" style="width:56px;height:56px;border-radius:18px;background:var(--violet-soft);color:var(--violet);">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                </svg>
+              </div>
+              <h3 style="font-size:17px;font-weight:800;">Chưa có hạn chót học vụ nào</h3>
+              <p style="font-size:13px;line-height:1.58;color:var(--ink-secondary);max-width:305px;">
+                Hệ thống tự động bóc tách hạn chót từ thông báo học vụ của nhà trường và giảng viên. Khi có bài thông báo có hạn nộp hoặc lịch thi, hạn chót sẽ xuất hiện tại đây.
+              </p>
+            </div>
+          `;
+        } else {
+          listEl.innerHTML = `
+            <div class="glass-card empty-glass">
+              <div class="row-icon" style="width:56px;height:56px;border-radius:18px;background:var(--coral-soft);color:var(--coral-ink);">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                  <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>
+                </svg>
+              </div>
+              <h3 style="font-size:17px;font-weight:800;">Chưa có nhắc việc nào</h3>
+              <p style="font-size:13px;line-height:1.58;color:var(--ink-secondary);max-width:305px;">
+                Mỗi nhắc việc phải luôn gắn liền với một thông báo gốc từ nhà trường hoặc giảng viên. Hãy vào tab "Bảng tin", chọn thông báo cần lưu và bấm nút "Thêm nhắc nhở".
+              </p>
+              <button class="coral-btn" type="button" onclick="switchTab('feed')">Đi đến Bảng tin thông báo</button>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(t => `
+        <article class="glass-card task-card ${t.done ? 'done' : ''}">
+          <button class="check-circle ${t.done ? 'checked' : ''}" type="button" aria-label="Đánh dấu hoàn thành" onclick="toggleTaskDone('${t.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+                <span class="badge ${t.type === 'academic' ? 'badge-violet' : 'badge-coral'}">
+                  ${t.type === 'academic' ? 'Hạn học vụ' : 'Nhắc cá nhân'}
+                </span>
+                <span class="badge badge-neutral">${t.source}</span>
+              </div>
+              ${t.syncedGCal ? `
+                <span title="Đã đồng bộ Google Calendar" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--mint);">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                    <rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><path d="M9 15l2 2 4-4"/>
+                  </svg>
+                  G-Cal
+                </span>` : ''}
+            </div>
+
+            <div class="task-title" style="font-size:14px;font-weight:700;line-height:1.36;color:var(--ink-primary);">
+              ${t.title}
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:11.8px;font-weight:700;color:${t.done ? 'var(--mint)' : t.urgent ? 'var(--coral-ink)' : 'var(--ink-secondary)'};">
+                ${t.done ? '✓ Đã hoàn thành' : `⏳ ${t.countdown} (${t.dueLabel})`}
+              </span>
+              <button style="font-size:11.5px;font-weight:700;color:var(--violet);" type="button" onclick="openPostDetail('${t.postId}')">
+                Xem tin gốc →
+              </button>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function toggleTaskDone(taskId) {
+      const item = [...state.userReminders, ...state.tasks].find(t => t.id === taskId);
+      if (!item) return;
+      item.done = !item.done;
+      renderTasksTab();
+      renderBentoPulse();
+      showToast(item.done ? 'Đã hoàn thành đầu việc' : 'Đã mở lại đầu việc');
+    }
+
+    // -------------------------------------------------------------------------
+    // 9. TAB 4: HỒ SƠ & CÀI ĐẶT (PROFILE + CENTRALIZED SETTINGS)
+    // -------------------------------------------------------------------------
+    function setProfileSubTab(sub) {
+      state.profileSubTab = sub;
+      renderProfileSubTabs();
+      requestAnimationFrame(() => positionLens('profileSegSwitcher', 'profileSegLens', '.seg-tab.active', 4));
+    }
+
+    function renderProfileSubTabs() {
+      document.querySelectorAll('#profileSegSwitcher .seg-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sub === state.profileSubTab);
+      });
+      document.getElementById('profileSubInfo').style.display = state.profileSubTab === 'info' ? 'flex' : 'none';
+      document.getElementById('profileSubSettings').style.display = state.profileSubTab === 'settings' ? 'flex' : 'none';
+    }
+
+    function renderProfileInfo() {
+      const wrap = document.getElementById('profileSubInfo');
+      const courseCount = isCoursesPopulated() ? COURSES_LIST.length : 0;
+
+      wrap.innerHTML = `
+        <!-- 3D-Tilt Holographic Light Glass Student Card -->
+        <div class="pass-stage">
+          <div id="holoCard" class="holo-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span style="font-family:var(--font-display);font-size:11px;font-weight:800;letter-spacing:0.08em;color:var(--ink-muted);">DUT STUDENT PASS</span>
+              <span class="badge badge-mint">✓ sv.dut.udn.vn</span>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div class="student-avatar" style="width:66px;height:66px;border-width:2.5px;">${STUDENT_AVATAR_SVG}</div>
+              <div style="min-width:0;flex:1;">
+                <h2 style="font-size:19.5px;font-weight:800;letter-spacing:-0.02em;">Nguyễn Văn Lợi</h2>
+                <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;">
+                  <span class="badge badge-coral">MSSV: 102230026</span>
+                  <span class="badge badge-violet">23T_Nhat1</span>
+                  <span class="badge badge-mint">K2023</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-size:11.2px;color:var(--ink-muted);padding-top:10px;border-top:1px solid var(--glass-divider);">
+              Dữ liệu thực tế từ <strong>sv.dut.udn.vn/PageCaNhan.aspx</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Structured Glass Detail List -->
+        <div class="glass-card detail-list">
+          ${profileDetailRow('Họ và tên đầy đủ', 'Nguyễn Văn Lợi', 'violet', `<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`)}
+          ${profileDetailRow('Lớp sinh hoạt & Khóa', '23T_Nhat1 (Khóa K2023)', 'coral', `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>`)}
+          ${profileDetailRow('Khoa quản lý & Ngành', 'Khoa Công nghệ Thông tin • Ngành: Công nghệ Thông tin', 'violet', `<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/>`)}
+          ${profileDetailRow('Chương trình đào tạo', 'Công nghệ Thông tin K2023 Nhật', 'mint', `<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>`)}
+          ${profileDetailRow('Ngày sinh & Giới tính', '07/09/2005 • Nam', 'rose', `<rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>`)}
+          ${profileDetailRow('Học phần học kỳ hiện tại', `${courseCount} học phần đang theo học`, 'coral', `<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>`, `switchTab('courses')`)}
+          ${profileDetailRow('Thời gian đồng bộ cổng trường', state.lastSyncText, 'mint', `<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>`)}
+        </div>
+
+        <!-- Thông tin liên lạc & Tài khoản trường cấp -->
+        <div style="font-size:11.5px;font-weight:800;letter-spacing:0.05em;color:var(--ink-muted);text-transform:uppercase;padding:2px 4px 0;">
+          Thông tin liên lạc &amp; Tài khoản trường cấp
+        </div>
+        <div class="glass-card" style="padding:13px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="display:flex;align-items:center;gap:11px;min-width:0;">
+            <div class="row-icon" style="background:var(--fb-soft);color:var(--fb-blue);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                <rect x="2" y="4" width="20" height="16" rx="3"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            </div>
+            <div style="min-width:0;">
+              <div style="font-size:11.5px;color:var(--ink-muted);font-weight:600;">Email Office365 trường cấp</div>
+              <div style="font-size:13.5px;font-weight:700;color:var(--ink-primary);word-break:break-all;">102230026@sv1.dut.udn.vn</div>
+            </div>
+          </div>
+          <button class="glass-icon-btn" type="button" title="Sao chép email" onclick="copyText('102230026@sv1.dut.udn.vn', 'Đã sao chép email sinh viên')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-secondary)" stroke-width="2" stroke-linecap="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      initHoloTilt();
+    }
+
+    function profileDetailRow(label, value, colorKey, svgPath, onClickJs = '') {
+      const palette = {
+        coral: { bg: 'var(--coral-soft)', fg: 'var(--coral-ink)' },
+        mint: { bg: 'var(--mint-soft)', fg: 'var(--mint)' },
+        violet: { bg: 'var(--violet-soft)', fg: 'var(--violet)' },
+        rose: { bg: 'var(--rose-soft)', fg: 'var(--rose)' }
+      }[colorKey];
+
+      return `
+        <div class="detail-row" ${onClickJs ? `style="cursor:pointer;" onclick="${onClickJs}"` : ''}>
+          <div class="row-icon" style="background:${palette.bg};color:${palette.fg};">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              ${svgPath}
+            </svg>
+          </div>
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:11.5px;color:var(--ink-muted);font-weight:600;">${label}</div>
+            <div style="font-size:13.5px;font-weight:700;color:var(--ink-primary);line-height:1.35;margin-top:1px;">${value}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderProfileSettings() {
+      const wrap = document.getElementById('profileSubSettings');
+
+      wrap.innerHTML = `
+        <!-- SECTION 1: ĐỒNG BỘ GOOGLE CALENDAR (MOVED INTO SETTINGS PER FIX #1) -->
+        <div id="settingsGcalCard" class="glass-card settings-section">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+            <div style="display:flex;align-items:center;gap:11px;">
+              <div class="row-icon" style="width:42px;height:42px;background:var(--mint-soft);color:var(--mint);border:1px solid var(--mint-border);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                  <rect x="3" y="4" width="18" height="18" rx="3"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                  <path d="M9 15l2 2 4-4"/>
+                </svg>
+              </div>
+              <div>
+                <h3 style="font-size:15.5px;font-weight:800;">Google Calendar Sync</h3>
+                <p style="font-size:11.8px;color:var(--ink-muted);margin-top:2px;">OAuth 2.0 • Tự động đồng bộ các Remind cá nhân</p>
+              </div>
+            </div>
+            <span class="badge ${state.gcalConnected ? 'badge-mint' : 'badge-neutral'}">
+              ${state.gcalConnected ? '● Đã kết nối' : 'Chưa kết nối'}
+            </span>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="ghost-btn" style="flex:1;height:38px;color:var(--mint);border-color:var(--mint-border);background:var(--mint-soft);" type="button" onclick="syncAllGCal(this)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              </svg>
+              <span>Đồng bộ tất cả</span>
+            </button>
+            <button class="ghost-btn" style="height:38px;color:${state.gcalConnected ? 'var(--rose)' : 'var(--ink-primary)'};" type="button" onclick="toggleGCalConnection()">
+              ${state.gcalConnected ? 'Ngắt kết nối' : 'Kết nối lại'}
+            </button>
+          </div>
+
+          <!-- Toggle Row Inside Same Card -->
+          <div class="setting-subbox">
+            <div style="min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--ink-primary);">Mặc định đồng bộ Google Calendar</div>
+              <div style="font-size:11.5px;color:var(--ink-muted);margin-top:2px;line-height:1.4;">Tự động tích chọn gửi vào Google Calendar khi thêm nhắc nhở</div>
+            </div>
+            <button class="ios-switch ${state.gcalDefaultSync ? 'on' : ''}" type="button" role="switch" aria-checked="${state.gcalDefaultSync}" onclick="toggleDefaultGCalSync()"></button>
+          </div>
+        </div>
+
+        <!-- SECTION 2: CẤU HÌNH NHẮC NHỞ NHANH -->
+        <div class="glass-card settings-section">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div class="row-icon" style="width:40px;height:40px;background:var(--coral-soft);color:var(--coral-ink);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                <circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style="font-size:15.5px;font-weight:800;">Cấu hình Nhắc nhở Nhanh</h3>
+              <p style="font-size:11.8px;color:var(--ink-muted);margin-top:2px;">Các mốc nhắc nhở nhanh hiển thị trong hộp thoại:</p>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:7px;">
+            ${ALL_PRESET_OPTIONS.map(preset => {
+              const isSel = state.draftPresets.includes(preset);
+              return `
+                <button class="preset-chip ${isSel ? 'selected' : ''}" type="button" onclick="toggleDraftPreset('${preset}')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round">
+                    ${isSel ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
+                  </svg>
+                  <span>${preset}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+
+          <button class="coral-btn" style="width:100%;" type="button" onclick="savePresetConfig()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Lưu cấu hình nhắc việc</span>
+          </button>
+        </div>
+
+        <!-- SECTION 3: # CHỦ ĐỀ QUAN TÂM -->
+        <div class="glass-card settings-section">
+          <div>
+            <h3 style="font-size:15.5px;font-weight:800;"><span style="color:var(--violet);">#</span> Chủ đề quan tâm</h3>
+            <p style="font-size:12px;color:var(--ink-muted);margin-top:3px;">Chọn các chủ đề bạn muốn ưu tiên nhận thông báo.</p>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:7px;">
+            ${ALL_TOPIC_PREFS.map(topic => {
+              const isSel = state.selectedTopics.has(topic);
+              return `
+                <button class="preset-chip violet-sel ${isSel ? 'selected' : ''}" type="button" onclick="toggleTopicPref('${topic}')">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round">
+                    ${isSel ? '<polyline points="20 6 9 17 4 12"/>' : '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'}
+                  </svg>
+                  <span>${topic}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="setting-subbox">
+            <div style="min-width:0;">
+              <div style="font-size:13px;font-weight:700;color:var(--ink-primary);">Thông báo được cá nhân hóa</div>
+              <div style="font-size:11.5px;color:var(--ink-muted);margin-top:2px;">Ưu tiên nội dung phù hợp với tùy chọn trên.</div>
+            </div>
+            <button class="ios-switch coral-on ${state.personalizedFeed ? 'on' : ''}" type="button" role="switch" aria-checked="${state.personalizedFeed}" onclick="togglePersonalizedFeed()"></button>
+          </div>
+        </div>
+
+        <!-- SECTION 4: FANPAGE FACEBOOK ĐANG THEO DÕI -->
+        <div class="glass-card settings-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div>
+              <h3 style="font-size:15.5px;font-weight:800;">Fanpage Facebook đang theo dõi</h3>
+              <p style="font-size:11.8px;color:var(--ink-muted);margin-top:2px;">Tự động cào bài viết mới về Bảng tin</p>
+            </div>
+            <button class="filter-pill follow-fb-pill" style="height:32px;padding:0 11px;font-size:11.6px;" type="button" onclick="openFollowFanpageSheet()">
+              + Thêm link
+            </button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${state.followedFanpages.map(fp => `
+              <div class="setting-subbox" style="padding:10px 12px;">
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                  <div class="row-icon" style="width:32px;height:32px;border-radius:10px;background:var(--fb-soft);color:var(--fb-blue);font-weight:800;font-size:14px;">f</div>
+                  <div style="min-width:0;">
+                    <div style="font-size:13px;font-weight:700;color:var(--ink-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fp.name}</div>
+                    <div style="font-size:11px;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fp.url}</div>
+                  </div>
+                </div>
+                ${fp.builtIn
+                  ? `<span class="badge badge-neutral">Mặc định</span>`
+                  : `<button class="glass-icon-btn" style="width:30px;height:30px;color:var(--rose);" type="button" title="Hủy theo dõi" onclick="removeCustomFanpage('${fp.id}')">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>`}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- SECTION 5: TIỆN ÍCH & TÙY CHỌN -->
+        <div style="font-size:11.5px;font-weight:800;letter-spacing:0.05em;color:var(--ink-muted);text-transform:uppercase;padding:2px 4px 0;">
+          Tiện ích &amp; Tùy chọn
+        </div>
+
+        <div class="glass-card utility-row pressable" onclick="syncCoursesNow(null)">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="row-icon" style="background:var(--mint-soft);color:var(--mint);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              </svg>
+            </div>
+            <div>
+              <div style="font-size:13.8px;font-weight:700;">Đồng bộ lại danh sách học phần</div>
+              <div style="font-size:11.8px;color:var(--ink-muted);">Cập nhật lại lịch học và thông báo mới</div>
+            </div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="glass-card utility-row pressable" style="border-color:var(--rose-border);" onclick="openLogoutModal()">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="row-icon" style="background:var(--rose-soft);color:var(--rose);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </div>
+            <div>
+              <div style="font-size:13.8px;font-weight:700;color:var(--rose);">Đăng xuất khỏi thiết bị</div>
+              <div style="font-size:11.8px;color:var(--ink-muted);">Xóa phiên đăng nhập sv.dut.udn.vn</div>
+            </div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="2.2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      `;
+    }
+
+    // Settings Action Handlers
+    function syncAllGCal(btn) {
+      if (!state.gcalConnected) {
+        showToast('Vui lòng kết nối lại Google Calendar trước');
+        return;
+      }
+      btn.classList.add('spin');
+      setTimeout(() => {
+        btn.classList.remove('spin');
+        getVisibleTasks().forEach(t => (t.syncedGCal = true));
+        renderTasksTab();
+        showToast('Đã đồng bộ tất cả nhắc việc lên Google Calendar');
+      }, 820);
+    }
+
+    function toggleGCalConnection() {
+      state.gcalConnected = !state.gcalConnected;
+      if (!state.gcalConnected) state.gcalDefaultSync = false;
+      renderProfileSettings();
+      showToast(state.gcalConnected ? 'Đã kết nối OAuth 2.0 Google Calendar' : 'Đã ngắt kết nối Google Calendar');
+    }
+
+    function toggleDefaultGCalSync() {
+      if (!state.gcalConnected) {
+        state.gcalConnected = true;
+      }
+      state.gcalDefaultSync = !state.gcalDefaultSync;
+      renderProfileSettings();
+      showToast(state.gcalDefaultSync ? 'Mặc định đồng bộ Google Calendar: BẬT' : 'Mặc định đồng bộ Google Calendar: TẮT');
+    }
+
+    function toggleDraftPreset(preset) {
+      if (state.draftPresets.includes(preset)) {
+        if (state.draftPresets.length === 1) {
+          showToast('Cần giữ lại ít nhất 1 mốc nhắc nhở nhanh');
+          return;
+        }
+        state.draftPresets = state.draftPresets.filter(p => p !== preset);
+      } else {
+        state.draftPresets.push(preset);
+      }
+      renderProfileSettings();
+    }
+
+    function savePresetConfig() {
+      state.savedPresets = [...state.draftPresets];
+      showToast(`Đã lưu ${state.savedPresets.length} mốc nhắc nhở nhanh!`);
+    }
+
+    function toggleTopicPref(topic) {
+      if (state.selectedTopics.has(topic)) {
+        state.selectedTopics.delete(topic);
+      } else {
+        state.selectedTopics.add(topic);
+      }
+      renderProfileSettings();
+    }
+
+    function togglePersonalizedFeed() {
+      state.personalizedFeed = !state.personalizedFeed;
+      renderProfileSettings();
+      showToast(state.personalizedFeed ? 'Đã bật cá nhân hóa Bảng tin' : 'Đã tắt cá nhân hóa Bảng tin');
+    }
+
+    function openLogoutModal() {
+      openSheet(`
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="row-icon" style="width:44px;height:44px;background:var(--rose-soft);color:var(--rose);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style="font-size:17px;font-weight:800;">Đăng xuất khỏi thiết bị?</h3>
+            <p style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">Phiên đăng nhập sv.dut.udn.vn (102230026) sẽ bị xóa khỏi thiết bị này.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px;">
+          <button class="ghost-btn" style="flex:1;height:44px;" type="button" onclick="closeSheet()">Hủy bỏ</button>
+          <button class="coral-btn" style="flex:1;background:linear-gradient(135deg,#E11D48,#F43F5E);box-shadow:0 10px 22px rgba(225,29,72,0.28);" type="button" onclick="closeSheet(); showToast('Đã xóa phiên đăng nhập sv.dut.udn.vn');">Đăng xuất ngay</button>
+        </div>
+      `);
+    }
+
+    // 3D Tilt for Holographic Light Glass Student Card
+    function initHoloTilt() {
+      const card = document.getElementById('holoCard');
+      if (!card) return;
+      const move = (cx, cy) => {
+        const r = card.getBoundingClientRect();
+        const x = (cx - r.left) / r.width;
+        const y = (cy - r.top) / r.height;
+        card.style.transform = `rotateX(${(0.5 - y) * 10}deg) rotateY(${(x - 0.5) * 12}deg)`;
+        card.style.setProperty('--mx', `${x * 100}%`);
+        card.style.setProperty('--my', `${y * 100}%`);
+      };
+      card.onmousemove = e => move(e.clientX, e.clientY);
+      card.onmouseleave = () => { card.style.transform = 'rotateX(0) rotateY(0)'; };
+      card.ontouchmove = e => { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); };
+      card.ontouchend = () => { card.style.transform = 'rotateX(0) rotateY(0)'; };
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. INTERACTIVE BOTTOM SHEETS (A: FOLLOW FANPAGE | B: QUICK REMINDER)
+    // -------------------------------------------------------------------------
+    function openFollowFanpageSheet() {
+      const customPages = state.followedFanpages.filter(f => !f.builtIn);
+
+      openSheet(`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div style="width:42px;height:42px;border-radius:14px;background:var(--fb-soft);color:var(--fb-blue);display:flex;align-items:center;justify-content:center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.99 3.66 9.13 8.44 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.77l-.44 2.89h-2.33v6.99C18.34 21.13 22 16.99 22 12z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 style="font-size:17px;font-weight:800;">Theo dõi Fanpage Facebook</h3>
+              <p style="font-size:12px;color:var(--ink-muted);margin-top:1px;">Cào và nhận thông báo tự động từ trang</p>
+            </div>
+          </div>
+          <button class="glass-icon-btn" type="button" aria-label="Đóng" onclick="closeSheet()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <form id="followFbForm" onsubmit="submitFollowFanpage(event)" style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;">
+              Đường link Fanpage Facebook <span style="color:var(--coral-from);">*</span>
+            </label>
+            <div class="glass-input-wrap">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--fb-blue)" stroke-width="2.2" stroke-linecap="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <input id="fbUrlInput" type="text" placeholder="VD: https://www.facebook.com/clb.guitar..." />
+            </div>
+            <div id="fbUrlError" style="font-size:11.5px;font-weight:600;color:var(--rose);margin-top:5px;display:none;"></div>
+          </div>
+
+          <div>
+            <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;">
+              Tên gợi nhớ (Không bắt buộc)
+            </label>
+            <div class="glass-input-wrap">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-muted)" stroke-width="2.1" stroke-linecap="round">
+                <rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M15 9h3"/><path d="M15 13h3"/>
+              </svg>
+              <input id="fbNameInput" type="text" placeholder="VD: CLB Guitar Bách Khoa" />
+            </div>
+          </div>
+
+          <button class="coral-btn" style="width:100%;height:46px;" type="submit">
+            Bắt đầu theo dõi
+          </button>
+        </form>
+
+        ${customPages.length ? `
+          <div style="border-top:1px solid var(--glass-divider);padding-top:12px;display:flex;flex-direction:column;gap:8px;">
+            <div style="font-size:12px;font-weight:700;color:var(--ink-muted);">Fanpage bạn đã thêm (${customPages.length})</div>
+            ${customPages.map(fp => `
+              <div class="setting-subbox" style="padding:9px 11px;">
+                <div style="min-width:0;">
+                  <div style="font-size:12.8px;font-weight:700;">${fp.name}</div>
+                  <div style="font-size:11px;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fp.url}</div>
+                </div>
+                <button class="glass-icon-btn" style="width:30px;height:30px;color:var(--rose);" type="button" onclick="removeCustomFanpage('${fp.id}', true)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      `);
+    }
+
+    function submitFollowFanpage(e) {
+      e.preventDefault();
+      const urlInput = document.getElementById('fbUrlInput');
+      const nameInput = document.getElementById('fbNameInput');
+      const errEl = document.getElementById('fbUrlError');
+
+      const rawUrl = (urlInput.value || '').trim();
+      if (!rawUrl || (!rawUrl.includes('facebook.com') && !rawUrl.includes('fb.com') && !rawUrl.startsWith('http'))) {
+        errEl.textContent = 'Vui lòng nhập đường link Fanpage Facebook hợp lệ (VD: https://www.facebook.com/...)';
+        errEl.style.display = 'block';
+        urlInput.focus();
+        return;
+      }
+
+      const fallbackName = rawUrl.replace(/https?:\/\/(www\.)?(facebook|fb)\.com\//i, '').split(/[/?#]/)[0] || 'Fanpage mới';
+      const displayName = (nameInput.value || '').trim() || fallbackName;
+
+      state.followedFanpages.push({
+        id: 'fb-custom-' + Date.now(),
+        name: displayName,
+        url: rawUrl,
+        builtIn: false
+      });
+
+      renderFeedFilters();
+      renderProfileSettings();
+      closeSheet();
+      showToast(`Đã theo dõi "${displayName}" trên Bảng tin!`);
+    }
+
+    function removeCustomFanpage(id, reopen = false) {
+      const target = state.followedFanpages.find(f => f.id === id);
+      state.followedFanpages = state.followedFanpages.filter(f => f.id !== id);
+      if (target && state.sourceFilter === target.name) {
+        state.sourceFilter = 'Tất cả';
+      }
+      renderFeedFilters();
+      renderFeedCards();
+      renderProfileSettings();
+      if (reopen) openFollowFanpageSheet();
+      showToast('Đã hủy theo dõi Fanpage');
+    }
+
+    // Sheet B: Quick Reminder Sheet (Dynamically synced with User Presets & Default G-Cal Setting)
+    let pendingReminderDraft = { postId: null, preset: '+1 giờ', syncGCal: true };
+
+    function openQuickReminderSheet(postId) {
+      const post = ANNOUNCEMENTS.find(p => p.id === postId);
+      if (!post) return;
+      pendingReminderDraft = {
+        postId,
+        preset: state.savedPresets[0] || '+1 giờ',
+        syncGCal: state.gcalDefaultSync && state.gcalConnected
+      };
+      renderQuickReminderSheet(post);
+    }
+
+    function renderQuickReminderSheet(post) {
+      openSheet(`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <h3 style="font-size:17px;font-weight:800;">Thêm nhắc nhở nhanh</h3>
+          <button class="glass-icon-btn" type="button" onclick="closeSheet()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="setting-subbox" style="flex-direction:column;align-items:flex-start;gap:4px;">
+          <span class="badge badge-violet">${post.source}</span>
+          <div style="font-size:13.2px;font-weight:700;line-height:1.38;color:var(--ink-primary);">${post.title}</div>
+        </div>
+
+        <div>
+          <div style="font-size:12.2px;font-weight:700;color:var(--ink-secondary);margin-bottom:8px;">Chọn mốc nhắc nhở nhanh:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:7px;">
+            ${state.savedPresets.map(p => `
+              <button class="preset-chip ${pendingReminderDraft.preset === p ? 'selected' : ''}" type="button" onclick="selectReminderPreset('${p}', '${post.id}')">
+                ${p}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:12.2px;font-weight:700;color:var(--ink-secondary);margin-bottom:6px;">Hoặc chọn ngày giờ tùy chỉnh:</label>
+          <div class="glass-input-wrap">
+            <input id="customReminderDate" type="datetime-local" onchange="pendingReminderDraft.preset = this.value ? this.value.replace('T', ' • ') : pendingReminderDraft.preset" />
+          </div>
+        </div>
+
+        <div class="setting-subbox">
+          <div>
+            <div style="font-size:13px;font-weight:700;">Gửi vào Google Calendar</div>
+            <div style="font-size:11.2px;color:var(--ink-muted);">Theo cấu hình mặc định trong Cài đặt</div>
+          </div>
+          <button class="ios-switch ${pendingReminderDraft.syncGCal ? 'on' : ''}" type="button" onclick="toggleDraftReminderGCal('${post.id}')"></button>
+        </div>
+
+        <button class="coral-btn" style="width:100%;height:46px;" type="button" onclick="saveQuickReminder('${post.id}')">
+          Lưu nhắc việc
+        </button>
+      `);
+    }
+
+    function selectReminderPreset(preset, postId) {
+      pendingReminderDraft.preset = preset;
+      const post = ANNOUNCEMENTS.find(p => p.id === postId);
+      if (post) renderQuickReminderSheet(post);
+    }
+
+    function toggleDraftReminderGCal(postId) {
+      pendingReminderDraft.syncGCal = !pendingReminderDraft.syncGCal;
+      const post = ANNOUNCEMENTS.find(p => p.id === postId);
+      if (post) renderQuickReminderSheet(post);
+    }
+
+    function saveQuickReminder(postId) {
+      const post = ANNOUNCEMENTS.find(p => p.id === postId);
+      if (!post) return;
+
+      state.userReminders.unshift({
+        id: 'rem-' + Date.now(),
+        type: 'personal',
+        postId: post.id,
+        title: post.title,
+        source: post.source,
+        countdown: pendingReminderDraft.preset,
+        dueLabel: pendingReminderDraft.preset,
+        urgent: post.priority === 'urgent',
+        syncedGCal: pendingReminderDraft.syncGCal,
+        done: false
+      });
+
+      closeSheet();
+      renderBentoPulse();
+      renderFeedCards();
+      renderTasksTab();
+      showToast(
+        pendingReminderDraft.syncGCal ? 'Đã lưu nhắc việc & đẩy lên Google Calendar' : 'Đã lưu nhắc việc cá nhân',
+        'Xem ngay',
+        () => { switchTab('tasks'); setTaskScope('personal'); }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // 11. FULL-SCREEN LIQUID GLASS SPOTLIGHT SEARCH OVERLAY
+    // -------------------------------------------------------------------------
+    function openSpotlight(initialQuery = '') {
+      const screen = document.getElementById('spotlightScreen');
+      const input = document.getElementById('spotlightInput');
+      input.value = initialQuery;
+      screen.classList.add('open');
+      screen.setAttribute('aria-hidden', 'false');
+      renderSpotlightResults(initialQuery);
+      setTimeout(() => input.focus(), 140);
+    }
+
+    function closeSpotlight() {
+      const screen = document.getElementById('spotlightScreen');
+      screen.classList.remove('open');
+      screen.setAttribute('aria-hidden', 'true');
+    }
+
+    function setSpotlightQuery(q) {
+      const input = document.getElementById('spotlightInput');
+      input.value = q;
+      renderSpotlightResults(q);
+    }
+
+    function renderSpotlightResults(raw) {
+      const q = (raw || '').trim().toLowerCase();
+      const box = document.getElementById('spotlightResults');
+
+      const matchedPosts = ANNOUNCEMENTS.filter(p =>
+        !q ||
+        p.title.toLowerCase().includes(q) ||
+        p.source.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.hashtags.some(h => h.toLowerCase().includes(q))
+      );
+
+      const matchedCourses = COURSES_LIST.filter(c =>
+        !q || c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.lecturer.toLowerCase().includes(q)
+      );
+
+      let html = '';
+      if (matchedPosts.length) {
+        html += `<div style="font-size:11.5px;font-weight:800;color:var(--ink-muted);text-transform:uppercase;padding:4px 2px 0;">Thông báo (${matchedPosts.length})</div>`;
+        html += matchedPosts.map(p => `
+          <div class="glass-card pressable" style="padding:12px 14px;border-radius:18px;cursor:pointer;" onclick="closeSpotlight(); openPostDetail('${p.id}');">
+            <div style="font-size:11px;font-weight:700;color:var(--coral-ink);margin-bottom:3px;">${p.source} • ${p.shortTime}</div>
+            <div style="font-size:13.2px;font-weight:700;line-height:1.35;">${p.title}</div>
+          </div>
+        `).join('');
+      }
+
+      if (matchedCourses.length) {
+        html += `<div style="font-size:11.5px;font-weight:800;color:var(--ink-muted);text-transform:uppercase;padding:6px 2px 0;">Học phần 23T_Nhat1 (${matchedCourses.length})</div>`;
+        html += matchedCourses.map(c => `
+          <div class="glass-card pressable" style="padding:12px 14px;border-radius:18px;cursor:pointer;" onclick="closeSpotlight(); state.coursesSyncedManually=true; renderCoursesTab(); switchTab('courses'); openCourseSheet('${c.id}');">
+            <div style="font-size:11px;font-weight:700;color:var(--mint);margin-bottom:2px;">${c.code} • ${c.credits} TC • Phòng ${c.room}</div>
+            <div style="font-size:13.2px;font-weight:700;">${c.name}</div>
+          </div>
+        `).join('');
+      }
+
+      if (!html) {
+        html = `
+          <div class="glass-card empty-glass" style="padding:28px 18px;">
+            <h3 style="font-size:15px;font-weight:800;">Không tìm thấy "${raw}"</h3>
+            <p style="font-size:12.5px;color:var(--ink-secondary);">Thử tìm với từ khóa #LịchThi, IT401 hoặc Fanpage CTSV.</p>
+          </div>
+        `;
+      }
+
+      box.innerHTML = html;
+    }
+
+    // -------------------------------------------------------------------------
+    // 12. BOOTSTRAP INITIALIZATION
+    // -------------------------------------------------------------------------
+    function renderAll() {
+      renderUrgentReceipt();
+      renderBentoPulse();
+      renderFeedFilters();
+      renderFeedCards();
+      renderCoursesTab();
+      renderTasksTab();
+      renderProfileInfo();
+      renderProfileSettings();
+      renderProfileSubTabs();
+      updateTasksDockBadge();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        document.getElementById('headerAvatar').innerHTML = STUDENT_AVATAR_SVG;
+        renderAll();
+
+        requestAnimationFrame(() => {
+          positionLens('dockPill', 'dockLens', '.dock-item.active', 6);
+          positionLens('taskSegSwitcher', 'taskSegLens', '.seg-tab.active', 4);
+          positionLens('profileSegSwitcher', 'profileSegLens', '.seg-tab.active', 4);
+        });
+
+        window.addEventListener('resize', () => {
+          positionLens('dockPill', 'dockLens', '.dock-item.active', 6);
+          positionLens('taskSegSwitcher', 'taskSegLens', '.seg-tab.active', 4);
+          positionLens('profileSegSwitcher', 'profileSegLens', '.seg-tab.active', 4);
+        });
+
+        document.getElementById('spotlightInput').addEventListener('input', e => {
+          renderSpotlightResults(e.target.value);
+        });
+      } catch (err) {
+        console.error('DUT Warm Pearl Liquid Glass init error:', err);
+      }
+    });
+  </script>
+</body>
+</html>

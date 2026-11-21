@@ -1,23 +1,19 @@
 /**
  * DỊCH VỤ ĐỒNG BỘ GOOGLE CALENDAR & XUẤT TỆP .ICS (FR-09)
- * Triển khai theo đặc tả kỹ thuật AGENT.md
- *
- * Hỗ trợ 2 chế độ:
- * 1. Chế độ THẬT (Real OAuth 2.0 API): Khi có GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET
- *    - Gọi trực tiếp Google OAuth2 token endpoint (https://oauth2.googleapis.com/token)
- *    - Gọi trực tiếp Google Calendar API v3 (https://www.googleapis.com/calendar/v3/calendars/primary/events)
- * 2. Chế độ MÔ PHỎNG (Mock / Fallback): Khi chưa cung cấp Credentials
- *    - Báo rõ trạng thái mock/chưa cấu hình để tránh gây hiểu lầm
- *    - Sinh tệp chuẩn iCalendar (.ics) thực tế trên máy để người dùng import thủ công
+ * Kiến trúc Direct PostgreSQL Query.
  */
 
 const https = require('node:https');
 const crypto = require('node:crypto');
-const { getDbStore } = require('../config/db');
+const { db: defaultDb, createDbAdapter } = require('../config/db');
+const { StudentRepository } = require('../db/student.repository');
+const { DeadlineRepository } = require('../db/deadline.repository');
 
 class GoogleCalendarService {
-  constructor(dbStore = getDbStore()) {
-    this.dbStore = dbStore;
+  constructor({ pool = null, db = null, studentRepo = null, deadlineRepo = null } = {}) {
+    this.db = db || (pool ? createDbAdapter(pool) : defaultDb);
+    this.studentRepo = studentRepo || new StudentRepository(this.db);
+    this.deadlineRepo = deadlineRepo || new DeadlineRepository(this.db);
   }
 
   _loadCredentialsFromFileIfAvailable() {
@@ -25,10 +21,7 @@ class GoogleCalendarService {
     try {
       const fs = require('node:fs');
       const path = require('node:path');
-      const candidateDirs = [
-        path.join(__dirname, '../../'),
-        process.cwd(),
-      ];
+      const candidateDirs = [path.join(__dirname, '../../'), process.cwd()];
       for (const rootDir of candidateDirs) {
         if (!fs.existsSync(rootDir)) continue;
         const files = fs.readdirSync(rootDir);
@@ -49,17 +42,11 @@ class GoogleCalendarService {
     } catch (_) {}
   }
 
-  /**
-   * Kiểm tra xem môi trường đã được cấp Google Client ID & Secret hay chưa
-   */
   hasGoogleCredentials() {
     this._loadCredentialsFromFileIfAvailable();
     return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
   }
 
-  /**
-   * Sinh URL ủy quyền Google OAuth2 để người dùng cấp quyền truy cập Calendar
-   */
   getOAuthConsentUrl(
     redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback',
     state = ''
@@ -76,7 +63,6 @@ class GoogleCalendarService {
     const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events');
     const redirect = encodeURIComponent(redirectUri);
     const stateParam = state ? `&state=${encodeURIComponent(state)}` : '';
-
     const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirect}&response_type=code&scope=${scope}&access_type=offline&prompt=consent${stateParam}`;
 
     return {
@@ -86,9 +72,6 @@ class GoogleCalendarService {
     };
   }
 
-  /**
-   * Đổi Authorization Code lấy Access Token và Refresh Token từ Google Server
-   */
   async exchangeAuthCodeForTokens(
     code,
     redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback'
@@ -108,12 +91,11 @@ class GoogleCalendarService {
     return this._postHttps('oauth2.googleapis.com', '/token', payload);
   }
 
-  /**
-   * Lấy trạng thái cấu hình và kết nối Google Calendar của sinh viên
-   */
-  getGoogleCalendarStatus(studentId) {
+  async getGoogleCalendarStatus(studentIdentifier) {
     const isConfigured = this.hasGoogleCredentials();
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
+    const student = studentIdentifier
+      ? await this.studentRepo.resolveStudent(studentIdentifier)
+      : null;
     const hasRealToken = Boolean(student?.google_refresh_token && !student.google_refresh_token.startsWith('mock_'));
     const isMock = Boolean(student?.google_refresh_token?.startsWith('mock_'));
 
@@ -123,16 +105,13 @@ class GoogleCalendarService {
       redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000/auth/google/callback',
       is_connected: hasRealToken,
       mode: hasRealToken ? 'REAL_GOOGLE_API' : (isMock ? 'MOCK_SIMULATION' : 'NOT_CONNECTED'),
-      student_id: student?.id || studentId,
-      student_code: student?.student_code || studentId,
+      student_id: student?.id || studentIdentifier,
+      student_code: student?.student_code || studentIdentifier,
       google_calendar_id: student?.google_calendar_id || 'primary',
       is_calendar_sync_enabled: Boolean(student?.is_calendar_sync_enabled),
     };
   }
 
-  /**
-   * Dùng refresh_token lấy access_token mới từ Google
-   */
   async refreshAccessToken(refreshToken) {
     if (!this.hasGoogleCredentials() || !refreshToken || refreshToken.startsWith('mock_')) {
       return null;
@@ -154,24 +133,16 @@ class GoogleCalendarService {
     }
   }
 
-  /**
-   * Kết nối và lưu OAuth2 refresh token của sinh viên
-   */
-  async connectGoogleAccount(studentId, authData = {}) {
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
-    if (!student) {
-      throw new Error(`Không tìm thấy sinh viên với ID: ${studentId}`);
-    }
-
+  async connectGoogleAccount(studentIdentifier, authData = {}) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
     const isRealToken = Boolean(authData.refresh_token && !authData.refresh_token.startsWith('mock_'));
     const isConfigured = this.hasGoogleCredentials();
 
-    student.google_refresh_token = authData.refresh_token || 'mock_google_oauth2_refresh_token';
-    student.google_calendar_id = authData.calendar_id || 'primary';
-    student.is_calendar_sync_enabled = true;
-    student.updated_at = new Date().toISOString();
-
-    this.dbStore.saveStudent(student);
+    await this.studentRepo.updateGoogleTokens(student.id, {
+      refreshToken: authData.refresh_token || 'mock_google_oauth2_refresh_token',
+      calendarId: authData.calendar_id || 'primary',
+      enabled: true,
+    });
 
     return {
       success: true,
@@ -184,12 +155,23 @@ class GoogleCalendarService {
     };
   }
 
-  /**
-   * Sinh URL Web Intent để thêm trực tiếp sự kiện vào Google Calendar trên trình duyệt hoặc điện thoại
-   */
+  async disconnectGoogleAccount(studentIdentifier) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    await this.studentRepo.updateGoogleTokens(student.id, {
+      refreshToken: null,
+      calendarId: 'primary',
+      enabled: false,
+    });
+    return {
+      success: true,
+      is_connected: false,
+      message: 'Đã ngắt kết nối Google Calendar thành công',
+    };
+  }
+
   generateGoogleCalendarUrl(deadline) {
     const startDate = new Date(deadline.due_date || Date.now());
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 giờ
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
 
     const formatGCal = (d) => d.toISOString().replace(/-|:|\.\d\d\d/g, '');
     const startStr = formatGCal(startDate);
@@ -203,40 +185,54 @@ class GoogleCalendarService {
     return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}`;
   }
 
-  /**
-   * Đồng bộ hóa toàn bộ hoặc một hạn chót cụ thể lên Google Calendar
-   */
-  async syncDeadlinesToCalendar(studentId, deadlineId = null) {
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
-    const targetStudentId = student ? student.id : studentId;
+  async syncDeadlinesToCalendar(studentIdentifier, deadlineId = null) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    const targetStudentId = student.id;
 
     let studentDeadlines = [];
     if (deadlineId) {
-      const single = this.dbStore.deadlines ? this.dbStore.deadlines.get(deadlineId) : null;
+      const single = await this.deadlineRepo.getDeadlineById(deadlineId);
       if (single) {
         studentDeadlines = [single];
-      } else {
-        const all = this.dbStore.getDeadlinesByStudent(targetStudentId);
-        const found = all.find((d) => d.deadline_id === deadlineId || d.id === deadlineId);
-        if (found) studentDeadlines = [found];
       }
     } else {
-      studentDeadlines = this.dbStore.getDeadlinesByStudent(targetStudentId, {
+      studentDeadlines = await this.deadlineRepo.getDeadlinesByStudent(targetStudentId, {
         status: 'PENDING',
       });
-      // QUY TẮC CỐT LÕI: Chỉ đồng bộ Nhắc việc (REMINDER) do sinh viên tạo, không tự ý đẩy Hạn chót học vụ vào Google Calendar
       studentDeadlines = studentDeadlines.filter(
         (d) => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]'))
       );
     }
 
     const isConfigured = this.hasGoogleCredentials();
-    const refreshToken = student?.google_refresh_token;
+    const refreshToken = student.google_refresh_token;
     const canCallRealGoogle = isConfigured && refreshToken && !refreshToken.startsWith('mock_');
+
+    if (!canCallRealGoogle) {
+      return {
+        synced_count: 0,
+        mode: 'NOT_CONNECTED',
+        is_connected: false,
+        configured: isConfigured,
+        message: 'Tài khoản chưa liên kết Google Calendar',
+        events: [],
+      };
+    }
 
     let accessToken = null;
     if (canCallRealGoogle) {
       accessToken = await this.refreshAccessToken(refreshToken);
+    }
+
+    if (!accessToken) {
+      return {
+        synced_count: 0,
+        mode: 'AUTH_EXPIRED',
+        is_connected: false,
+        configured: isConfigured,
+        message: 'Phiên ủy quyền Google đã hết hạn. Vui lòng kết nối lại tài khoản Google trong Cài đặt.',
+        events: [],
+      };
     }
 
     const syncedEvents = [];
@@ -244,61 +240,37 @@ class GoogleCalendarService {
     for (const d of studentDeadlines) {
       const gcalUrl = this.generateGoogleCalendarUrl(d);
 
-      if (accessToken) {
-        // GỌI THẬT TỚI GOOGLE CALENDAR API v3
-        try {
-          const googleEvent = await this._createRealGoogleCalendarEvent(accessToken, student.google_calendar_id, d);
-          d.google_event_id = googleEvent.id;
-          d.last_synced_at = new Date().toISOString();
-          this.dbStore.saveDeadline(d);
-          syncedEvents.push({
-            deadline_id: d.deadline_id,
-            google_event_id: d.google_event_id,
-            title: d.title,
-            due_date: d.due_date,
-            google_calendar_url: gcalUrl,
-            mode: 'REAL_API',
-          });
-          continue;
-        } catch (err) {
-          console.warn(`Lỗi khi đẩy event lên Google Calendar thật (${d.title}):`, err.message);
-        }
+      try {
+        const googleEvent = await this._createRealGoogleCalendarEvent(accessToken, student.google_calendar_id, d);
+        d.google_event_id = googleEvent.id;
+        d.last_synced_at = new Date().toISOString();
+        await this.deadlineRepo.saveDeadline(d);
+        syncedEvents.push({
+          deadline_id: d.deadline_id,
+          google_event_id: d.google_event_id,
+          title: d.title,
+          due_date: d.due_date,
+          google_calendar_url: gcalUrl,
+          mode: 'REAL_API',
+        });
+      } catch (err) {
+        console.warn(`Lỗi khi đẩy event lên Google Calendar thật (${d.title}):`, err.message);
       }
-
-      // CHẾ ĐỘ MÔ PHỎNG (MOCK SIMULATION) KHI CHƯA CÓ CREDENTIALS
-      if (!d.google_event_id) {
-        d.google_event_id = `mock_gcal_${crypto.randomBytes(6).toString('hex')}`;
-      }
-      d.last_synced_at = new Date().toISOString();
-      this.dbStore.saveDeadline(d);
-
-      syncedEvents.push({
-        deadline_id: d.deadline_id,
-        google_event_id: d.google_event_id,
-        title: d.title,
-        due_date: d.due_date,
-        google_calendar_url: gcalUrl,
-        mode: 'MOCK_SIMULATION',
-      });
     }
 
     return {
       synced_count: syncedEvents.length,
-      mode: canCallRealGoogle && accessToken ? 'REAL_GOOGLE_API' : 'MOCK_SIMULATION',
+      mode: 'REAL_GOOGLE_API',
+      is_connected: true,
       configured: isConfigured,
-      note: isConfigured
-        ? 'Đã đồng bộ với Google Calendar API'
-        : 'LƯU Ý: Chưa cấu hình GOOGLE_CLIENT_ID / SECRET. Đang ở chế độ mô phỏng chờ thông tin xác thực Google Authentication. Sinh viên có thể dùng nút Thêm vào Google Calendar để thêm nhanh trực tiếp!',
+      note: 'Đã đồng bộ với Google Calendar API',
       events: syncedEvents,
     };
   }
 
-  /**
-   * Gọi API thật: POST https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
-   */
   async _createRealGoogleCalendarEvent(accessToken, calendarId, deadline) {
     const startDate = new Date(deadline.due_date);
-    const endDate = new Date(startDate.getTime() + 3600000); // 1 tiếng
+    const endDate = new Date(startDate.getTime() + 3600000);
 
     const body = JSON.stringify({
       summary: deadline.title,
@@ -322,9 +294,6 @@ class GoogleCalendarService {
     );
   }
 
-  /**
-   * Helper gửi HTTPS DELETE qua native node:https
-   */
   _deleteHttps(hostname, path, extraHeaders = {}) {
     return new Promise((resolve, reject) => {
       const req = https.request(
@@ -332,9 +301,7 @@ class GoogleCalendarService {
           hostname,
           path,
           method: 'DELETE',
-          headers: {
-            ...extraHeaders,
-          },
+          headers: { ...extraHeaders },
         },
         (res) => {
           let data = '';
@@ -360,25 +327,12 @@ class GoogleCalendarService {
     });
   }
 
-  /**
-   * Xóa một sự kiện Remind khỏi Google Calendar
-   * @param {string} studentId
-   * @param {string} deadlineId
-   */
-  async deleteEventFromCalendar(studentId, deadlineId) {
+  async deleteEventFromCalendar(studentIdentifier, deadlineId) {
     if (!deadlineId) {
       return { success: false, message: 'Thiếu deadline_id' };
     }
 
-    let deadline = null;
-    if (this.dbStore && this.dbStore.deadlines) {
-      deadline = this.dbStore.deadlines.get(deadlineId);
-      if (!deadline) {
-        const all = Array.from(this.dbStore.deadlines.values());
-        deadline = all.find((d) => d.deadline_id === deadlineId || d.id === deadlineId);
-      }
-    }
-
+    const deadline = await this.deadlineRepo.getDeadlineById(deadlineId);
     if (!deadline) {
       return { success: false, message: 'Không tìm thấy nhắc việc' };
     }
@@ -388,8 +342,8 @@ class GoogleCalendarService {
       return { success: true, message: 'Nhắc việc chưa được lưu trên Google Calendar' };
     }
 
-    const targetStudentId = studentId || deadline.student_id || '102230026';
-    const student = this.dbStore.findStudentByCodeOrId(targetStudentId);
+    const targetStudentRef = studentIdentifier || deadline.student_id;
+    const student = targetStudentRef ? await this.studentRepo.resolveStudent(targetStudentRef) : null;
     const isConfigured = this.hasGoogleCredentials();
     const refreshToken = student?.google_refresh_token;
     const canCallRealGoogle = isConfigured && refreshToken && !refreshToken.startsWith('mock_');
@@ -410,11 +364,10 @@ class GoogleCalendarService {
       }
     }
 
-    // Xóa liên kết Google Calendar trên bản ghi Remind
     deadline.google_event_id = null;
     deadline.last_synced_at = null;
     deadline.updated_at = new Date().toISOString();
-    this.dbStore.saveDeadline(deadline);
+    await this.deadlineRepo.saveDeadline(deadline);
 
     return {
       success: true,
@@ -424,9 +377,6 @@ class GoogleCalendarService {
     };
   }
 
-  /**
-   * Helper gửi HTTPS POST qua native node:https
-   */
   _postHttps(hostname, path, payload, extraHeaders = {}) {
     return new Promise((resolve, reject) => {
       const req = https.request(
@@ -462,21 +412,16 @@ class GoogleCalendarService {
     });
   }
 
-  /**
-   * Xuất danh sách sự kiện hạn chót thành tệp định dạng chuẩn iCalendar (.ics)
-   * TÍNH NĂNG NÀY HOẠT ĐỘNG THẬT 100% MÀ KHÔNG CẦN BẤT KỲ GOOGLE CREDENTIALS NÀO
-   */
-  generateIcsCalendar(studentId) {
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
-    const targetStudentId = student ? student.id : studentId;
-    const deadlines = this.dbStore.getDeadlinesByStudent(targetStudentId);
+  async generateIcsCalendar(studentIdentifier) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    const deadlines = await this.deadlineRepo.getDeadlinesByStudent(student.id);
 
     const formatIcsDate = (dateStr) => {
       const d = new Date(dateStr);
       return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     };
 
-    let icsContent = [
+    const icsContent = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//DUT Student Notification System//VN',

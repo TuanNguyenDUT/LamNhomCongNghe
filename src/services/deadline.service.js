@@ -1,15 +1,20 @@
 /**
  * DỊCH VỤ QUẢN LÝ HẠN CHÓT (DEADLINE MANAGEMENT) & NHẮC HẠN ĐA TẦNG (FR-06, FR-07)
- * Triển khai theo đặc tả AGENT.md
+ * Kiến trúc Direct PostgreSQL Query.
  */
 
 const crypto = require('node:crypto');
-const { getDbStore } = require('../config/db');
+const { db: defaultDb, createDbAdapter } = require('../config/db');
+const { StudentRepository } = require('../db/student.repository');
+const { DeadlineRepository, normalizeDeadlineTitle } = require('../db/deadline.repository');
 const { detectNotificationCategory, matchesInterestedTopics } = require('./classifier.service');
+const { NotFoundError } = require('../utils/errors');
 
 class DeadlineService {
-  constructor(dbStore = getDbStore()) {
-    this.dbStore = dbStore;
+  constructor({ pool = null, db = null, studentRepo = null, deadlineRepo = null } = {}) {
+    this.db = db || (pool ? createDbAdapter(pool) : defaultDb);
+    this.studentRepo = studentRepo || new StudentRepository(this.db);
+    this.deadlineRepo = deadlineRepo || new DeadlineRepository(this.db);
   }
 
   /**
@@ -17,35 +22,28 @@ class DeadlineService {
    * Chống trùng lặp tuyệt đối: Nếu đã có hạn chót cho cùng thông báo hoặc cùng tiêu đề, cập nhật bản ghi hiện tại
    */
   async createDeadline(data = {}) {
-    const student = this.dbStore.findStudentByCodeOrId(data.student_id);
-    const targetStudentId = student ? student.id : (data.student_id || 'a0000000-0000-0000-0000-000000000001');
+    const student = await this.studentRepo.requireStudent(data.student_id || data.student_code);
+    const targetStudentId = student.id;
 
-    const cleanTitle = (data.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
+    const cleanTitle = normalizeDeadlineTitle(data.title || '');
     const formattedTitle = (data.title || 'Hạn chót học tập').replace(/\s+/g, ' ').trim();
-
     const isReminder = data.item_type === 'REMINDER' || formattedTitle.startsWith('[Nhắc nhở]');
     const itemType = data.item_type || (isReminder ? 'REMINDER' : 'DEADLINE');
 
-    // 1. Kiểm tra xem hạn chót/nhắc việc này đã tồn tại cho sinh viên hay chưa
-    for (const d of this.dbStore.deadlines.values()) {
-      if (d.student_id === targetStudentId) {
-        const dCleanTitle = (d.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
-        const sameNotif = data.notification_id && d.notification_id && d.notification_id === data.notification_id;
-        const sameTitle = cleanTitle && dCleanTitle === cleanTitle;
+    const existing = await this.deadlineRepo.findDuplicateDeadline(targetStudentId, {
+      notificationId: data.notification_id || null,
+      cleanTitle,
+    });
 
-        if (sameNotif || sameTitle) {
-          // Đã tồn tại -> Cập nhật thông tin và trả về bản ghi hiện tại, KHÔNG TẠO BẢN GHI MỚI!
-          if (data.due_date) d.due_date = new Date(data.due_date).toISOString();
-          if (data.description && !d.description) d.description = data.description;
-          if (data.notification_id && !d.notification_id) d.notification_id = data.notification_id;
-          if (data.course_code && !d.course_code) d.course_code = data.course_code;
-          if (!d.item_type) d.item_type = itemType;
-          d.updated_at = new Date().toISOString();
-          this._updateDeadlineStatus(d);
-          this.dbStore.saveDeadline(d);
-          return d;
-        }
-      }
+    if (existing) {
+      if (data.due_date) existing.due_date = new Date(data.due_date).toISOString();
+      if (data.description && !existing.description) existing.description = data.description;
+      if (data.notification_id && !existing.notification_id) existing.notification_id = data.notification_id;
+      if (data.course_code && !existing.course_code) existing.course_code = data.course_code;
+      if (!existing.item_type) existing.item_type = itemType;
+      existing.updated_at = new Date().toISOString();
+      this._updateDeadlineStatus(existing);
+      return this.deadlineRepo.saveDeadline(existing);
     }
 
     const catInfo = data.category
@@ -69,7 +67,9 @@ class DeadlineService {
       category_name: catInfo.category_name,
       title: formattedTitle,
       description: data.description || '',
-      due_date: data.due_date ? new Date(data.due_date).toISOString() : new Date(Date.now() + 86400000 * 3).toISOString(),
+      due_date: data.due_date
+        ? new Date(data.due_date).toISOString()
+        : new Date(Date.now() + 86400000 * 3).toISOString(),
       status: data.status || 'PENDING',
       item_type: itemType,
       google_event_id: data.google_event_id || null,
@@ -80,25 +80,20 @@ class DeadlineService {
     };
 
     this._updateDeadlineStatus(deadline);
-    this.dbStore.saveDeadline(deadline);
-    return deadline;
+    return this.deadlineRepo.saveDeadline(deadline);
   }
 
   /**
    * Lấy danh sách hạn chót của sinh viên (FR-06)
-   * Tự động khử trùng lặp hiển thị để đảm bảo giao diện luôn hiển thị duy nhất 1 thẻ cho mỗi mốc hạn chót
    */
-  async getDeadlines(studentId, filters = {}) {
-    const student = this.dbStore.findStudentByCodeOrId(studentId);
-    const targetStudentId = student ? student.id : (studentId || 'a0000000-0000-0000-0000-000000000001');
+  async getDeadlines(studentIdentifier, filters = {}) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    let list = await this.deadlineRepo.getDeadlinesByStudent(student.id, filters);
 
-    let list = this.dbStore.getDeadlinesByStudent(targetStudentId, filters);
-    // Tự động kiểm tra và cập nhật trạng thái PENDING / DUE_SOON / OVERDUE
     for (const d of list) {
       this._updateDeadlineStatus(d);
     }
 
-    // Lọc theo item_type nếu có: 'DEADLINE' vs 'REMINDER'
     if (filters.item_type) {
       if (filters.item_type === 'REMINDER') {
         list = list.filter((d) => d.item_type === 'REMINDER' || (d.title && d.title.startsWith('[Nhắc nhở]')));
@@ -107,27 +102,18 @@ class DeadlineService {
       }
     }
 
-    // Gắn thông tin category từ notification liên kết nếu deadline chưa có
     for (const d of list) {
       if (!d.category) {
-        const linkedNotif = d.notification_id ? this.dbStore.notifications.get(d.notification_id) : null;
-        if (linkedNotif && linkedNotif.category) {
-          d.category = linkedNotif.category;
-          d.category_code = linkedNotif.category_code;
-          d.category_name = linkedNotif.category_name;
-        } else {
-          const catInfo = detectNotificationCategory({
-            title: (d.title || '').replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, ''),
-            content: d.description || '',
-          });
-          d.category = catInfo.category;
-          d.category_code = catInfo.category_code;
-          d.category_name = catInfo.category_name;
-        }
+        const catInfo = detectNotificationCategory({
+          title: (d.title || '').replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, ''),
+          content: d.description || '',
+        });
+        d.category = catInfo.category;
+        d.category_code = catInfo.category_code;
+        d.category_name = catInfo.category_name;
       }
     }
 
-    // Lọc theo bộ lọc categories / category truyền lên từ API (nếu có)
     const rawCats = filters.categories || filters.category;
     if (rawCats && rawCats !== 'ALL') {
       const catList = (Array.isArray(rawCats) ? rawCats : String(rawCats).split(','))
@@ -136,21 +122,22 @@ class DeadlineService {
       if (catList.length > 0) {
         list = list.filter((d) => matchesInterestedTopics(d, catList));
       }
-    } else if (student && student.is_personalized_enabled !== false && Array.isArray(student.interested_topics) && student.interested_topics.length > 0) {
-      // Cá nhân hóa Hạn chót theo 6 mục người dùng đã chọn quan tâm
+    } else if (
+      student &&
+      student.is_personalized_enabled !== false &&
+      Array.isArray(student.interested_topics) &&
+      student.interested_topics.length > 0
+    ) {
       list = list.filter((d) => matchesInterestedTopics(d, student.interested_topics));
     }
 
-    // Khử trùng lặp trên tầng đọc (Deduplicate on read)
     const seen = new Set();
     const deduped = [];
     for (const d of list) {
-      const cleanTitle = (d.title || '').trim().replace(/^\[(?:hạn chót|nhắc nhở)\]\s*/i, '').replace(/\s+/g, ' ').toLowerCase();
+      const cleanTitle = normalizeDeadlineTitle(d.title);
       const typeKey = d.item_type || (d.title && d.title.startsWith('[Nhắc nhở]') ? 'REMINDER' : 'DEADLINE');
       const key = `${cleanTitle}|${typeKey}`;
-      if (seen.has(key)) {
-        continue;
-      }
+      if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(d);
     }
@@ -158,14 +145,16 @@ class DeadlineService {
     return deduped;
   }
 
-  /**
-   * Cập nhật hạn chót (FR-06)
-   */
-  async updateDeadline(deadlineId, updates = {}) {
-    const deadline = this.dbStore.deadlines.get(deadlineId);
+  async getDeadlineById(deadlineId) {
+    const deadline = await this.deadlineRepo.getDeadlineById(deadlineId);
     if (!deadline) {
-      throw new Error(`Không tìm thấy deadline với ID: ${deadlineId}`);
+      throw new NotFoundError(`Không tìm thấy deadline với ID: ${deadlineId}`);
     }
+    return deadline;
+  }
+
+  async updateDeadline(deadlineId, updates = {}) {
+    const deadline = await this.getDeadlineById(deadlineId);
 
     if (updates.title !== undefined) deadline.title = updates.title;
     if (updates.description !== undefined) deadline.description = updates.description;
@@ -177,31 +166,21 @@ class DeadlineService {
 
     deadline.updated_at = new Date().toISOString();
     this._updateDeadlineStatus(deadline);
-    this.dbStore.saveDeadline(deadline);
-    return deadline;
+    return this.deadlineRepo.saveDeadline(deadline);
   }
 
-  /**
-   * Đánh dấu hạn chót đã hoàn thành (FR-06)
-   */
   async markAsCompleted(deadlineId) {
     return this.updateDeadline(deadlineId, { status: 'COMPLETED' });
   }
 
-  /**
-   * Xóa hạn chót (FR-06)
-   */
   async deleteDeadline(deadlineId) {
-    if (!this.dbStore.deadlines.has(deadlineId)) {
-      throw new Error(`Không tìm thấy deadline với ID: ${deadlineId}`);
+    const deleted = await this.deadlineRepo.deleteDeadline(deadlineId);
+    if (!deleted) {
+      throw new NotFoundError(`Không tìm thấy deadline với ID: ${deadlineId}`);
     }
-    this.dbStore.deadlines.delete(deadlineId);
     return { success: true, message: 'Đã xóa hạn chót thành công' };
   }
 
-  /**
-   * Cập nhật trạng thái động (PENDING, DUE_SOON, OVERDUE)
-   */
   _updateDeadlineStatus(deadline) {
     if (deadline.status === 'COMPLETED') return;
     const now = Date.now();
@@ -219,19 +198,17 @@ class DeadlineService {
 
   /**
    * Worker quét và gửi thông báo nhắc việc leo thang đa tầng (FR-07)
-   * Các mốc: Trước 7 ngày (168h), Trước 3 ngày (72h), Trước 1 ngày (24h), Trước 2 giờ (2h)
    */
   async processEscalationReminders() {
     const triggeredReminders = [];
     const now = Date.now();
+    const deadlines = await this.deadlineRepo.listNonCompletedDeadlines();
 
-    for (const deadline of this.dbStore.deadlines.values()) {
-      if (deadline.status === 'COMPLETED') continue;
-
+    for (const deadline of deadlines) {
       const dueTime = new Date(deadline.due_date).getTime();
       const hoursRemaining = (dueTime - now) / (1000 * 60 * 60);
 
-      if (hoursRemaining <= 0) continue; // Đã quá hạn
+      if (hoursRemaining <= 0) continue;
 
       let currentStage = 0;
       let stageLabel = '';
@@ -250,11 +227,10 @@ class DeadlineService {
         stageLabel = 'Thông báo: Hạn chót còn 7 ngày.';
       }
 
-      // Nếu mốc hiện tại cao hơn mốc đã gửi trước đó -> Kích hoạt nhắc việc
       if (currentStage > (deadline.reminder_stage_sent || 0)) {
         deadline.reminder_stage_sent = currentStage;
         deadline.updated_at = new Date().toISOString();
-        this.dbStore.saveDeadline(deadline);
+        await this.deadlineRepo.saveDeadline(deadline);
 
         triggeredReminders.push({
           deadline_id: deadline.deadline_id,
@@ -278,4 +254,3 @@ module.exports = {
   DeadlineService,
   deadlineService,
 };
-

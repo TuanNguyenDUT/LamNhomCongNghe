@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/network/api_client.dart';
@@ -90,7 +90,8 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
 
     try {
       final dio = ref.read(dioProvider);
-      final studentCode = session?.studentCode ?? '102230026';
+      final studentCode = session?.studentCode ?? '';
+      if (studentCode.isEmpty) return;
       final res = await dio.get(
         '/api/v1/students/preferences',
         queryParameters: {'student_code': studentCode},
@@ -114,7 +115,7 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
     setState(() => _isSaving = true);
     final authState = ref.read(authControllerProvider);
     final session = authState.session;
-    final studentCode = session?.studentCode ?? '102230026';
+    final studentCode = session?.studentCode ?? '';
     final studentId = session?.studentId ?? studentCode;
     final dio = ref.read(dioProvider);
 
@@ -319,7 +320,6 @@ class _InterestTopicsCardState extends ConsumerState<InterestTopicsCard> {
               Switch.adaptive(
                 value: _isPersonalizedEnabled,
                 onChanged: _togglePersonalized,
-                activeColor: const Color(0xFF2563EB),
                 activeTrackColor: const Color(0xFF2563EB),
               ),
             ],

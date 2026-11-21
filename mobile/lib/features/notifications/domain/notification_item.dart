@@ -55,6 +55,13 @@ class NotificationItem {
   final String? categoryCode;
   final String? categoryName;
 
+  String get sourceTitle => sourceName ?? sourceChannel ?? sourceType;
+
+  String get formattedPublishedAt {
+    final d = publishedAt.toLocal();
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  }
+
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'] ?? json['notification_id'] ?? 0;
     return NotificationItem(

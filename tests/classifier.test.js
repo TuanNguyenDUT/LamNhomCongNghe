@@ -1,6 +1,5 @@
 /**
- * TASK 13: Bộ kiểm thử tự động cho Rules Engine (Bộ quy tắc phân loại & tính điểm ưu tiên)
- * Phụ trách: Nguyễn Hữu Tuấn
+ * TASK 13: Bộ kiểm thử tự động cho Rules Engine (Pure Unit Tests + Direct PostgreSQL Integration)
  */
 
 const test = require('node:test');
@@ -13,6 +12,12 @@ const {
 } = require('../src/services/classifier.service');
 const { createServer } = require('../src/server');
 const { notificationRouter } = require('../src/api/notification.routes');
+const {
+  createTestPool,
+  resetDatabase,
+  seedStudent,
+  teardownTestPool,
+} = require('./helpers/pg-test-harness');
 
 async function callApi(controller, { method = 'GET', url = '/', body = null } = {}) {
   const payloadStr = body ? JSON.stringify(body) : '';
@@ -40,8 +45,10 @@ async function callApi(controller, { method = 'GET', url = '/', body = null } = 
   };
 }
 
+// ==========================================
+// 1. PURE UNIT TESTS (DB-FREE)
+// ==========================================
 test('Task 13 - Quy tắc 1: Tự động nhận diện môn học và gắn tag môn học chuẩn xác', () => {
-  // Case 1: Nhận diện qua tên môn tiếng Việt
   const r1 = detectCourseTag({
     title: 'Thông báo nộp báo cáo môn Công nghệ phần mềm',
     content: 'Các nhóm sinh viên chuẩn bị tài liệu SRS và MVP',
@@ -49,7 +56,6 @@ test('Task 13 - Quy tắc 1: Tự động nhận diện môn học và gắn tag
   assert.equal(r1.course_code, 'IT401');
   assert.equal(r1.course_tag, '#IT401-CNPM');
 
-  // Case 2: Nhận diện qua từ viết tắt / mã môn học IT302
   const r2 = detectCourseTag({
     title: 'Lịch thi kết thúc học phần IT302 - CSDL',
     content: 'Sinh viên chuẩn bị kiểm tra thực hành SQL trên PostgreSQL',
@@ -57,7 +63,6 @@ test('Task 13 - Quy tắc 1: Tự động nhận diện môn học và gắn tag
   assert.equal(r2.course_code, 'IT302');
   assert.equal(r2.course_tag, '#IT302-CSDL');
 
-  // Case 3: Nhận diện qua từ khóa AI / Trí tuệ nhân tạo
   const r3 = detectCourseTag({
     title: 'Hội thảo Nhập môn AI và Machine Learning',
     content: 'Buổi hướng dẫn bổ trợ môn Trí tuệ nhân tạo học kỳ này',
@@ -65,7 +70,6 @@ test('Task 13 - Quy tắc 1: Tự động nhận diện môn học và gắn tag
   assert.equal(r3.course_code, 'IT408');
   assert.equal(r3.course_tag, '#IT408-AI');
 
-  // Case 4: Không có môn học cụ thể
   const r4 = detectCourseTag({
     title: 'Thông báo quy chế sinh viên đầu khóa',
     content: 'Toàn thể tân sinh viên tham gia tuần sinh hoạt công dân',
@@ -75,14 +79,12 @@ test('Task 13 - Quy tắc 1: Tự động nhận diện môn học và gắn tag
 });
 
 test('Task 13 - Quy tắc 2: Phân loại phạm vi thông báo Chung / Lớp học phần / Cá nhân', () => {
-  // Case 1: Thông báo riêng cá nhân sinh viên (chứa MSSV hoặc từ khóa riêng)
   const p1 = detectScopeType({
     title: '[Cảnh báo học vụ] Thông báo nhắc nợ học phí cá nhân',
     content: 'Sinh viên MSSV: 102230005 hoàn thành học phí trước ngày 15.',
   });
   assert.equal(p1, 'PERSONAL');
 
-  // Case 2: Thông báo riêng qua target_student_id
   const p2 = detectScopeType({
     target_student_id: '102230099',
     title: 'Kết quả xử lý phúc khảo bài thi',
@@ -90,7 +92,6 @@ test('Task 13 - Quy tắc 2: Phân loại phạm vi thông báo Chung / Lớp h�
   });
   assert.equal(p2, 'PERSONAL');
 
-  // Case 3: Thông báo lớp học phần (đổi phòng học, bài tập lớn, có mã môn)
   const c1 = detectScopeType(
     {
       source_type: 'CLASS_SECTION',
@@ -101,7 +102,6 @@ test('Task 13 - Quy tắc 2: Phân loại phạm vi thông báo Chung / Lớp h�
   );
   assert.equal(c1, 'CLASS');
 
-  // Case 4: Thông báo chung toàn trường
   const g1 = detectScopeType(
     {
       source_type: 'TRAINING_DEPT',
@@ -114,7 +114,6 @@ test('Task 13 - Quy tắc 2: Phân loại phạm vi thông báo Chung / Lớp h�
 });
 
 test('Task 13 - Quy tắc 3: Thuật toán chấm điểm ưu tiên đa trọng số và gắn nhãn độ quan trọng', () => {
-  // Case 1: Tin Khẩn cấp (URGENT >= 80 điểm) - Hoãn thi/nghỉ đột xuất + gấp
   const urgent = classifyNotification({
     source_type: 'TRAINING_DEPT',
     title: '[KHẨN CẤP] Thông báo hoãn thi học kỳ và nghỉ bão đột xuất',
@@ -125,7 +124,6 @@ test('Task 13 - Quy tắc 3: Thuật toán chấm điểm ưu tiên đa trọng 
   assert.ok(urgent.tags.includes('#KhẩnCấp'));
   assert.ok(urgent.tags.includes('#Gấp'));
 
-  // Case 2: Tin Ưu tiên cao (HIGH 60-79 điểm) - Lịch thi cuối kỳ môn IT401
   const high = classifyNotification({
     source_type: 'FACULTY',
     title: 'Thông báo lịch thi cuối kỳ và danh sách phòng thi môn Công nghệ phần mềm (IT401)',
@@ -137,7 +135,6 @@ test('Task 13 - Quy tắc 3: Thuật toán chấm điểm ưu tiên đa trọng 
   assert.ok(high.tags.includes('#IT401-CNPM'));
   assert.ok(high.tags.includes('#LịchThi'));
 
-  // Case 3: Tin Thấp (LOW < 40 điểm) - Hoạt động văn nghệ câu lạc bộ ngoại khóa
   const low = classifyNotification({
     source_type: 'EXTRACURRICULAR',
     title: 'Đêm nhạc giao lưu chào đón tân sinh viên CLB Guitar',
@@ -151,7 +148,6 @@ test('Task 13 - Quy tắc 3: Thuật toán chấm điểm ưu tiên đa trọng 
 test('Task 13 - API Endpoint: POST /api/v1/notifications/classify và GET /api/v1/notifications/rules', async () => {
   const { controller } = createServer();
 
-  // Test API Tra cứu bộ quy tắc
   const rulesRes = await callApi(controller, {
     method: 'GET',
     url: '/api/v1/notifications/rules',
@@ -161,7 +157,6 @@ test('Task 13 - API Endpoint: POST /api/v1/notifications/classify và GET /api/v
   assert.ok(Array.isArray(rulesRes.json.data.priority_rules));
   assert.ok(Array.isArray(rulesRes.json.data.default_courses));
 
-  // Test API Preview phân loại
   const classifyRes = await callApi(controller, {
     method: 'POST',
     url: '/api/v1/notifications/classify',
@@ -182,57 +177,79 @@ test('Task 13 - API Endpoint: POST /api/v1/notifications/classify và GET /api/v
   assert.ok(classifiedData.tags.includes('#Gấp'));
 });
 
-test('Task 13 - Tích hợp: Tự động chạy bộ quy tắc khi thu thập thông báo mới', async () => {
-  const { controller } = createServer();
+// ==========================================
+// 2. DIRECT POSTGRESQL INTEGRATION TESTS
+// ==========================================
+test.describe('Task 13 & Flutter API Direct PostgreSQL Tests', () => {
+  let pool;
 
-  const res = await callApi(controller, {
-    method: 'POST',
-    url: '/api/v1/notifications/collect',
-    body: {
-      source_type: 'CLASS_SECTION',
-      title: 'Thông báo đổi phòng học và hạn chót nộp bài tập lớn môn CSDL (IT302)',
-      content: 'Lớp học phần Cơ sở dữ liệu sáng mai chuyển sang phòng A105, nộp bài trước 23h59 hôm nay.',
-    },
+  test.before(async () => {
+    pool = await createTestPool();
   });
 
-  assert.equal(res.status, 201);
-  const item = res.json.data.notification;
-  assert.equal(item.course_code, 'IT302');
-  assert.equal(item.scope_type, 'CLASS');
-  assert.ok(['HIGH', 'URGENT'].includes(item.priority));
-  assert.ok(item.tags.includes('#IT302-CSDL'));
-  assert.ok(item.tags.includes('#LớpHọcPhần'));
-});
-
-test('Flutter API - Trạng thái đã đọc được lưu riêng theo sinh viên', async () => {
-  const { controller } = createServer();
-  const collected = await callApi(controller, {
-    method: 'POST',
-    url: '/api/v1/notifications/collect',
-    body: {
-      source_type: 'TRAINING_DEPT',
-      title: 'Thông báo lịch học mới',
-      content: 'Sinh viên kiểm tra lịch học trên hệ thống.',
-    },
+  test.beforeEach(async () => {
+    await resetDatabase(pool);
+    await seedStudent(pool, { student_code: '102230099' });
+    await seedStudent(pool, { student_code: '102230100' });
   });
-  const notificationId = collected.json.data.notification.notification_id;
 
-  const marked = await callApi(controller, {
-    method: 'PATCH',
-    url: `/api/v1/notifications/${notificationId}/read`,
-    body: { student_id: '102230099', is_read: true },
+  test.after(async () => {
+    await teardownTestPool(pool);
   });
-  assert.equal(marked.status, 200);
-  assert.equal(marked.json.data.is_read, true);
 
-  const detail = await callApi(controller, {
-    url: `/api/v1/notifications/${notificationId}?student_id=102230099`,
-  });
-  assert.equal(detail.status, 200);
-  assert.equal(detail.json.data.is_read, true);
+  test('Task 13 - Tích hợp: Tự động chạy bộ quy tắc khi thu thập thông báo mới', async () => {
+    const { controller } = createServer(pool);
 
-  const otherStudent = await callApi(controller, {
-    url: `/api/v1/notifications/${notificationId}?student_id=102230100`,
+    const res = await callApi(controller, {
+      method: 'POST',
+      url: '/api/v1/notifications/collect',
+      body: {
+        source_type: 'CLASS_SECTION',
+        title: 'Thông báo đổi phòng học và hạn chót nộp bài tập lớn môn CSDL (IT302)',
+        content: 'Lớp học phần Cơ sở dữ liệu sáng mai chuyển sang phòng A105, nộp bài trước 23h59 hôm nay.',
+      },
+    });
+
+    assert.equal(res.status, 201);
+    const item = res.json.data.notification;
+    assert.equal(item.course_code, 'IT302');
+    assert.equal(item.scope_type, 'CLASS');
+    assert.ok(['HIGH', 'URGENT'].includes(item.priority));
+    assert.ok(item.tags.includes('#IT302-CSDL'));
+    assert.ok(item.tags.includes('#LớpHọcPhần'));
   });
-  assert.equal(otherStudent.json.data.is_read, false);
+
+  test('Flutter API - Trạng thái đã đọc được lưu riêng theo sinh viên', async () => {
+    const { controller } = createServer(pool);
+    const collected = await callApi(controller, {
+      method: 'POST',
+      url: '/api/v1/notifications/collect',
+      body: {
+        source_type: 'TRAINING_DEPT',
+        title: 'Thông báo lịch học mới',
+        content: 'Sinh viên kiểm tra lịch học trên hệ thống.',
+      },
+    });
+    const notificationId = collected.json.data.notification.id;
+
+    const marked = await callApi(controller, {
+      method: 'PATCH',
+      url: `/api/v1/notifications/${notificationId}/read`,
+      body: { student_id: '102230099', is_read: true },
+    });
+    assert.equal(marked.status, 200);
+    assert.equal(marked.json.data.is_read, true);
+
+    const detail = await callApi(controller, {
+      url: `/api/v1/notifications/${notificationId}?student_id=102230099`,
+    });
+    assert.equal(detail.status, 200);
+    assert.equal(detail.json.data.is_read, true);
+
+    const otherStudent = await callApi(controller, {
+      url: `/api/v1/notifications/${notificationId}?student_id=102230100`,
+    });
+    assert.equal(otherStudent.status, 200);
+    assert.equal(otherStudent.json.data.is_read, false);
+  });
 });

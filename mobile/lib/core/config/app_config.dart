@@ -46,7 +46,7 @@ abstract final class AppConfig {
 
   static const developmentStudentId = String.fromEnvironment(
     'STUDENT_ID',
-    defaultValue: '102230099',
+    defaultValue: '',
   );
 
   static AppEnvironment get environment =>

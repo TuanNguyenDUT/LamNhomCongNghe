@@ -1,7 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createServer } = require('../src/server');
 const { googleCalendarService } = require('../src/services/google-calendar.service');
 const { notificationController } = require('../src/controllers/notification.controller');
+const {
+  createTestPool,
+  resetDatabase,
+  seedStudent,
+  seedNotification,
+  teardownTestPool,
+} = require('./helpers/pg-test-harness');
 
 test('Google OAuth2 - Nhận diện Client ID và Secret từ file hoặc biến môi trường', async () => {
   const hasCreds = googleCalendarService.hasGoogleCredentials();
@@ -33,14 +41,6 @@ test('Google OAuth2 - API GET /api/v1/calendar/google/auth-url trả về URL �
   assert.equal(res.body.data.student_id, '102230026');
 });
 
-test('Google OAuth2 - API GET /api/v1/calendar/google/status trả về trạng thái cấu hình', async () => {
-  const res = await notificationController.getGoogleCalendarStatus({ student_id: '102230026' });
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.body.status, 'success');
-  assert.equal(res.body.data.configured, true);
-  assert.equal(res.body.data.redirect_uri, 'http://localhost:3000/auth/google/callback');
-});
-
 test('Google OAuth2 - handleGoogleCallback xử lý lỗi từ chối người dùng (error parameter)', async () => {
   const res = await notificationController.handleGoogleCallback({
     error: 'access_denied',
@@ -57,50 +57,94 @@ test('Google OAuth2 - handleGoogleCallback xử lý thiếu code', async () => {
   assert.equal(res.body.status, 'error');
 });
 
-test('Google OAuth2 - Xóa sự kiện khỏi Google Calendar qua API deleteGoogleCalendarEvent', async () => {
-  const { deadlineService } = require('../src/services/deadline.service');
-  const d = await deadlineService.createDeadline({
-    title: '[Nhắc nhở] Kiểm tra tính năng xóa lịch',
-    due_date: new Date(Date.now() + 86400000).toISOString(),
-    student_id: '102230026',
-    notification_id: 'test_notif_delete_gcal',
-    item_type: 'REMINDER',
-  });
-  d.google_event_id = 'mock_gcal_event_123';
-  deadlineService.dbStore.saveDeadline(d);
+test.describe('Google Calendar Direct PostgreSQL Tests', () => {
+  let pool;
 
-  assert.equal(d.google_event_id, 'mock_gcal_event_123');
-
-  const res = await notificationController.deleteGoogleCalendarEvent({
-    student_id: '102230026',
-    deadline_id: d.deadline_id,
+  test.before(async () => {
+    pool = await createTestPool();
   });
 
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.body.status, 'success');
-  assert.equal(res.body.data.deleted, true);
-
-  const updated = deadlineService.dbStore.deadlines.get(d.deadline_id);
-  assert.equal(updated.google_event_id, null, 'google_event_id phải được xóa về null');
-});
-
-test('Google OAuth2 - Hoàn thành nhắc việc tự động xóa sự kiện khỏi Google Calendar', async () => {
-  const { deadlineService } = require('../src/services/deadline.service');
-  const d = await deadlineService.createDeadline({
-    title: '[Nhắc nhở] Bài tập hoàn thành tự xóa lịch',
-    due_date: new Date(Date.now() + 86400000).toISOString(),
-    student_id: '102230026',
-    notification_id: 'test_notif_complete_gcal',
-    item_type: 'REMINDER',
+  test.beforeEach(async () => {
+    await resetDatabase(pool);
+    await seedStudent(pool, { student_code: '102230026' });
   });
-  d.google_event_id = 'mock_gcal_complete_456';
-  deadlineService.dbStore.saveDeadline(d);
 
-  // Đánh dấu hoàn thành qua controller
-  const res = await notificationController.updateDeadline(d.deadline_id, { status: 'COMPLETED' });
-  assert.equal(res.statusCode, 200);
+  test.after(async () => {
+    await teardownTestPool(pool);
+  });
 
-  const updated = deadlineService.dbStore.deadlines.get(d.deadline_id);
-  assert.equal(updated.status, 'COMPLETED');
-  assert.equal(updated.google_event_id, null, 'Nhắc việc hoàn thành phải tự động xóa khỏi Google Calendar');
+  test('Google OAuth2 - API GET /api/v1/calendar/google/status trả về trạng thái cấu hình', async () => {
+    const { controller } = createServer(pool);
+    const res = await controller.getGoogleCalendarStatus({ student_id: '102230026' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, 'success');
+    assert.equal(res.body.data.configured, true);
+    assert.equal(res.body.data.redirect_uri, 'http://localhost:3000/auth/google/callback');
+  });
+
+  test('Google OAuth2 - Xóa sự kiện khỏi Google Calendar qua API deleteGoogleCalendarEvent', async () => {
+    const { controller, services } = createServer(pool);
+    const { deadlineSvc } = services;
+    const notif = await seedNotification(pool, { title: 'Thông báo kiểm tra xóa lịch' });
+
+    const d = await deadlineSvc.createDeadline({
+      title: '[Nhắc nhở] Kiểm tra tính năng xóa lịch',
+      due_date: new Date(Date.now() + 86400000).toISOString(),
+      student_id: '102230026',
+      notification_id: notif.id,
+      item_type: 'REMINDER',
+    });
+    await deadlineSvc.updateDeadline(d.deadline_id, { google_event_id: 'mock_gcal_event_123' });
+
+    const res = await controller.deleteGoogleCalendarEvent({
+      student_id: '102230026',
+      deadline_id: d.deadline_id,
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, 'success');
+    assert.equal(res.body.data.deleted, true);
+
+    const updated = await deadlineSvc.getDeadlineById(d.deadline_id);
+    assert.equal(updated.google_event_id, null, 'google_event_id phải được xóa về null trong PostgreSQL');
+  });
+
+  test('Google OAuth2 - Hoàn thành nhắc việc tự động xóa sự kiện khỏi Google Calendar', async () => {
+    const { controller, services } = createServer(pool);
+    const { deadlineSvc } = services;
+    const notif = await seedNotification(pool, { title: 'Thông báo bài tập hoàn thành' });
+
+    const d = await deadlineSvc.createDeadline({
+      title: '[Nhắc nhở] Bài tập hoàn thành tự xóa lịch',
+      due_date: new Date(Date.now() + 86400000).toISOString(),
+      student_id: '102230026',
+      notification_id: notif.id,
+      item_type: 'REMINDER',
+    });
+    await deadlineSvc.updateDeadline(d.deadline_id, { google_event_id: 'mock_gcal_complete_456' });
+
+    const res = await controller.updateDeadline(d.deadline_id, { status: 'COMPLETED' });
+    assert.equal(res.statusCode, 200);
+
+    const updated = await deadlineSvc.getDeadlineById(d.deadline_id);
+    assert.equal(updated.status, 'COMPLETED');
+    assert.equal(updated.google_event_id, null, 'Nhắc việc hoàn thành phải tự động xóa khỏi Google Calendar');
+  });
+
+  test('Google OAuth2 - Đồng bộ khi chưa liên kết trả về lỗi GOOGLE_CALENDAR_NOT_CONNECTED', async () => {
+    const { controller } = createServer(pool);
+    const res = await controller.syncGoogleCalendar({ student_id: '102230026' });
+    assert.equal(res.statusCode, 400);
+    assert.equal(res.body.status, 'error');
+    assert.equal(res.body.code, 'GOOGLE_CALENDAR_NOT_CONNECTED');
+    assert.ok(res.body.message.includes('chưa liên kết Google Calendar'));
+  });
+
+  test('Google OAuth2 - Ngắt kết nối Google Calendar thành công', async () => {
+    const { controller } = createServer(pool);
+    const res = await controller.disconnectGoogleCalendar({ student_id: '102230026' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, 'success');
+    assert.equal(res.body.data.is_connected, false);
+  });
 });

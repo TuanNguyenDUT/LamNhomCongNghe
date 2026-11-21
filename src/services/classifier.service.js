@@ -10,7 +10,6 @@
  */
 
 const { aiService } = require('../config/ai');
-const { getDbStore } = require('../config/db');
 
 // Danh mục môn học phục vụ nhận diện và tự động gắn tag
 const DEFAULT_COURSES = [
@@ -473,7 +472,10 @@ function matchesInterestedTopics(item = {}, interestedTopics = []) {
 /**
  * 1. Nhận diện môn học & gắn tag chuẩn (Hỗ trợ cả Default Courses và Dynamic Enrolled Courses từ sv.dut.udn.vn)
  */
-function detectCourseTag({ title = '', content = '', course_code = null, source_channel = null, source_type = null } = {}) {
+function detectCourseTag(
+  { title = '', content = '', course_code = null, source_channel = null, source_type = null, known_courses = null } = {},
+  knownCoursesArg = null
+) {
   const channel = source_channel || source_type;
   // Các kênh Fanpage và các kênh thông báo chung tuyệt đối không bao giờ là Lớp học phần
   if (
@@ -526,62 +528,60 @@ function detectCourseTag({ title = '', content = '', course_code = null, source_
     }
   }
 
-  // 3. So khớp với danh mục môn học động lưu trong Database (cào từ sv.dut.udn.vn)
-  try {
-    const dbStore = getDbStore();
-    if (dbStore && dbStore.courses) {
-      for (const c of dbStore.courses.values()) {
-        const cCodeLower = (c.course_code || '').toLowerCase();
-        const cNameLower = (c.course_name || '').toLowerCase();
+  // 3. So khớp với danh mục môn học động lưu trong Database (truyền từ caller qua knownCourses)
+  const dynamicCourses = Array.isArray(knownCoursesArg)
+    ? knownCoursesArg
+    : (Array.isArray(known_courses) ? known_courses : []);
+  for (const c of dynamicCourses) {
+    const cCodeLower = (c.course_code || '').toLowerCase();
+    const cNameLower = (c.course_name || '').toLowerCase();
 
-        // Ưu tiên 3.1: So khớp mã học phần đầy đủ (VD: 1023910.2610.23.16)
-        if (c.course_code && (course_code === c.course_code || fullText.includes(cCodeLower))) {
+    // Ưu tiên 3.1: So khớp mã học phần đầy đủ (VD: 1023910.2610.23.16)
+    if (c.course_code && (course_code === c.course_code || fullText.includes(cCodeLower))) {
+      return {
+        course_code: c.course_code,
+        course_tag: `#${c.course_code}`,
+        course_name: c.course_name,
+      };
+    }
+
+    // Ưu tiên 3.2: So khớp theo mã chuẩn DUT <MãHP>.<Kỳ>.<Khóa>.<Lớp> kết hợp Nhóm lớp và Tên môn
+    // VD: 1023603.2610.23.99 -> Nhóm "23.99" / "23.Nh99", Tên: "Chuyên đề công nghệ"
+    const parts = (c.course_code || '').split('.');
+    if (parts.length >= 4) {
+      const hpPrefix = `${parts[0]}.${parts[1]}`.toLowerCase(); // 1023603.2610
+      const courseGroupNorm = `${parts[2]}.${parts[3]}`.toUpperCase(); // 23.99
+
+      if (notifGroupNorm && notifGroupNorm === courseGroupNorm) {
+        if (cNameLower && (fullText.includes(cNameLower) || title.toLowerCase().includes(cNameLower))) {
           return {
             course_code: c.course_code,
             course_tag: `#${c.course_code}`,
             course_name: c.course_name,
           };
         }
+      }
 
-        // Ưu tiên 3.2: So khớp theo mã chuẩn DUT <MãHP>.<Kỳ>.<Khóa>.<Lớp> kết hợp Nhóm lớp và Tên môn
-        // VD: 1023603.2610.23.99 -> Nhóm "23.99" / "23.Nh99", Tên: "Chuyên đề công nghệ"
-        const parts = (c.course_code || '').split('.');
-        if (parts.length >= 4) {
-          const hpPrefix = `${parts[0]}.${parts[1]}`.toLowerCase(); // 1023603.2610
-          const courseGroupNorm = `${parts[2]}.${parts[3]}`.toUpperCase(); // 23.99
-
-          if (notifGroupNorm && notifGroupNorm === courseGroupNorm) {
-            if (cNameLower && (fullText.includes(cNameLower) || title.toLowerCase().includes(cNameLower))) {
-              return {
-                course_code: c.course_code,
-                course_tag: `#${c.course_code}`,
-                course_name: c.course_name,
-              };
-            }
-          }
-
-          if (fullText.includes(hpPrefix) && (!notifGroupNorm || notifGroupNorm === courseGroupNorm)) {
-            return {
-              course_code: c.course_code,
-              course_tag: `#${c.course_code}`,
-              course_name: c.course_name,
-            };
-          }
-        }
-
-        // Ưu tiên 3.3: Nếu không có mã nhóm trong thông báo nhưng tên môn học dài và rất đặc thù
-        if (!notifGroupNorm && c.course_name && c.course_name.length > 8) {
-          if (fullText.includes(cNameLower)) {
-            return {
-              course_code: c.course_code,
-              course_tag: `#${c.course_code}`,
-              course_name: c.course_name,
-            };
-          }
-        }
+      if (fullText.includes(hpPrefix) && (!notifGroupNorm || notifGroupNorm === courseGroupNorm)) {
+        return {
+          course_code: c.course_code,
+          course_tag: `#${c.course_code}`,
+          course_name: c.course_name,
+        };
       }
     }
-  } catch {}
+
+    // Ưu tiên 3.3: Nếu không có mã nhóm trong thông báo nhưng tên môn học dài và rất đặc thù
+    if (!notifGroupNorm && c.course_name && c.course_name.length > 8) {
+      if (fullText.includes(cNameLower)) {
+        return {
+          course_code: c.course_code,
+          course_tag: `#${c.course_code}`,
+          course_name: c.course_name,
+        };
+      }
+    }
+  }
 
   // 4. So khớp Regex mã lớp học phần sv.dut.udn.vn dạng số (VD: 1020503.2610.23.16 hoặc 1020503)
   const dutCodeRegex = /\b(\d{7}(\.\d{4}\.\d{2}\.\w+)?)\b/i;
@@ -709,6 +709,7 @@ function classifyNotification(payload = {}) {
     course_code: payload.course_code,
     source_channel: rawSource,
     source_type: rawSource,
+    known_courses: payload.known_courses,
   });
 
   // 1b. Nhận diện 5 loại thông báo chuẩn của hệ thống

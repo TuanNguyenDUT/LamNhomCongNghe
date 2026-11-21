@@ -66,7 +66,7 @@ class CrawlerManagerService {
     try {
       // 0. Sửa chữa và dọn dẹp các bài viết Facebook cũ bị lưu link chung trước khi nạp mới
       if (typeof this.notificationSvc.repairAndDeduplicateFacebookNotices === 'function') {
-        await this.notificationSvc.repairAndDeduplicateFacebookNotices().catch(() => {});
+        await this.notificationSvc.repairAndDeduplicateFacebookNotices();
       }
 
       // 1. Cào 7 chuyên mục trên cổng sv.dut.udn.vn
@@ -82,7 +82,7 @@ class CrawlerManagerService {
       let customFbResults = [];
       if (typeof this.fbCrawler.scrapeAllFollowedPages === 'function') {
         console.log(`▶ 2.1 Đang cào các Fanpage Facebook được sinh viên theo dõi...`);
-        customFbResults = await this.fbCrawler.scrapeAllFollowedPages({ monthsLimit: this.monthsLimit }).catch(() => []);
+        customFbResults = await this.fbCrawler.scrapeAllFollowedPages({ monthsLimit: this.monthsLimit });
       }
 
       const allNotices = [...dutResults.valid_notices, ...fbResults, ...customFbResults];
@@ -136,6 +136,7 @@ class CrawlerManagerService {
     } catch (err) {
       console.error('❌ [CRAWLER WORKER] Lỗi trong chu kỳ cào:', err.message);
       stats.error = err.message;
+      throw err;
     } finally {
       this.isRunning = false;
       this.lastCrawlAt = startedAt.toISOString();

@@ -2,20 +2,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../core/presentation/liquid_glass.dart';
+import '../core/presentation/ambient_background.dart';
+import '../core/presentation/floating_bottom_dock.dart';
+import '../core/presentation/top_dynamic_bar.dart';
+import '../core/presentation/warm_pearl_tokens.dart';
 import '../features/auth/presentation/auth_controller.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/courses/presentation/enrolled_courses_screen.dart';
 import '../features/deadlines/presentation/deadlines_screen.dart';
-import '../features/reminds/presentation/reminds_screen.dart';
 import '../features/notifications/presentation/home_feed_screen.dart';
 import '../features/notifications/presentation/notification_detail_page.dart';
 import '../features/profile/presentation/profile_screen.dart';
+
+final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authControllerProvider);
 
   return GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: '/login',
     redirect: (context, state) {
       final isAuth = authState.isAuthenticated;
@@ -32,9 +38,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/login',
+        parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const LoginScreen(),
       ),
+      // Deep link backwards compatibility: redirects /reminds to /deadlines?scope=personal
+      GoRoute(
+        path: '/reminds',
+        redirect: (context, state) => '/deadlines?scope=personal',
+      ),
+      // Full slide-over Notification Detail route (outside dock shell)
+      GoRoute(
+        path: '/notifications/:id',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: NotificationDetailPage(notificationId: id),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: WarmPearlMotion.smooth,
+              );
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      // 4-Tab Main Shell Route
       ShellRoute(
+        navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
           return _MainNavigationScaffold(child: child);
         },
@@ -42,15 +81,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/notifications',
             builder: (context, state) => const HomeFeedScreen(),
-            routes: [
-              GoRoute(
-                path: ':id',
-                builder: (context, state) {
-                  final id = state.pathParameters['id'] ?? '';
-                  return NotificationDetailPage(notificationId: id);
-                },
-              ),
-            ],
           ),
           GoRoute(
             path: '/courses',
@@ -61,10 +91,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DeadlinesScreen(),
           ),
           GoRoute(
-            path: '/reminds',
-            builder: (context, state) => const RemindsScreen(),
-          ),
-          GoRoute(
             path: '/profile',
             builder: (context, state) => const ProfileScreen(),
           ),
@@ -72,15 +98,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
-      appBar: AppBar(title: const Text('Không tìm thấy trang')),
+      backgroundColor: WarmPearlColors.canvasBg,
+      appBar: AppBar(
+        title: const Text('Không tìm thấy trang'),
+        backgroundColor: Colors.transparent,
+      ),
       body: Center(
-        child: Text(state.error?.toString() ?? 'Đường dẫn không hợp lệ'),
+        child: Text(
+          state.error?.toString() ?? 'Đường dẫn không hợp lệ',
+          style: const TextStyle(
+            fontFamily: WarmPearlTypography.bodyFont,
+            color: WarmPearlColors.inkSecondary,
+          ),
+        ),
       ),
     ),
   );
 });
 
-class _MainNavigationScaffold extends StatelessWidget {
+class _MainNavigationScaffold extends ConsumerWidget {
   const _MainNavigationScaffold({required this.child});
   final Widget child;
 
@@ -88,130 +124,76 @@ class _MainNavigationScaffold extends StatelessWidget {
     final location = GoRouterState.of(context).uri.path;
     if (location.startsWith('/courses')) return 1;
     if (location.startsWith('/deadlines')) return 2;
-    if (location.startsWith('/reminds')) return 3;
-    if (location.startsWith('/profile')) return 4;
-    return 0;
+    if (location.startsWith('/profile')) return 3;
+    return 0; // /notifications
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _calculateSelectedIndex(context);
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          child,
+    final deadlinesAsync = ref.watch(deadlinesListProvider);
+    final allTasks = deadlinesAsync.asData?.value ?? [];
+    final pendingCount = allTasks.where((t) => !t.isCompleted).length;
 
-          // Apple Style Liquid Glass Floating Bottom Navigation Bar (5 tabs)
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 20,
-            child: LiquidGlassContainer(
-              borderRadius: 30,
-              blurSigma: 24,
-              opacity: 0.88,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildNavItem(
-                    context: context,
-                    index: 0,
-                    selectedIndex: selectedIndex,
-                    path: '/notifications',
-                    icon: Icons.feed_outlined,
-                    selectedIcon: Icons.feed_rounded,
-                    label: 'Bảng tin',
-                  ),
-                  _buildNavItem(
-                    context: context,
-                    index: 1,
-                    selectedIndex: selectedIndex,
-                    path: '/courses',
-                    icon: Icons.school_outlined,
-                    selectedIcon: Icons.school_rounded,
-                    label: 'Học phần',
-                  ),
-                  _buildNavItem(
-                    context: context,
-                    index: 2,
-                    selectedIndex: selectedIndex,
-                    path: '/deadlines',
-                    icon: Icons.event_note_outlined,
-                    selectedIcon: Icons.event_note_rounded,
-                    label: 'Hạn chót',
-                  ),
-                  _buildNavItem(
-                    context: context,
-                    index: 3,
-                    selectedIndex: selectedIndex,
-                    path: '/reminds',
-                    icon: Icons.alarm_outlined,
-                    selectedIcon: Icons.alarm_on_rounded,
-                    label: 'Nhắc việc',
-                  ),
-                  _buildNavItem(
-                    context: context,
-                    index: 4,
-                    selectedIndex: selectedIndex,
-                    path: '/profile',
-                    icon: Icons.person_outline_rounded,
-                    selectedIcon: Icons.person_rounded,
-                    label: 'Cá nhân',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required BuildContext context,
-    required int index,
-    required int selectedIndex,
-    required String path,
-    required IconData icon,
-    required IconData selectedIcon,
-    required String label,
-  }) {
-    final isSelected = index == selectedIndex;
-    const activeColor = Color(0xFF007AFF); // Apple iOS Blue
-    final inactiveColor = const Color(0xFF64748B).withValues(alpha: 0.8);
-
-    return GestureDetector(
-      onTap: () => context.go(path),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? activeColor.withValues(alpha: 0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    return WarmPearlAmbientBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
           children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              size: 22,
-              color: isSelected ? activeColor : inactiveColor,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: activeColor,
-                  letterSpacing: -0.2,
+            // Centered content column:
+            // Mobile (< 768px): Full 100% width, no outer borders, scrolls naturally
+            // Desktop (>= 768px): Spacious centered column (maxWidth: 720px)
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Column(
+                    children: [
+                      const SafeArea(bottom: false, child: TopDynamicBar()),
+                      Expanded(child: child),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
+            // Floating Bottom Dock:
+            // Fixed at bottom: 16px according to actual viewport, centered with maxWidth: 720px
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 16,
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: FloatingBottomDock(
+                      selectedIndex: selectedIndex,
+                      pendingCount: pendingCount,
+                      onTabSelected: (index) {
+                        switch (index) {
+                          case 0:
+                            context.go('/notifications');
+                            break;
+                          case 1:
+                            context.go('/courses');
+                            break;
+                          case 2:
+                            context.go('/deadlines');
+                            break;
+                          case 3:
+                            context.go('/profile');
+                            break;
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -35,4 +35,12 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }) {
     return _apiService.setReadStatus(id, isRead: isRead, studentId: studentId);
   }
+
+  @override
+  Future<void> acknowledgeNotification(
+    dynamic id, {
+    required String studentId,
+  }) {
+    return _apiService.acknowledgeNotification(id, studentId: studentId);
+  }
 }

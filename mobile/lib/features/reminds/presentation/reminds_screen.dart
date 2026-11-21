@@ -730,7 +730,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
 
   Future<void> _syncAllToGoogleCalendar() async {
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.post(
@@ -757,7 +757,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
 
   Future<void> _connectGoogleCalendar() async {
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.get(
@@ -790,7 +790,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
 
   Future<Map<String, dynamic>> _fetchGoogleStatus() async {
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
     try {
       final dio = ref.read(dioProvider);
       final res = await dio.get(
@@ -806,6 +806,7 @@ class _RemindsScreenState extends ConsumerState<RemindsScreen> {
   void _showGoogleCalendarModal() {
     showDialog(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => FutureBuilder<Map<String, dynamic>>(
         future: _fetchGoogleStatus(),
         builder: (context, snapshot) {

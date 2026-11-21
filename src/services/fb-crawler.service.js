@@ -14,7 +14,9 @@
 
 const https = require('node:https');
 const { URL } = require('node:url');
-const { getDbStore } = require('../config/db');
+const { db: defaultDb, createDbAdapter } = require('../config/db');
+const { StudentRepository } = require('../db/student.repository');
+const { FollowedPageRepository } = require('../db/followed-page.repository');
 
 const FANPAGES = {
   FB_CTSV: {
@@ -94,13 +96,12 @@ const KNOWN_FB_PERMALINKS = [
 ];
 
 class FbCrawlerService {
-  constructor(dbStore = null) {
-    this._dbStore = dbStore;
+  constructor({ pool = null, db = null, studentRepo = null, followedPageRepo = null, notificationSvc = null } = {}) {
+    this.db = db || (pool ? createDbAdapter(pool) : defaultDb);
+    this.studentRepo = studentRepo || new StudentRepository(this.db);
+    this.followedPageRepo = followedPageRepo || new FollowedPageRepository(this.db);
+    this._notificationSvc = notificationSvc;
     this.fanpages = FANPAGES;
-  }
-
-  get dbStore() {
-    return this._dbStore || getDbStore();
   }
 
   /**
@@ -375,12 +376,13 @@ class FbCrawlerService {
   /**
    * Theo dõi một Fanpage Facebook bất kỳ: Lưu cấu hình theo dõi và cào bài viết ngay lập tức
    */
-  async followPage({ studentId = '102200001', pageUrl, pageName } = {}) {
+  async followPage({ studentId, pageUrl, pageName } = {}) {
+    const student = await this.studentRepo.requireStudent(studentId);
     const parsed = this.parseFacebookPageUrl(pageUrl);
     const targetName = pageName && String(pageName).trim().length > 0 ? String(pageName).trim() : parsed.displayName;
 
     const pageData = {
-      student_id: studentId,
+      student_id: student.id,
       page_url: parsed.cleanUrl,
       page_name: targetName,
       page_username: parsed.pageUsername,
@@ -388,9 +390,9 @@ class FbCrawlerService {
       is_active: true,
     };
 
-    const saved = this.dbStore.saveFollowedPage(pageData);
+    const saved = await this.followedPageRepo.saveFollowedPage(student.id, pageData);
 
-    // Cào các bài viết mới nhất ngay khi người dùng bấm Follow
+    // Cào các bài viết mới nhất ngay khi người dùng bấm Follow (chỉ bắt lỗi mạng Facebook, không nuốt lỗi DB)
     let scrapedPosts = [];
     try {
       const crawlRes = await this.scrapeCustomFacebookPage(parsed.cleanUrl, {
@@ -398,25 +400,24 @@ class FbCrawlerService {
         monthsLimit: 2,
       });
       scrapedPosts = crawlRes.posts || [];
-
-      // Ingest vào kho thông báo cho sinh viên nếu có bài viết
-      if (scrapedPosts.length > 0) {
-        const { notificationService } = require('./notification.service');
-        for (const p of scrapedPosts) {
-          await notificationService.ingestNotification({
-            title: p.title,
-            content: p.content,
-            source_channel: p.source_channel,
-            source_type: p.source_channel,
-            source_name: p.source_name,
-            source_url: p.source_url,
-            published_at: p.published_at,
-            attachments: p.attachments || [],
-          }).catch(() => {});
-        }
-      }
     } catch (err) {
       console.warn(`Lỗi thu thập ban đầu từ ${parsed.cleanUrl}:`, err.message);
+    }
+
+    if (scrapedPosts.length > 0) {
+      const notifSvc = this._notificationSvc || new (require('./notification.service').NotificationService)({ db: this.db });
+      for (const p of scrapedPosts) {
+        await notifSvc.ingestNotification({
+          title: p.title,
+          content: p.content,
+          source_channel: p.source_channel,
+          source_type: p.source_channel,
+          source_name: p.source_name,
+          source_url: p.source_url,
+          published_at: p.published_at,
+          attachments: p.attachments || [],
+        });
+      }
     }
 
     return {
@@ -433,26 +434,31 @@ class FbCrawlerService {
   /**
    * Lấy danh sách toàn bộ các Fanpage Facebook mà sinh viên đang theo dõi
    */
-  getFollowedPages(studentId) {
-    return this.dbStore.getFollowedPages(studentId);
+  async getFollowedPages(studentIdentifier) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    return this.followedPageRepo.getFollowedPages(student.id);
   }
 
   /**
    * Hủy theo dõi một Fanpage Facebook
    */
-  unfollowPage(pageId, studentId) {
-    return this.dbStore.deleteFollowedPage(pageId, studentId);
+  async unfollowPage(pageId, studentIdentifier = null) {
+    let studentUuid = null;
+    if (studentIdentifier) {
+      const student = await this.studentRepo.requireStudent(studentIdentifier);
+      studentUuid = student.id;
+    }
+    return this.followedPageRepo.deleteFollowedPage(pageId, studentUuid);
   }
 
   /**
    * Cào toàn bộ các Fanpage mà sinh viên đang theo dõi trong hệ thống
    */
   async scrapeAllFollowedPages({ monthsLimit = 2 } = {}) {
-    const activePages = this.dbStore.getAllActiveFollowedPages();
+    const activePages = await this.followedPageRepo.getAllActiveFollowedPages();
     const allPosts = [];
 
     for (const page of activePages) {
-      // Bỏ qua nếu là 2 fanpage mặc định vì đã được scrapeAllFanpages xử lý
       if (page.page_url === FANPAGES.FB_CTSV.url || page.page_url === FANPAGES.FB_TUVAN_SV.url) {
         continue;
       }

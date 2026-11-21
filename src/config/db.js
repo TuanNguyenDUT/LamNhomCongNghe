@@ -1,19 +1,13 @@
 /**
- * Cấu hình kết nối Cơ sở dữ liệu PostgreSQL (qua pg.Pool) & In-Memory Store dự phòng
- * Hỗ trợ chạy Dual-mode: kết nối Postgres thật khi có CSDL hoặc Mock Store khi test/local.
+ * Direct PostgreSQL Connection Pool & Transactional Query Helpers.
+ * Fail-fast when PostgreSQL configuration is missing or unreachable.
  */
 
-let Pool = null;
-try {
-  Pool = require('pg').Pool;
-} catch (_) {
-  // pg module chưa cài đặt (chế độ in-memory test)
-}
-const crypto = require('node:crypto');
 const dns = require('node:dns');
+const { Pool } = require('pg');
+const { DatabaseConfigurationError } = require('../utils/errors');
 
-// Fix cho Node.js 18/20+ khi chạy trong Docker/WSL (không có IPv6 route):
-// Ép buộc phân giải IPv4 khi kết nối CSDL Cloud (Neon/AWS/Supabase) để tránh lỗi ETIMEDOUT / ENETUNREACH do IPv6
+// Force IPv4 DNS resolution for cloud PostgreSQL hosts when running inside Docker without IPv6 routing
 const originalLookup = dns.lookup;
 dns.lookup = function (hostname, options, callback) {
   if (typeof options === 'function') {
@@ -25,705 +19,171 @@ dns.lookup = function (hostname, options, callback) {
   } else if (!options) {
     options = {};
   }
-  if (!options.family && typeof hostname === 'string' && (hostname.includes('neon.tech') || hostname.includes('supabase.co') || hostname.includes('aws.'))) {
+  if (
+    !options.family &&
+    typeof hostname === 'string' &&
+    (hostname.includes('neon.tech') || hostname.includes('supabase.co') || hostname.includes('aws.'))
+  ) {
     options.family = 4;
   }
   return originalLookup.call(dns, hostname, options, callback);
 };
 
 let globalPool = null;
+let globalPoolKey = null;
 
-function getPool() {
-  if (globalPool) return globalPool;
-  if (!process.env.DATABASE_URL && !process.env.PGHOST) {
-    return null;
-  }
-  try {
-    const isCloudUrl = Boolean(
-      process.env.DATABASE_URL &&
-      (process.env.DATABASE_URL.includes('neon.tech') || process.env.DATABASE_URL.includes('sslmode=require'))
-    );
-
-    const poolConfig = process.env.DATABASE_URL
-      ? {
-          connectionString: process.env.DATABASE_URL,
-          ssl: isCloudUrl ? { rejectUnauthorized: false } : undefined,
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 10000,
-        }
-      : {
-          host: process.env.PGHOST || 'localhost',
-          port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-          database: process.env.PGDATABASE || 'dut_notifications',
-          user: process.env.PGUSER || 'postgres',
-          password: process.env.PGPASSWORD || 'postgres',
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 2000,
-        };
-
-    globalPool = new Pool(poolConfig);
-    globalPool.on('error', (err) => {
-      console.error('Lỗi kết nối PostgreSQL pool:', err);
-    });
-    return globalPool;
-  } catch (err) {
-    console.warn('Không thể khởi tạo PG Pool, chuyển sang in-memory:', err.message);
-    return null;
-  }
-}
-
-function isTestEnvironment() {
-  return (
-    process.env.NODE_ENV === 'test' ||
-    (Array.isArray(process.execArgv) && process.execArgv.some((a) => a.includes('test'))) ||
-    (Array.isArray(process.argv) && process.argv.some((a) => a.includes('test')))
+function shouldUseSsl(connectionString = '') {
+  const mode = String(process.env.PGSSLMODE || '').toLowerCase();
+  if (mode === 'require' || mode === 'verify-full' || mode === 'verify-ca') return true;
+  if (mode === 'disable') return false;
+  return Boolean(
+    connectionString &&
+    (connectionString.includes('neon.tech') || connectionString.includes('sslmode=require'))
   );
 }
 
-/**
- * In-Memory Store hỗ trợ đầy đủ các bảng và quan hệ chuẩn theo AGENT.md
- */
-class InMemoryDbStore {
-  constructor(pool = getPool()) {
-    this.pool = pool;
-    this.students = new Map();
-    this.courses = new Map();
-    this.student_courses = []; // { student_id, course_code, is_muted, enrolled_at }
-    this.notifications = new Map();
-    this.student_notifications = []; // { student_id, notification_id, is_read, read_at, is_acknowledged, acknowledged_at }
-    this.deadlines = new Map();
-    this.device_tokens = new Map();
-    this.followed_fb_pages = new Map(); // id -> { id, student_id, page_url, page_name, page_username, channel_code, is_active, created_at }
-    this._seedDefaults();
-    if (this.pool) {
-      this._preloadFromPostgres().catch((err) =>
-        console.warn('Preload from PostgreSQL warning:', err.message)
-      );
-    }
-  }
+function buildPoolConfig() {
+  const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.TEST_DATABASE_URL);
+  const connectionString = isTest
+    ? (process.env.TEST_DATABASE_URL || process.env.DATABASE_URL)
+    : process.env.DATABASE_URL;
 
-  async _preloadFromPostgres() {
-    try {
-      // Đảm bảo schema có đầy đủ các cột phục vụ cá nhân hóa và phiên bảo mật
-      await this.pool.query(`
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS dut_session_encrypted TEXT;
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS is_personalized_enabled BOOLEAN DEFAULT TRUE;
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS interested_topics JSONB DEFAULT '["hoc_vu", "hoc_bong", "tuyen_dung"]'::jsonb;
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS quick_reminder_options JSONB DEFAULT '["1_hour", "tonight", "tomorrow_morning", "1_day", "3_days", "1_week"]'::jsonb;
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS major VARCHAR(100);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS program VARCHAR(100);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_url TEXT;
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS dob VARCHAR(20);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(10);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS school_email VARCHAR(100);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS personal_email VARCHAR(100);
-        ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
-      `).catch(() => {});
-
-      const studentRes = await this.pool.query('SELECT * FROM students');
-      for (const row of studentRes.rows) {
-        if (typeof row.interested_topics === 'string') {
-          try {
-            row.interested_topics = JSON.parse(row.interested_topics);
-          } catch (_) {}
-        }
-        if (!row.interested_topics) {
-          row.interested_topics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
-        }
-        if (row.is_personalized_enabled === undefined || row.is_personalized_enabled === null) {
-          row.is_personalized_enabled = true;
-        }
-        this.students.set(row.id, row);
-        this.students.set(row.student_code, row);
-      }
-      const courseRes = await this.pool.query('SELECT * FROM courses');
-      for (const row of courseRes.rows) {
-        this.courses.set(row.course_code, row);
-      }
-      const scRes = await this.pool.query('SELECT * FROM student_courses');
-      for (const row of scRes.rows) {
-        const exists = this.student_courses.some(
-          (sc) => sc.student_id === row.student_id && sc.course_code === row.course_code
-        );
-        if (!exists) this.student_courses.push(row);
-      }
-      const dlRes = await this.pool.query('SELECT * FROM deadlines');
-      for (const row of dlRes.rows) {
-        if (row.due_date instanceof Date) row.due_date = row.due_date.toISOString();
-        if (row.created_at instanceof Date) row.created_at = row.created_at.toISOString();
-        if (row.updated_at instanceof Date) row.updated_at = row.updated_at.toISOString();
-        this.deadlines.set(row.deadline_id, row);
-      }
-      const notifRes = await this.pool.query('SELECT * FROM notifications ORDER BY published_at DESC');
-      for (const row of notifRes.rows) {
-        if (row.published_at instanceof Date) row.published_at = row.published_at.toISOString();
-        if (row.created_at instanceof Date) row.created_at = row.created_at.toISOString();
-        if (row.deadline_at instanceof Date) row.deadline_at = row.deadline_at.toISOString();
-        this.notifications.set(row.id, row);
-      }
-      const snRes = await this.pool.query('SELECT * FROM student_notifications');
-      for (const row of snRes.rows) {
-        if (row.created_at instanceof Date) row.created_at = row.created_at.toISOString();
-        if (row.read_at instanceof Date) row.read_at = row.read_at.toISOString();
-        if (row.acknowledged_at instanceof Date) row.acknowledged_at = row.acknowledged_at.toISOString();
-        const exists = this.student_notifications.some(
-          (sn) => sn.student_id === row.student_id && sn.notification_id === row.notification_id
-        );
-        if (!exists) this.student_notifications.push(row);
-      }
-      console.log('✔ Đã nạp thành công dữ liệu từ PostgreSQL vào bộ nhớ!');
-    } catch (err) {
-      console.warn('Lỗi đọc dữ liệu khởi đầu từ PostgreSQL:', err.message);
-    }
-  }
-
-  _seedDefaults() {
-    // Tuân thủ nghiêm ngặt GEMINI.md Rule 1: Tuyệt đối không tạo Mock/Fake data ở môi trường thực tế
-    // Chỉ nạp dữ liệu mẫu sinh viên và môn học khi chạy bộ kiểm thử tự động nội bộ (NODE_ENV === 'test')
-    if (!isTestEnvironment()) {
-      return;
-    }
-
-    // Thêm sinh viên mẫu mặc định cho unit tests
-    const defaultStudent = {
-      id: 'a0000000-0000-0000-0000-000000000001',
-      firebase_uid: 'dut_student_firebase_uid_001',
-      student_code: '102200001',
-      full_name: 'Nguyễn Văn A',
-      faculty: 'Khoa Công nghệ Thông tin',
-      cohort: '20TCLC_DT1',
-      class_name: '20TCLC_DT1',
-      dut_session_encrypted: null,
-      is_personalized_enabled: true,
-      interested_topics: ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
-      dut_last_synced_at: new Date().toISOString(),
-      fcm_tokens: ['fcm_token_test_device_1'],
-      google_refresh_token: null,
-      google_calendar_id: 'primary',
-      is_calendar_sync_enabled: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  if (connectionString && String(connectionString).trim()) {
+    const cleanUrl = String(connectionString).trim();
+    return {
+      key: `url:${cleanUrl}`,
+      config: {
+        connectionString: cleanUrl,
+        ssl: shouldUseSsl(cleanUrl) ? { rejectUnauthorized: false } : undefined,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      },
     };
-    this.saveStudent(defaultStudent);
+  }
 
-    const loiStudent = {
-      id: '5619b2b4-904e-45af-9269-b4c8454a9881',
-      firebase_uid: 'dut_uid_102230026',
-      student_code: '102230026',
-      full_name: 'Nguyễn Văn Lợi',
-      faculty: 'Khoa Công nghệ Thông tin',
-      cohort: 'K2023',
-      class_name: '23T_Nhat1',
-      dut_session_encrypted: null,
-      is_personalized_enabled: true,
-      interested_topics: ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'],
-      dut_last_synced_at: new Date().toISOString(),
-      fcm_tokens: ['fcm_token_test_device_loi'],
-      google_refresh_token: null,
-      google_calendar_id: 'primary',
-      is_calendar_sync_enabled: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+  if (process.env.PGHOST && String(process.env.PGHOST).trim()) {
+    const host = String(process.env.PGHOST).trim();
+    const port = process.env.PGPORT ? Number(process.env.PGPORT) : 5432;
+    const database = process.env.PGDATABASE || 'dut_notifications';
+    const user = process.env.PGUSER || 'postgres';
+    const password = process.env.PGPASSWORD || 'postgres';
+    return {
+      key: `pg:${user}@${host}:${port}/${database}`,
+      config: {
+        host,
+        port,
+        database,
+        user,
+        password,
+        ssl: shouldUseSsl('') ? { rejectUnauthorized: false } : undefined,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      },
     };
-    this.saveStudent(loiStudent);
-
-    // Thêm danh mục môn học mẫu
-    const defaultCourses = [
-      {
-        course_code: 'IT401',
-        course_name: 'Công nghệ phần mềm',
-        semester: 'Học kỳ 2 (2025-2026)',
-        lecturer_name: 'TS. Nguyễn Văn B',
-        schedule_info: 'Thứ 4, Tiết 1-3, Phòng F102',
-        created_at: new Date().toISOString(),
-      },
-      {
-        course_code: 'IT302',
-        course_name: 'Cơ sở dữ liệu',
-        semester: 'Học kỳ 2 (2025-2026)',
-        lecturer_name: 'ThS. Trần Thị C',
-        schedule_info: 'Thứ 2, Tiết 7-9, Phòng F301',
-        created_at: new Date().toISOString(),
-      },
-      {
-        course_code: 'IT408',
-        course_name: 'Trí tuệ nhân tạo',
-        semester: 'Học kỳ 2 (2025-2026)',
-        lecturer_name: 'PGS. TS. Lê Văn D',
-        schedule_info: 'Thứ 6, Tiết 4-6, Phòng F204',
-        created_at: new Date().toISOString(),
-      },
-    ];
-
-    for (const c of defaultCourses) {
-      this.saveCourse(c);
-      this.enrollStudentCourse(defaultStudent.id, c.course_code);
-    }
-
-    // Seed 2 Fanpage chính thức mặc định
-    this.saveFollowedPage({
-      student_id: defaultStudent.id,
-      page_url: 'https://www.facebook.com/ctsvdhbkdhdn',
-      page_name: 'Phòng Công tác Sinh viên ĐHBK - ĐHĐN',
-      page_username: 'ctsvdhbkdhdn',
-      channel_code: 'FB_CTSV',
-      is_active: true,
-    });
-    this.saveFollowedPage({
-      student_id: defaultStudent.id,
-      page_url: 'https://www.facebook.com/tuvansinhvien.dut',
-      page_name: 'Tư vấn Sinh viên DUT / Tổ Tư vấn Tuyển sinh & Hỗ trợ SV',
-      page_username: 'tuvansinhvien.dut',
-      channel_code: 'FB_TUVAN_SV',
-      is_active: true,
-    });
   }
 
-  // --- Helpers for In-Memory Queries ---
-  findStudentByCodeOrId(identifier) {
-    if (this.students.has(identifier)) return this.students.get(identifier);
-    for (const s of this.students.values()) {
-      if (s.student_code === identifier || s.id === identifier || s.firebase_uid === identifier) {
-        return s;
-      }
-    }
-    return null;
+  throw new DatabaseConfigurationError(
+    'PostgreSQL configuration missing: set DATABASE_URL, TEST_DATABASE_URL, or PGHOST'
+  );
+}
+
+function getPool() {
+  if (globalPool && globalPoolKey === 'custom') {
+    return globalPool;
+  }
+  const { key, config } = buildPoolConfig();
+  if (globalPool && globalPoolKey === key) {
+    return globalPool;
+  }
+  if (globalPool && globalPoolKey !== key) {
+    const oldPool = globalPool;
+    globalPool = null;
+    oldPool.end().catch(() => {});
   }
 
-  saveStudent(student) {
-    if (!student.id) student.id = crypto.randomUUID();
-    student.created_at = student.created_at || new Date().toISOString();
-    student.updated_at = new Date().toISOString();
-    if (student.is_personalized_enabled === undefined) student.is_personalized_enabled = true;
-    if (!student.interested_topics) student.interested_topics = ['ACADEMIC', 'GRADE', 'ADMINISTRATIVE', 'EVENT', 'CAREER', 'SCHOLARSHIP'];
-    if (student.is_calendar_sync_enabled === undefined) student.is_calendar_sync_enabled = true;
-    if (!student.quick_reminder_options) student.quick_reminder_options = ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week'];
+  globalPool = new Pool(config);
+  globalPoolKey = key;
+  globalPool.on('error', (err) => {
+    console.error('Lỗi kết nối PostgreSQL pool:', err);
+  });
+  return globalPool;
+}
 
-    this.students.set(student.id, student);
-    this.students.set(student.student_code, student);
+function setDefaultPool(pool) {
+  globalPool = pool;
+  globalPoolKey = pool ? 'custom' : null;
+}
 
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO students (id, firebase_uid, student_code, full_name, faculty, cohort, class_name, dut_session_encrypted, dut_last_synced_at, is_personalized_enabled, interested_topics, is_calendar_sync_enabled, quick_reminder_options)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-           ON CONFLICT (student_code) DO UPDATE SET
-             full_name = EXCLUDED.full_name,
-             faculty = EXCLUDED.faculty,
-             cohort = EXCLUDED.cohort,
-             class_name = EXCLUDED.class_name,
-             dut_session_encrypted = COALESCE(EXCLUDED.dut_session_encrypted, students.dut_session_encrypted),
-             dut_last_synced_at = EXCLUDED.dut_last_synced_at,
-             is_personalized_enabled = EXCLUDED.is_personalized_enabled,
-             interested_topics = EXCLUDED.interested_topics,
-             is_calendar_sync_enabled = EXCLUDED.is_calendar_sync_enabled,
-             quick_reminder_options = EXCLUDED.quick_reminder_options,
-             updated_at = NOW()`,
-          [
-            student.id,
-            student.firebase_uid || `dut_uid_${student.student_code}`,
-            student.student_code,
-            student.full_name,
-            student.faculty,
-            student.cohort,
-            student.class_name,
-            student.dut_session_encrypted || null,
-            student.dut_last_synced_at || new Date().toISOString(),
-            student.is_personalized_enabled !== false,
-            JSON.stringify(student.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung']),
-            Boolean(student.is_calendar_sync_enabled),
-            JSON.stringify(student.quick_reminder_options || ['1_hour', 'tonight', 'tomorrow_morning', '1_day', '3_days', '1_week']),
-          ]
-        )
-        .catch((err) => console.warn('PG sync error (students):', err.message));
-    }
+async function query(text, params = []) {
+  return getPool().query(text, params);
+}
 
-    return student;
-  }
+async function getClient() {
+  return getPool().connect();
+}
 
-  saveCourse(course) {
-    course.created_at = course.created_at || new Date().toISOString();
-    this.courses.set(course.course_code, course);
-
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO courses (course_code, course_name, semester, lecturer_name, schedule_info)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (course_code) DO UPDATE SET
-             course_name = EXCLUDED.course_name,
-             semester = EXCLUDED.semester,
-             lecturer_name = EXCLUDED.lecturer_name,
-             schedule_info = EXCLUDED.schedule_info`,
-          [
-            course.course_code,
-            course.course_name,
-            course.semester || 'Học kỳ 1 (2026-2027)',
-            course.lecturer_name || 'Chưa cập nhật',
-            course.schedule_info || 'Chưa có lịch cụ thể',
-          ]
-        )
-        .catch((err) => console.warn('PG sync error (courses):', err.message));
-    }
-
-    return course;
-  }
-
-  enrollStudentCourse(studentId, courseCode) {
-    const exists = this.student_courses.some(
-      (sc) => sc.student_id === studentId && sc.course_code === courseCode
-    );
-    if (!exists) {
-      this.student_courses.push({
-        student_id: studentId,
-        course_code: courseCode,
-        is_muted: false,
-        enrolled_at: new Date().toISOString(),
-      });
-    }
-
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO student_courses (student_id, course_code)
-           VALUES ($1, $2)
-           ON CONFLICT (student_id, course_code) DO NOTHING`,
-          [studentId, courseCode]
-        )
-        .catch((err) => console.warn('PG sync error (student_courses):', err.message));
-    }
-  }
-
-  getStudentCourses(studentId) {
-    return this.student_courses
-      .filter((sc) => sc.student_id === studentId)
-      .map((sc) => {
-        const course = this.courses.get(sc.course_code) || { course_code: sc.course_code };
-        return {
-          ...course,
-          is_muted: sc.is_muted,
-          enrolled_at: sc.enrolled_at,
-        };
-      });
-  }
-
-  findNotificationByHash(contentHash) {
-    for (const n of this.notifications.values()) {
-      if (n.content_hash === contentHash) return n;
-    }
-    return null;
-  }
-
-  saveNotification(notification) {
-    const isExisting = notification.id && this.notifications.has(notification.id);
-    if (!notification.id) notification.id = crypto.randomUUID();
-    notification.created_at = notification.created_at || new Date().toISOString();
-    notification.published_at = notification.published_at || new Date().toISOString();
-    this.notifications.set(notification.id, notification);
-
-    if (this.pool) {
-      if (notification.course_code) {
-        this.saveCourse({
-          course_code: notification.course_code,
-          course_name: `Học phần ${notification.course_code}`,
-          semester: 'Học kỳ 1 (2026-2027)',
-        });
-      }
-
-      const validPriority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(notification.priority)
-        ? notification.priority
-        : (notification.priority === 'MEDIUM' ? 'NORMAL' : 'NORMAL');
-
-      if (isExisting) {
-        this.pool
-          .query(
-            `UPDATE notifications SET
-               title = $1, summary = $2, action_required = $3, content = $4,
-               source_channel = $5, classified_by = $6, scope = $7, priority = $8,
-               priority_score = $9, course_code = $10, target_faculty = $11,
-               target_cohort = $12, is_emergency = $13, tags = $14::jsonb,
-               attachments = $15::jsonb, source_url = $16, deadline_at = $17,
-               content_hash = $18, published_at = $19
-             WHERE id = $20`,
-            [
-              notification.title,
-              notification.summary || '',
-              notification.action_required || null,
-              notification.content || '',
-              notification.source_channel || 'DUT_GENERAL',
-              notification.classified_by || 'RULE_ENGINE',
-              notification.scope || 'GLOBAL',
-              validPriority,
-              notification.priority_score || 0,
-              notification.course_code || null,
-              notification.target_faculty || null,
-              notification.target_cohort || null,
-              !!notification.is_emergency,
-              JSON.stringify(notification.tags || []),
-              JSON.stringify(notification.attachments || []),
-              notification.source_url || null,
-              notification.deadline_at || null,
-              notification.content_hash,
-              notification.published_at,
-              notification.id,
-            ]
-          )
-          .catch((err) => console.warn('PG sync error (update notifications):', err.message));
-      } else {
-        this.pool
-          .query(
-            `INSERT INTO notifications (
-               id, title, summary, action_required, content, source_channel,
-               classified_by, scope, priority, priority_score, course_code,
-               target_faculty, target_cohort, is_emergency, tags, attachments,
-               source_url, deadline_at, content_hash, published_at, created_at
-             ) VALUES (
-               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15::jsonb, $16::jsonb, $17, $18, $19, $20, $21
-             )
-             ON CONFLICT (content_hash) DO UPDATE SET
-               title = EXCLUDED.title,
-               summary = EXCLUDED.summary,
-               action_required = EXCLUDED.action_required,
-               content = EXCLUDED.content,
-               published_at = EXCLUDED.published_at,
-               tags = EXCLUDED.tags,
-               attachments = EXCLUDED.attachments,
-               source_url = EXCLUDED.source_url,
-               deadline_at = EXCLUDED.deadline_at
-             RETURNING id`,
-            [
-              notification.id,
-              notification.title,
-              notification.summary || '',
-              notification.action_required || null,
-              notification.content || '',
-              notification.source_channel || 'DUT_GENERAL',
-              notification.classified_by || 'RULE_ENGINE',
-              notification.scope || 'GLOBAL',
-              validPriority,
-              notification.priority_score || 0,
-              notification.course_code || null,
-              notification.target_faculty || null,
-              notification.target_cohort || null,
-              !!notification.is_emergency,
-              JSON.stringify(notification.tags || []),
-              JSON.stringify(notification.attachments || []),
-              notification.source_url || null,
-              notification.deadline_at || null,
-              notification.content_hash,
-              notification.published_at,
-              notification.created_at,
-            ]
-          )
-          .then((res) => {
-            if (res && res.rows && res.rows[0] && res.rows[0].id && res.rows[0].id !== notification.id) {
-              const oldId = notification.id;
-              const dbId = res.rows[0].id;
-              this.notifications.delete(oldId);
-              notification.id = dbId;
-              this.notifications.set(dbId, notification);
-            }
-          })
-          .catch((err) => console.warn('PG sync error (notifications):', err.message));
-      }
-    }
-
-    return notification;
-  }
-
-  distributeNotification(notificationId, studentId) {
-    const exists = this.student_notifications.some(
-      (sn) => sn.notification_id === notificationId && sn.student_id === studentId
-    );
-    if (!exists) {
-      this.student_notifications.push({
-        student_id: studentId,
-        notification_id: notificationId,
-        is_read: false,
-        read_at: null,
-        is_acknowledged: false,
-        acknowledged_at: null,
-        created_at: new Date().toISOString(),
-      });
-    }
-
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO student_notifications (student_id, notification_id, is_read, is_acknowledged)
-           VALUES ($1, $2, FALSE, FALSE)
-           ON CONFLICT (student_id, notification_id) DO NOTHING`,
-          [studentId, notificationId]
-        )
-        .catch((err) => console.warn('PG sync error (student_notifications):', err.message));
-    }
-  }
-
-  saveDeadline(deadline) {
-    if (!deadline.deadline_id) deadline.deadline_id = crypto.randomUUID();
-    deadline.created_at = deadline.created_at || new Date().toISOString();
-    deadline.updated_at = new Date().toISOString();
-    this.deadlines.set(deadline.deadline_id, deadline);
-
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO deadlines (deadline_id, student_id, course_code, title, description, due_date, status, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-           ON CONFLICT (deadline_id) DO UPDATE SET
-             title = EXCLUDED.title,
-             description = EXCLUDED.description,
-             due_date = EXCLUDED.due_date,
-             status = EXCLUDED.status,
-             updated_at = NOW()`,
-          [
-            deadline.deadline_id,
-            deadline.student_id,
-            deadline.course_code || null,
-            deadline.title,
-            deadline.description || '',
-            deadline.due_date,
-            deadline.status || 'PENDING',
-          ]
-        )
-        .catch((err) => console.warn('PG sync error (deadlines):', err.message));
-    }
-
-    return deadline;
-  }
-
-  deleteDeadline(deadlineId) {
-    this.deadlines.delete(deadlineId);
-    if (this.pool) {
-      this.pool
-        .query('DELETE FROM deadlines WHERE deadline_id = $1', [deadlineId])
-        .catch(() => {});
-    }
-  }
-
-  getDeadlinesByStudent(studentId, filters = {}) {
-    let list = Array.from(this.deadlines.values()).filter(
-      (d) => d.student_id === studentId
-    );
-    if (filters.status) {
-      list = list.filter((d) => d.status === filters.status);
-    }
-    if (filters.course_code) {
-      list = list.filter((d) => d.course_code === filters.course_code);
-    }
-    list.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
-    return list;
-  }
-
-  // ==========================================
-  // QUẢN LÝ FANPAGE FACEBOOK THEO DÕI (FOLLOWED FB PAGES)
-  // ==========================================
-  saveFollowedPage(page) {
-    if (!page.id) page.id = crypto.randomUUID();
-    page.created_at = page.created_at || new Date().toISOString();
-    page.updated_at = new Date().toISOString();
-    if (page.is_active === undefined) page.is_active = true;
-
-    // Chống trùng lặp theo student_id và page_url
-    for (const existing of this.followed_fb_pages.values()) {
-      if (
-        (existing.student_id === page.student_id || !existing.student_id) &&
-        (existing.page_url === page.page_url || existing.page_username === page.page_username)
-      ) {
-        existing.is_active = true;
-        existing.page_name = page.page_name || existing.page_name;
-        existing.updated_at = new Date().toISOString();
-        return existing;
-      }
-    }
-
-    this.followed_fb_pages.set(page.id, page);
-
-    if (this.pool) {
-      this.pool
-        .query(
-          `INSERT INTO followed_fb_pages (id, student_id, page_url, page_name, page_username, channel_code, is_active, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           ON CONFLICT (student_id, page_url) DO UPDATE SET
-             page_name = EXCLUDED.page_name,
-             is_active = TRUE,
-             updated_at = NOW()`,
-          [
-            page.id,
-            page.student_id || null,
-            page.page_url,
-            page.page_name,
-            page.page_username,
-            page.channel_code,
-            page.is_active,
-            page.created_at,
-            page.updated_at,
-          ]
-        )
-        .catch((err) => console.warn('PG sync error (followed_fb_pages):', err.message));
-    }
-
-    return page;
-  }
-
-  getFollowedPages(studentId) {
-    const list = [];
-    for (const page of this.followed_fb_pages.values()) {
-      if (page.is_active && (!studentId || !page.student_id || page.student_id === studentId)) {
-        list.push(page);
-      }
-    }
-    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return list;
-  }
-
-  deleteFollowedPage(pageId, studentId) {
-    let found = null;
-    for (const [id, page] of this.followed_fb_pages.entries()) {
-      if (id === pageId || page.page_username === pageId || page.page_url === pageId) {
-        if (!studentId || !page.student_id || page.student_id === studentId) {
-          page.is_active = false;
-          found = page;
-          this.followed_fb_pages.delete(id);
-          break;
-        }
-      }
-    }
-
-    if (this.pool && found) {
-      this.pool
-        .query('UPDATE followed_fb_pages SET is_active = FALSE WHERE id = $1', [found.id])
-        .catch(() => {});
-    }
-
-    return Boolean(found);
-  }
-
-  getAllActiveFollowedPages() {
-    const uniqueMap = new Map();
-    for (const page of this.followed_fb_pages.values()) {
-      if (page.is_active && page.page_url) {
-        if (!uniqueMap.has(page.page_url)) {
-          uniqueMap.set(page.page_url, page);
-        }
-      }
-    }
-    return Array.from(uniqueMap.values());
+async function withTransaction(fn, pool = null) {
+  const targetPool = pool || getPool();
+  const client = await targetPool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
-const defaultInMemoryStore = new InMemoryDbStore();
-
-function getDbStore() {
-  return defaultInMemoryStore;
+async function verifyDbConnection(pool = getPool()) {
+  await pool.query('SELECT 1');
+  const { rows } = await pool.query(`SELECT to_regclass('public.students') AS students_table`);
+  if (!rows[0]?.students_table) {
+    throw new DatabaseConfigurationError(
+      'PostgreSQL schema missing: table "students" does not exist. Apply src/db/schema.sql first.'
+    );
+  }
+  return true;
 }
+
+async function closePool() {
+  if (globalPool) {
+    const p = globalPool;
+    globalPool = null;
+    globalPoolKey = null;
+    await p.end();
+  }
+}
+
+function createDbAdapter(poolOrGetter = null) {
+  const resolvePool = () => {
+    if (!poolOrGetter) return getPool();
+    return typeof poolOrGetter === 'function' ? poolOrGetter() : poolOrGetter;
+  };
+  return {
+    getPool: resolvePool,
+    query: (text, params = []) => resolvePool().query(text, params),
+    getClient: () => resolvePool().connect(),
+    withTransaction: (fn) => withTransaction(fn, resolvePool()),
+  };
+}
+
+const db = createDbAdapter();
 
 module.exports = {
+  db,
+  createDbAdapter,
   getPool,
-  InMemoryDbStore,
-  getDbStore,
+  setDefaultPool,
+  query,
+  getClient,
+  withTransaction,
+  verifyDbConnection,
+  closePool,
+  DatabaseConfigurationError,
 };
-

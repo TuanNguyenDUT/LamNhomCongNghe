@@ -1,6 +1,7 @@
-/** Task 6: nghiệp vụ đăng ký/hủy thiết bị nhận Push Notification. */
+/** Task 6: nghiệp vụ đăng ký/hủy thiết bị nhận Push Notification với chuẩn hóa student_id UUID. */
 
 const { PushNotificationService } = require('../services/pushNotificationService');
+const { StudentRepository } = require('../db/student.repository');
 
 function validateRegistration(payload = {}) {
   const studentId = String(payload.student_id || '').trim();
@@ -24,9 +25,21 @@ function validateRegistration(payload = {}) {
 }
 
 class DeviceController {
-  constructor(repository, pushService = null) {
+  constructor(repository, pushService = null, studentRepo = null) {
     this.repository = repository;
     this.pushService = pushService || new PushNotificationService({ deviceRepository: repository });
+    this.studentRepo = studentRepo || new StudentRepository(repository?.db || null);
+  }
+
+  async _resolveStudentIdentifiers(rawStudentId) {
+    const clean = String(rawStudentId || '').trim();
+    if (!clean) return { canonical: clean, candidates: [] };
+    const student = await this.studentRepo.resolveStudent(clean);
+    if (!student) {
+      return { canonical: clean, candidates: [clean] };
+    }
+    const candidates = Array.from(new Set([student.id, student.student_code, student.firebase_uid, clean].filter(Boolean)));
+    return { canonical: student.id, candidates };
   }
 
   async register(payload = {}) {
@@ -37,8 +50,9 @@ class DeviceController {
         body: { status: 'error', code: 'INVALID_DEVICE_REGISTRATION', message: error },
       };
     }
+    const { canonical } = await this._resolveStudentIdentifiers(payload.student_id);
     const result = await this.repository.registerDevice({
-      student_id: String(payload.student_id).trim(),
+      student_id: canonical,
       target: String(payload.fid || payload.token).trim(),
       target_type: payload.fid ? 'FID' : 'TOKEN',
       platform: String(payload.platform).trim().toUpperCase(),
@@ -62,7 +76,8 @@ class DeviceController {
         },
       };
     }
-    await this.repository.unregisterDevice(deviceId, studentId);
+    const { candidates } = await this._resolveStudentIdentifiers(studentId);
+    await this.repository.unregisterDevice(deviceId, candidates);
     return { statusCode: 204, body: null };
   }
 
@@ -81,7 +96,8 @@ class DeviceController {
         },
       };
     }
-    const device = await this.repository.getActiveByDevice(deviceId, studentId);
+    const { candidates } = await this._resolveStudentIdentifiers(studentId);
+    const device = await this.repository.getActiveByDevice(deviceId, candidates);
     if (!device) {
       return {
         statusCode: 404,

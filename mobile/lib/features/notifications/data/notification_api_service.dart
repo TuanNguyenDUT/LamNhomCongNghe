@@ -78,9 +78,19 @@ class NotificationApiService {
     await _dio.patch<void>(
       '/api/v1/notifications/$id/read',
       data: {
-        'student_id': studentId ?? AppConfig.developmentStudentId,
+        'student_id': studentId ?? '',
         'is_read': isRead,
       },
+    );
+  }
+
+  Future<void> acknowledgeNotification(
+    dynamic id, {
+    required String studentId,
+  }) async {
+    await _dio.post<void>(
+      '/api/v1/notifications/$id/ack',
+      data: {'student_id': studentId},
     );
   }
 

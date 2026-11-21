@@ -45,24 +45,49 @@ class AuthController extends Notifier<AuthState> {
   Future<void> checkSavedSession() async {
     try {
       final savedToken = await _storage.readAccessToken();
-      final res = await _dio.get(
-        '/api/v1/auth/me',
-        queryParameters: {'student_id': '102230026'},
-      );
-      if (res.data != null && res.data['status'] == 'success') {
-        final data = res.data['data'] as Map<String, dynamic>;
-        final student = data['student'] as Map<String, dynamic>? ?? data;
-        final session = UserSession(
-          token: savedToken ?? 'dut_token_102230026',
-          studentCode: student['student_code']?.toString() ?? '102230026',
-          studentId: student['id']?.toString(),
-          fullName: student['full_name']?.toString() ?? 'Nguyễn Văn Lợi',
-          faculty: student['faculty']?.toString() ?? 'Khoa Công nghệ Thông tin',
-          cohort: student['cohort']?.toString() ?? 'K2023',
-          className: student['class_name']?.toString() ?? '23T_Nhat1',
-        );
-        state = state.copyWith(session: session);
+      final savedStudentCode = await _storage.readStudentCode();
+
+      if (savedToken == null ||
+          savedToken.isEmpty ||
+          savedStudentCode == null ||
+          savedStudentCode.isEmpty) {
+        state = const AuthState();
+        return;
       }
+
+      final res = await _dio.get<dynamic>(
+        '/api/v1/auth/me',
+        queryParameters: {'student_id': savedStudentCode},
+      );
+
+      final body = res.data;
+      if (body is Map && body['status'] == 'success' && body['data'] is Map) {
+        final data = Map<String, dynamic>.from(body['data'] as Map);
+        final studentRaw = data['student'];
+        if (studentRaw is Map) {
+          final parsed = UserSession.fromJson(data);
+          final session = parsed.copyWith(
+            token: savedToken,
+            studentCode: parsed.studentCode.isNotEmpty
+                ? parsed.studentCode
+                : savedStudentCode,
+          );
+          state = state.copyWith(
+            session: session,
+            isLoading: false,
+            clearError: true,
+          );
+          return;
+        }
+      }
+
+      state = const AuthState();
+    } on DioException catch (err) {
+      final statusCode = err.response?.statusCode;
+      if (statusCode == 401 || statusCode == 404) {
+        await _storage.clearSession();
+      }
+      state = const AuthState();
     } catch (_) {
       state = const AuthState();
     }
@@ -74,7 +99,7 @@ class AuthController extends Notifier<AuthState> {
     final cleanPass = password.trim();
 
     try {
-      final response = await _dio.post(
+      final response = await _dio.post<dynamic>(
         '/api/v1/auth/login',
         data: {
           'student_code': cleanCode,
@@ -82,10 +107,15 @@ class AuthController extends Notifier<AuthState> {
         },
       );
 
-      final data = response.data['data'] as Map<String, dynamic>;
-      final session = UserSession.fromJson(data);
+      final body = response.data as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(body['data'] as Map);
+      final parsed = UserSession.fromJson(data);
+      final persistedCode =
+          parsed.studentCode.isNotEmpty ? parsed.studentCode : cleanCode;
+      final session = parsed.copyWith(studentCode: persistedCode);
 
       await _storage.saveAccessToken(session.token);
+      await _storage.saveStudentCode(persistedCode);
 
       state = state.copyWith(
         session: session,
@@ -94,9 +124,11 @@ class AuthController extends Notifier<AuthState> {
       );
       return true;
     } on DioException catch (dioErr) {
-      String msg = 'Tên đăng nhập hoặc mật khẩu sv.dut.udn.vn không chính xác!';
-      if (dioErr.response?.data is Map) {
-        msg = (dioErr.response?.data['message'] ?? msg).toString();
+      String msg =
+          'Tên đăng nhập hoặc mật khẩu sv.dut.udn.vn không chính xác!';
+      final errData = dioErr.response?.data;
+      if (errData is Map) {
+        msg = (errData['message'] ?? msg).toString();
       } else if (dioErr.type == DioExceptionType.connectionTimeout ||
           dioErr.type == DioExceptionType.receiveTimeout ||
           dioErr.type == DioExceptionType.sendTimeout ||
@@ -115,7 +147,7 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await _storage.clearAccessToken();
+    await _storage.clearSession();
     state = const AuthState();
   }
 }

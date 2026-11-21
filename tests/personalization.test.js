@@ -1,12 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { Readable } = require('node:stream');
+const { createServer } = require('../src/server');
 const { notificationRouter } = require('../src/api/notification.routes');
-const { courseService } = require('../src/services/course.service');
-const { notificationService } = require('../src/services/notification.service');
+const { StudentRepository } = require('../src/db/student.repository');
 const { detectNotificationTopics } = require('../src/services/classifier.service');
+const {
+  createTestPool,
+  resetDatabase,
+  seedStudent,
+  teardownTestPool,
+} = require('./helpers/pg-test-harness');
 
-async function callApi(router, { method = 'GET', url = '/', body = null } = {}) {
+async function callApi(controller, { method = 'GET', url = '/', body = null } = {}) {
   const payloadStr = body ? JSON.stringify(body) : '';
   const req = Readable.from(payloadStr ? [Buffer.from(payloadStr)] : []);
   req.method = method;
@@ -27,7 +34,7 @@ async function callApi(router, { method = 'GET', url = '/', body = null } = {}) 
     },
   };
 
-  await router(req, res);
+  await notificationRouter(req, res, controller);
   let parsedBody = null;
   try {
     parsedBody = rawResponse ? JSON.parse(rawResponse) : null;
@@ -36,41 +43,6 @@ async function callApi(router, { method = 'GET', url = '/', body = null } = {}) 
   }
   return { statusCode, headers: responseHeaders, body: parsedBody };
 }
-
-test('PERSONALIZATION-01: GET & PUT /api/v1/students/preferences', async () => {
-  // 1. GET default preferences
-  const getRes = await callApi(notificationRouter, {
-    method: 'GET',
-    url: '/api/v1/students/preferences?student_code=102200001',
-  });
-  assert.equal(getRes.statusCode, 200);
-  assert.equal(getRes.body.status, 'success');
-  assert.equal(typeof getRes.body.data.is_personalized_enabled, 'boolean');
-  assert.ok(Array.isArray(getRes.body.data.interested_topics));
-
-  // 2. PUT update preferences
-  const newTopics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
-  const putRes = await callApi(notificationRouter, {
-    method: 'PUT',
-    url: '/api/v1/students/preferences',
-    body: {
-      student_code: '102200001',
-      is_personalized_enabled: true,
-      interested_topics: newTopics,
-    },
-  });
-  assert.equal(putRes.statusCode, 200);
-  assert.equal(putRes.body.status, 'success');
-  assert.deepEqual(putRes.body.data.interested_topics, newTopics);
-  assert.equal(putRes.body.data.is_personalized_enabled, true);
-
-  // 3. Verify updated state via GET
-  const verifyRes = await callApi(notificationRouter, {
-    method: 'GET',
-    url: '/api/v1/students/preferences?student_code=102200001',
-  });
-  assert.deepEqual(verifyRes.body.data.interested_topics, newTopics);
-});
 
 test('PERSONALIZATION-02: Phân loại chủ đề thông báo tự động (detectNotificationTopics)', async () => {
   const notifHocBong = {
@@ -98,30 +70,80 @@ test('PERSONALIZATION-02: Phân loại chủ đề thông báo tự động (det
   assert.ok(topicsHV.includes('hoc_vu'));
 });
 
-test('AUTH-SEC-01: Đồng bộ học phần không cần hardcode mật khẩu, dùng phiên đã xác thực', async () => {
-  // Giả lập sinh viên đã đăng nhập và lưu phiên
-  const testStudent = {
-    id: 'test-student-session-001',
-    student_code: '102299999',
-    full_name: 'Sinh viên Test Session',
-    faculty: 'Khoa Công nghệ Thông tin',
-    cohort: 'K23',
-    class_name: '23T_DT',
-    dut_session_encrypted: Buffer.from('student_real_password_123').toString('base64'),
-    dut_last_synced_at: new Date().toISOString(),
-  };
-  courseService.dbStore.saveStudent(testStudent);
+test.describe('Personalization & Session Sync Direct PostgreSQL Tests', () => {
+  let pool;
 
-  // Gọi syncCourses KHÔNG truyền mật khẩu trong body
-  const syncRes = await callApi(notificationRouter, {
-    method: 'POST',
-    url: '/api/v1/dut/sync-courses',
-    body: {
-      student_code: '102299999',
-    },
+  test.before(async () => {
+    pool = await createTestPool();
   });
 
-  assert.equal(syncRes.statusCode, 200);
-  assert.equal(syncRes.body.status, 'success');
-  assert.ok(syncRes.body.data.courses.length > 0);
+  test.beforeEach(async () => {
+    await resetDatabase(pool);
+    await seedStudent(pool, { student_code: '102200001' });
+  });
+
+  test.after(async () => {
+    await teardownTestPool(pool);
+  });
+
+  test('PERSONALIZATION-01: GET & PUT /api/v1/students/preferences', async () => {
+    const { controller } = createServer(pool);
+
+    const getRes = await callApi(controller, {
+      method: 'GET',
+      url: '/api/v1/students/preferences?student_code=102200001',
+    });
+    assert.equal(getRes.statusCode, 200);
+    assert.equal(getRes.body.status, 'success');
+    assert.equal(typeof getRes.body.data.is_personalized_enabled, 'boolean');
+    assert.ok(Array.isArray(getRes.body.data.interested_topics));
+
+    const newTopics = ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+    const putRes = await callApi(controller, {
+      method: 'PUT',
+      url: '/api/v1/students/preferences',
+      body: {
+        student_code: '102200001',
+        is_personalized_enabled: true,
+        interested_topics: newTopics,
+      },
+    });
+    assert.equal(putRes.statusCode, 200);
+    assert.equal(putRes.body.status, 'success');
+    assert.deepEqual(putRes.body.data.interested_topics, newTopics);
+    assert.equal(putRes.body.data.is_personalized_enabled, true);
+
+    const verifyRes = await callApi(controller, {
+      method: 'GET',
+      url: '/api/v1/students/preferences?student_code=102200001',
+    });
+    assert.deepEqual(verifyRes.body.data.interested_topics, newTopics);
+  });
+
+  test('AUTH-SEC-01: Đồng bộ học phần không cần hardcode mật khẩu, dùng phiên đã xác thực', async () => {
+    const { controller } = createServer(pool);
+    const studentRepo = new StudentRepository(pool);
+    await studentRepo.upsertStudent({
+      id: crypto.randomUUID(),
+      student_code: '102299999',
+      full_name: 'Sinh viên Test Session',
+      faculty: 'Khoa Công nghệ Thông tin',
+      cohort: 'K23',
+      class_name: '23T_DT',
+      dut_session_encrypted: Buffer.from('student_real_password_123').toString('base64'),
+      dut_last_synced_at: new Date().toISOString(),
+    });
+
+    const syncRes = await callApi(controller, {
+      method: 'POST',
+      url: '/api/v1/dut/sync-courses',
+      body: {
+        student_code: '102299999',
+      },
+    });
+
+    assert.equal(syncRes.statusCode, 200);
+    assert.equal(syncRes.body.status, 'success');
+    assert.ok(syncRes.body.data.courses.length > 0);
+  });
 });

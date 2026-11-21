@@ -9,6 +9,7 @@ class SecureStorageService {
   SecureStorageService(this._storage);
 
   static const _accessTokenKey = 'access_token';
+  static const _studentCodeKey = 'student_code';
   static const _deviceIdKey = 'device_id';
 
   final FlutterSecureStorage _storage;
@@ -35,6 +36,35 @@ class SecureStorageService {
     try {
       await _storage.delete(key: _accessTokenKey);
     } catch (_) {}
+  }
+
+  Future<String?> readStudentCode() async {
+    try {
+      final val = await _storage.read(key: _studentCodeKey);
+      return val ?? _memFallback[_studentCodeKey];
+    } catch (_) {
+      return _memFallback[_studentCodeKey];
+    }
+  }
+
+  Future<void> saveStudentCode(String studentCode) async {
+    _memFallback[_studentCodeKey] = studentCode;
+    try {
+      await _storage.write(key: _studentCodeKey, value: studentCode);
+    } catch (_) {}
+  }
+
+  Future<void> clearStudentCode() async {
+    _memFallback.remove(_studentCodeKey);
+    try {
+      await _storage.delete(key: _studentCodeKey);
+    } catch (_) {}
+  }
+
+  /// Clears authenticated session keys while preserving device identity.
+  Future<void> clearSession() async {
+    await clearAccessToken();
+    await clearStudentCode();
   }
 
   Future<String?> readDeviceId() async {

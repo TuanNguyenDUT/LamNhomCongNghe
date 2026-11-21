@@ -444,7 +444,14 @@ async function notificationRouter(req, res, controller) {
       return;
     }
 
-    if (req.method === 'POST' && pathname === '/api/v1/calendar/google/sync') {
+    if (req.method === 'POST' && pathname === '/api/v1/calendar/google/disconnect') {
+      const body = await readJsonBody(req);
+      const result = await controller.disconnectGoogleCalendar(body);
+      sendJson(res, result.statusCode, result.body);
+      return;
+    }
+
+    if (req.method === 'POST' && (pathname === '/api/v1/calendar/google/sync' || pathname === '/api/v1/calendar/google/sync-event')) {
       const body = await readJsonBody(req);
       const result = await controller.syncGoogleCalendar(body);
       sendJson(res, result.statusCode, result.body);
@@ -471,10 +478,11 @@ async function notificationRouter(req, res, controller) {
     });
   } catch (error) {
     console.error('API Router Error:', error);
-    sendJson(res, 500, {
+    const statusCode = error.httpStatus || 500;
+    sendJson(res, statusCode, {
       status: 'error',
-      message: 'Lỗi máy chủ nội bộ',
-      details: error.message,
+      code: error.code || 'INTERNAL_SERVER_ERROR',
+      message: statusCode >= 500 ? (error.message || 'Lỗi máy chủ nội bộ') : error.message,
     });
   }
 }

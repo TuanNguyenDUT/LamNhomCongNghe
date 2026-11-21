@@ -1,17 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/network/api_client.dart';
-import '../../../core/presentation/liquid_glass.dart';
+import '../../../core/presentation/app_toast.dart';
+import '../../../core/presentation/empty_glass_card.dart';
+import '../../../core/presentation/warm_pearl_tokens.dart';
 import '../../auth/presentation/auth_controller.dart';
-import '../../notifications/presentation/notification_providers.dart';
 import '../domain/course_item.dart';
+import 'course_detail_sheet.dart';
 
 final enrolledCoursesProvider = FutureProvider<List<CourseItem>>((ref) async {
   final dio = ref.watch(dioProvider);
   final authState = ref.watch(authControllerProvider);
-  final studentCode = authState.session?.studentCode ?? '102230026';
+  final studentCode = authState.session?.studentCode ?? '';
+
+  if (studentCode.isEmpty) return const <CourseItem>[];
 
   try {
     final res = await dio.get(
@@ -36,8 +39,7 @@ final enrolledCoursesProvider = FutureProvider<List<CourseItem>>((ref) async {
     }
   } catch (_) {}
 
-  // Tuân thủ nghiêm ngặt GEMINI.md Rule 1: Tuyệt đối không hardcode mock fallback trên Frontend
-  // Khi không có dữ liệu hoặc lỗi mạng, trả về danh sách rỗng để hiển thị trạng thái trống
+  // GEMINI.md Rule 1: Tuyệt đối không mock, trả về danh sách rỗng nếu không có dữ liệu
   return const <CourseItem>[];
 });
 
@@ -45,37 +47,36 @@ class EnrolledCoursesScreen extends ConsumerStatefulWidget {
   const EnrolledCoursesScreen({super.key});
 
   @override
-  ConsumerState<EnrolledCoursesScreen> createState() => _EnrolledCoursesScreenState();
+  ConsumerState<EnrolledCoursesScreen> createState() =>
+      _EnrolledCoursesScreenState();
 }
 
 class _EnrolledCoursesScreenState extends ConsumerState<EnrolledCoursesScreen> {
   bool _isSyncing = false;
 
   Future<void> _handleSync() async {
+    if (_isSyncing) return;
     setState(() => _isSyncing = true);
     final authState = ref.read(authControllerProvider);
-    final studentCode = authState.session?.studentCode ?? '102230026';
+    final studentCode = authState.session?.studentCode ?? '';
     final dio = ref.read(dioProvider);
 
     try {
       await dio.post(
         '/api/v1/dut/sync-courses',
-        data: {
-          'student_code': studentCode,
-        },
+        data: {'student_id': studentCode},
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã cập nhật dữ liệu học phần từ sv.dut.udn.vn ($studentCode)'),
-            backgroundColor: const Color(0xFF007AFF),
-          ),
+        AppToast.showSuccess(
+          context,
+          'Đã cập nhật danh sách học phần từ sv.dut.udn.vn',
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã làm mới dữ liệu học phần trên ứng dụng')),
+        AppToast.showError(
+          context,
+          'Không thể kết nối cổng sv.dut.udn.vn để đồng bộ',
         );
       }
     } finally {
@@ -87,286 +88,306 @@ class _EnrolledCoursesScreenState extends ConsumerState<EnrolledCoursesScreen> {
   @override
   Widget build(BuildContext context) {
     final coursesAsync = ref.watch(enrolledCoursesProvider);
-    final authState = ref.watch(authControllerProvider);
-    final session = authState.session;
+    final session = ref.watch(authControllerProvider).session;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
+    return RefreshIndicator(
+      onRefresh: _handleSync,
+      color: WarmPearlColors.coralFrom,
+      backgroundColor: Colors.white,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 120),
         children: [
-          // 1. Apple Wallpaper Background Gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFEBF1FA),
-                  Color(0xFFF2EAF9),
-                  Color(0xFFEDF3FC),
-                ],
+          coursesAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: CircularProgressIndicator(color: WarmPearlColors.coralFrom),
               ),
             ),
-          ),
+            error: (err, stack) => EmptyGlassCard(
+              icon: Icons.sync_problem_rounded,
+              title: 'Lỗi tải danh sách học phần',
+              description: 'Vui lòng kiểm tra kết nối mạng và thử lại.',
+              actionLabel: 'Thử lại ngay',
+              onAction: _handleSync,
+            ),
+            data: (courses) {
+              if (courses.isEmpty) {
+                return EmptyGlassCard(
+                  orbitalMode: true,
+                  icon: Icons.school_rounded,
+                  title: 'Chưa có dữ liệu học phần',
+                  description:
+                      'Học kỳ hiện tại chưa có thông tin học phần từ sv.dut.udn.vn',
+                  actionLabel: 'Đồng bộ học phần ngay',
+                  isActionLoading: _isSyncing,
+                  onAction: _handleSync,
+                );
+              }
 
-          // 2. Nội dung chính
-          SafeArea(
-            child: Column(
-              children: [
-                // Top App Bar Liquid Glass
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: LiquidGlassContainer(
-                    borderRadius: 22,
-                    blurSigma: 20,
-                    opacity: 0.8,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              final className = session?.className.isNotEmpty == true
+                  ? session!.className
+                  : 'Lớp sinh hoạt';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Semester Summary Glass Card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: WarmPearlColors.glassBgStrong,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: WarmPearlColors.glassBorderStrong,
+                        width: 1,
+                      ),
+                      boxShadow: WarmPearlShadows.glassSm,
+                    ),
                     child: Row(
                       children: [
-                        // Avatar sinh viên
                         Container(
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF007AFF), Color(0xFF5856D6)],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF007AFF).withValues(alpha: 0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
+                            color: WarmPearlColors.coralSoft,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: WarmPearlColors.coralBorder),
                           ),
-                          child: Center(
-                            child: Text(
-                              (session?.studentCode ?? '26').substring((session?.studentCode ?? '26').length - 2),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
+                          child: const Icon(
+                            Icons.school_rounded,
+                            color: WarmPearlColors.coralInk,
+                            size: 24,
                           ),
                         ),
                         const SizedBox(width: 12),
-
-                        // Thông tin định danh user trên app
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                session?.fullName ?? 'Sinh viên 102230026',
+                                '${courses.length} học phần đang theo học',
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
-                                  letterSpacing: -0.3,
+                                  fontFamily: WarmPearlTypography.displayFont,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: WarmPearlColors.inkPrimary,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'MSSV: ${session?.studentCode ?? '102230026'} • Lớp: ${session?.className ?? '23T_DT'}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.blueGrey.shade700,
+                                '$className • Học kỳ 1 (2026-2027)',
+                                style: const TextStyle(
+                                  fontFamily: WarmPearlTypography.bodyFont,
+                                  fontSize: 11.5,
+                                  color: WarmPearlColors.inkSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
-
-                        // Nút đồng bộ Liquid Glass
-                        IconButton(
-                          icon: _isSyncing
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.sync_rounded, color: Color(0xFF007AFF)),
-                          tooltip: 'Cập nhật từ sv.dut.udn.vn',
-                          onPressed: _isSyncing ? null : _handleSync,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: WarmPearlColors.mintSoft,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: WarmPearlColors.mintBorder),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 12,
+                                color: WarmPearlColors.mint,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Đã đồng bộ',
+                                style: TextStyle(
+                                  fontFamily: WarmPearlTypography.displayFont,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: WarmPearlColors.mint,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
 
-                // Danh sách các học phần
-                Expanded(
-                  child: coursesAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (err, stack) => Center(child: Text('Lỗi tải học phần: $err')),
-                    data: (courses) {
-                      if (courses.isEmpty) {
-                        return const Center(child: Text('Chưa có học phần nào được đồng bộ.'));
-                      }
+                  const SizedBox(height: 14),
 
-                      return ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        itemCount: courses.length,
-                        itemBuilder: (context, index) {
-                          final course = courses[index];
-                          return LiquidGlassCard(
-                            borderRadius: 22,
-                            padding: const EdgeInsets.all(16),
-                            margin: const EdgeInsets.only(bottom: 14),
-                            accentColor: course.unreadCount > 0 ? const Color(0xFFFF3B30) : null,
-                            onTap: () {
-                              ref.read(selectedCategoryProvider.notifier).setCategory('DUT_COURSE_CLASS');
-                              ref.read(selectedCourseFilterProvider.notifier).setFilter(
-                                courseCode: course.courseCode,
-                                courseName: course.courseName,
-                              );
-                              context.go('/notifications');
-                            },
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Header Card: Mã môn & Badge số tin mới
-                                Row(
-                                  children: [
-                                    LiquidGlassBadge(
-                                      text: course.courseCode,
-                                      color: const Color(0xFF007AFF),
-                                      icon: Icons.code_rounded,
-                                    ),
-                                    const Spacer(),
-                                    if (course.unreadCount > 0)
-                                      LiquidGlassBadge(
-                                        text: '${course.unreadCount} tin mới',
-                                        color: const Color(0xFFFF3B30),
-                                        icon: Icons.notifications_active_rounded,
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-
-                                // Tên học phần
-                                Text(
-                                  course.courseName,
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0F172A),
-                                    letterSpacing: -0.4,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-
-                                // Giảng viên
-                                if (course.lecturerName != null)
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.person_outline_rounded, size: 16, color: Color(0xFF64748B)),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        course.lecturerName!,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF475569),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                const SizedBox(height: 6),
-
-                                // Lịch học & Phòng học
-                                if (course.scheduleInfo != null)
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.schedule_rounded, size: 15, color: Color(0xFF64748B)),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          course.scheduleInfo!,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF475569),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                const SizedBox(height: 14),
-
-                                // Footer Card: Deadline & Nút xem chi tiết
-                                Container(
-                                  padding: const EdgeInsets.only(top: 10),
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      top: BorderSide(
-                                        color: Colors.black.withValues(alpha: 0.06),
-                                        width: 1,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.alarm_rounded,
-                                        size: 15,
-                                        color: course.upcomingDeadlines > 0
-                                            ? const Color(0xFFFF9500)
-                                            : Colors.blueGrey,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '${course.upcomingDeadlines} hạn chót sắp tới',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: course.upcomingDeadlines > 0
-                                              ? const Color(0xFFD97706)
-                                              : Colors.blueGrey,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      TextButton(
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          visualDensity: VisualDensity.compact,
-                                        ),
-                                        onPressed: () {
-                                          // Chuyển sang bảng tin đã lọc chính xác theo môn học này
-                                          ref.read(selectedCategoryProvider.notifier).setCategory('DUT_COURSE_CLASS');
-                                          ref.read(selectedCourseFilterProvider.notifier).setFilter(
-                                            courseCode: course.courseCode,
-                                            courseName: course.courseName,
-                                          );
-                                          context.go('/notifications');
-                                        },
-                                        child: const Text(
-                                          'Xem tin môn này →',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                            color: Color(0xFF007AFF),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
+                  // 2-Column Bento Course Grid
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 0.88,
+                    ),
+                    itemCount: courses.length,
+                    itemBuilder: (context, index) {
+                      final course = courses[index];
+                      final tint = CourseTint.values[index % CourseTint.values.length];
+                      return _buildCourseBentoTile(context, course, tint);
                     },
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourseBentoTile(
+    BuildContext context,
+    CourseItem course,
+    CourseTint tint,
+  ) {
+    final (badgeBg, badgeBorder, badgeText) = switch (tint) {
+      CourseTint.coral => (
+          WarmPearlColors.coralSoft,
+          WarmPearlColors.coralBorder,
+          WarmPearlColors.coralInk
+        ),
+      CourseTint.mint => (
+          WarmPearlColors.mintSoft,
+          WarmPearlColors.mintBorder,
+          WarmPearlColors.mint
+        ),
+      CourseTint.violet => (
+          WarmPearlColors.violetSoft,
+          WarmPearlColors.violetBorder,
+          WarmPearlColors.violet
+        ),
+      CourseTint.amber => (
+          WarmPearlColors.amberTint,
+          const Color(0x4DF59E0B),
+          WarmPearlColors.amber
+        ),
+    };
+
+    return GestureDetector(
+      onTap: () => showCourseDetailSheet(context, course),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: WarmPearlColors.glassBgStrong,
+          gradient: WarmPearlGradients.courseRadialTint(tint),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: WarmPearlColors.glassBorderStrong,
+            width: 1,
+          ),
+          boxShadow: WarmPearlShadows.glassSm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Code badge + Unread tag
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(color: badgeBorder),
+                  ),
+                  child: Text(
+                    course.courseCode,
+                    style: TextStyle(
+                      fontFamily: WarmPearlTypography.displayFont,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: badgeText,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (course.unreadCount > 0)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: WarmPearlColors.coralSoft,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: WarmPearlColors.coralBorder),
+                    ),
+                    child: Text(
+                      '${course.unreadCount} mới',
+                      style: const TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                        color: WarmPearlColors.coralInk,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Course Name
+            Expanded(
+              child: Text(
+                course.courseName,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: WarmPearlTypography.displayFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                  color: WarmPearlColors.inkPrimary,
+                ),
+              ),
+            ),
+
+            const Divider(height: 12, color: WarmPearlColors.glassDivider),
+
+            // Lecturer footer
+            Row(
+              children: [
+                const Icon(
+                  Icons.person_outline_rounded,
+                  size: 13,
+                  color: WarmPearlColors.inkMuted,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    course.lecturerName?.isNotEmpty == true
+                        ? course.lecturerName!
+                        : 'DUT',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: WarmPearlTypography.bodyFont,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: WarmPearlColors.inkSecondary,
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

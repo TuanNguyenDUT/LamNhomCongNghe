@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:material_ui/material_ui.dart';
 
-/// AppToast: Hiển thị thông báo Toast nổi ở PHÍA TRÊN (Top Toast)
-/// Tự động biến mất sau đúng 2 giây (hoặc thời gian tùy chỉnh).
-/// Không che thanh Navigation Bar ở phía dưới.
+import 'warm_pearl_tokens.dart';
+
+/// AppToast: Warm Pearl Liquid Glass floating capsule toast at top of screen.
+/// Preserves legacy `AppToast.show(backgroundColor: ...)` override for unmigrated
+/// M2–M4 callers while rendering `.toast-bar` glass capsule by default.
 class AppToast {
   static OverlayEntry? _currentEntry;
   static Timer? _dismissTimer;
@@ -12,16 +16,17 @@ class AppToast {
     BuildContext context, {
     required String message,
     Widget? icon,
-    Color backgroundColor = const Color(0xFF34C759),
-    Color textColor = Colors.white,
-    Duration duration = const Duration(seconds: 2),
+    Color? backgroundColor,
+    Color? textColor,
+    Duration duration = WarmPearlMotion.toastAutoDismiss,
     String? actionLabel,
     VoidCallback? onAction,
+    bool isError = false,
   }) {
-    // Xóa toast cũ nếu đang hiển thị
     dismiss();
 
-    final overlay = Overlay.maybeOf(context, rootOverlay: true) ?? Overlay.of(context);
+    final overlay =
+        Overlay.maybeOf(context, rootOverlay: true) ?? Overlay.of(context);
 
     late OverlayEntry entry;
     entry = OverlayEntry(
@@ -32,6 +37,7 @@ class AppToast {
         textColor: textColor,
         duration: duration,
         actionLabel: actionLabel,
+        isError: isError,
         onAction: onAction != null
             ? () {
                 dismiss();
@@ -53,50 +59,51 @@ class AppToast {
   static void showSuccess(
     BuildContext context,
     String message, {
-    Duration duration = const Duration(seconds: 2),
+    Duration duration = WarmPearlMotion.toastAutoDismiss,
     String? actionLabel,
     VoidCallback? onAction,
   }) {
     show(
       context,
       message: message,
-      icon: const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-      backgroundColor: const Color(0xFF34C759),
       duration: duration,
       actionLabel: actionLabel,
       onAction: onAction,
+      isError: false,
     );
   }
 
   static void showError(
     BuildContext context,
     String message, {
-    Duration duration = const Duration(seconds: 2),
-  }) {
-    show(
-      context,
-      message: message,
-      icon: const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-      backgroundColor: const Color(0xFFDC2626),
-      duration: duration,
-    );
-  }
-
-  static void showInfo(
-    BuildContext context,
-    String message, {
-    Duration duration = const Duration(seconds: 2),
+    Duration duration = WarmPearlMotion.toastAutoDismiss,
     String? actionLabel,
     VoidCallback? onAction,
   }) {
     show(
       context,
       message: message,
-      icon: const Icon(Icons.info_outline_rounded, color: Colors.white, size: 20),
-      backgroundColor: const Color(0xFF1A73E8),
       duration: duration,
       actionLabel: actionLabel,
       onAction: onAction,
+      isError: true,
+    );
+  }
+
+  static void showInfo(
+    BuildContext context,
+    String message, {
+    Duration duration = WarmPearlMotion.toastAutoDismiss,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    show(
+      context,
+      message: message,
+      duration: duration,
+      actionLabel: actionLabel,
+      onAction: onAction,
+      isError: false,
     );
   }
 
@@ -111,49 +118,66 @@ class AppToast {
 }
 
 class _TopToastWidget extends StatefulWidget {
-  final String message;
-  final Widget? icon;
-  final Color backgroundColor;
-  final Color textColor;
-  final Duration duration;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-  final VoidCallback onDismiss;
-
   const _TopToastWidget({
     required this.message,
     this.icon,
-    required this.backgroundColor,
-    required this.textColor,
+    this.backgroundColor,
+    this.textColor,
     required this.duration,
     this.actionLabel,
     this.onAction,
     required this.onDismiss,
+    required this.isError,
   });
+
+  final String message;
+  final Widget? icon;
+  final Color? backgroundColor;
+  final Color? textColor;
+  final Duration duration;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final VoidCallback onDismiss;
+  final bool isError;
 
   @override
   State<_TopToastWidget> createState() => _TopToastWidgetState();
 }
 
-class _TopToastWidgetState extends State<_TopToastWidget> with SingleTickerProviderStateMixin {
-  late AnimationController _animCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
+class _TopToastWidgetState extends State<_TopToastWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animCtrl;
+  late final Animation<double> _fadeAnim;
+  late final Animation<double> _scaleAnim;
+  late final Animation<Offset> _slideAnim;
 
   @override
   void initState() {
     super.initState();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: WarmPearlMotion.toast350,
     );
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _scaleAnim = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: WarmPearlMotion.spring),
+    );
     _slideAnim = Tween<Offset>(
-      begin: const Offset(0, -0.6),
+      begin: const Offset(0, -0.5),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
+    ).animate(
+      CurvedAnimation(parent: _animCtrl, curve: WarmPearlMotion.spring),
+    );
+  }
 
-    _animCtrl.forward();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _animCtrl.value = 1.0;
+    } else if (_animCtrl.status == AnimationStatus.dismissed) {
+      _animCtrl.forward();
+    }
   }
 
   @override
@@ -162,102 +186,135 @@ class _TopToastWidgetState extends State<_TopToastWidget> with SingleTickerProvi
     super.dispose();
   }
 
-  Future<void> _hide() async {
-    if (mounted) {
-      await _animCtrl.reverse();
-    }
-    widget.onDismiss();
-  }
-
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final topPadding = mediaQuery.padding.top > 0 ? mediaQuery.padding.top + 10 : 16.0;
+    final topPadding =
+        mediaQuery.padding.top > 0 ? mediaQuery.padding.top + 14.0 : 14.0;
+
+    final bool isLegacySolid = widget.backgroundColor != null;
+    final Color resolvedTextColor = widget.textColor ??
+        (isLegacySolid ? WarmPearlColors.white : WarmPearlColors.inkPrimary);
+
+    final Widget leadingIndicator = widget.icon ??
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: widget.isError
+                ? WarmPearlColors.rose
+                : WarmPearlColors.mintBright,
+            shape: BoxShape.circle,
+            boxShadow: widget.isError
+                ? WarmPearlShadows.errorDotRing
+                : WarmPearlShadows.liveDotRing,
+          ),
+        );
+
+    final Widget contentRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        leadingIndicator,
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            widget.message,
+            style: TextStyle(
+              fontFamily: WarmPearlTypography.bodyFont,
+              fontFamilyFallback: WarmPearlTypography.fontFallback,
+              color: resolvedTextColor,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (widget.actionLabel != null && widget.onAction != null) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: widget.onAction,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(WarmPearlRadii.pill),
+                gradient: WarmPearlGradients.coralButton,
+                boxShadow: WarmPearlShadows.coralButton,
+              ),
+              child: Text(
+                widget.actionLabel!,
+                style: const TextStyle(
+                  fontFamily: WarmPearlTypography.displayFont,
+                  fontFamilyFallback: WarmPearlTypography.fontFallback,
+                  color: WarmPearlColors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final Widget capsule = isLegacySolid
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: widget.backgroundColor,
+              borderRadius: BorderRadius.circular(WarmPearlRadii.pill),
+              boxShadow: WarmPearlShadows.toast,
+            ),
+            child: contentRow,
+          )
+        : Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(WarmPearlRadii.pill),
+              boxShadow: WarmPearlShadows.toast,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(WarmPearlRadii.pill),
+              child: BackdropFilter(
+                filter: ui.ImageFilter.blur(
+                  sigmaX: WarmPearlBlurs.toast,
+                  sigmaY: WarmPearlBlurs.toast,
+                ),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: WarmPearlColors.toastBg,
+                    borderRadius: BorderRadius.circular(WarmPearlRadii.pill),
+                    border: Border.all(
+                      color: WarmPearlColors.white,
+                      width: WarmPearlBorders.thin,
+                    ),
+                  ),
+                  child: contentRow,
+                ),
+              ),
+            ),
+          );
 
     return Positioned(
       top: topPadding,
-      left: 16,
-      right: 16,
+      left: WarmPearlSpacing.viewportH,
+      right: WarmPearlSpacing.viewportH,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
+          constraints: const BoxConstraints(maxWidth: 388),
           child: SlideTransition(
             position: _slideAnim,
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: widget.backgroundColor,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 18,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      if (widget.icon != null) ...[
-                        widget.icon!,
-                        const SizedBox(width: 10),
-                      ],
-                      Expanded(
-                        child: Text(
-                          widget.message,
-                          style: TextStyle(
-                            color: widget.textColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            height: 1.3,
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (widget.actionLabel != null && widget.onAction != null) ...[
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: widget.onAction,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Text(
-                              widget.actionLabel!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(width: 4),
-                      InkWell(
-                        onTap: _hide,
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: widget.textColor.withValues(alpha: 0.8),
-                          ),
-                        ),
-                      ),
-                    ],
+            child: ScaleTransition(
+              scale: _scaleAnim,
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: Material(
+                  color: Colors.transparent,
+                  child: GestureDetector(
+                    onTap: widget.onDismiss,
+                    child: capsule,
                   ),
                 ),
               ),

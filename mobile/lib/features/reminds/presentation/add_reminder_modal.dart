@@ -5,9 +5,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/presentation/app_toast.dart';
+import '../../../core/presentation/warm_pearl_tokens.dart';
+import '../../deadlines/presentation/deadlines_screen.dart';
 import '../../notifications/domain/notification_item.dart';
 import 'quick_reminder_preferences_provider.dart';
 
+/// Shows the Warm Pearl Liquid Glass Add Reminder Bottom Sheet.
+/// Strictly enforces notification_id link and zero mock tasks.
 Future<void> showAddReminderModal(
   BuildContext context,
   WidgetRef ref,
@@ -22,343 +26,470 @@ Future<void> showAddReminderModal(
 
   final prefs = ref.read(quickReminderPreferencesProvider);
 
-  // Mặc định chọn mốc +1 ngày hoặc deadline của thông báo nếu có
-  DateTime selectedDate = notif.deadlineAt ?? DateTime.now().add(const Duration(days: 1));
+  DateTime selectedDate =
+      notif.deadlineAt ?? DateTime.now().add(const Duration(days: 1));
   String? activePresetId = notif.deadlineAt != null ? null : '1_day';
   bool syncToGoogleCalendar = prefs.autoSyncGoogleCalendarByDefault;
 
-  // Lấy danh sách các options được người dùng bật trong Profile
   final availablePresets = kAvailableQuickPresets
       .where((p) => prefs.enabledOptionIds.contains(p.id))
       .toList();
 
-  await showDialog(
+  await showModalBottomSheet<void>(
     context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setDlgState) => AlertDialog(
-        backgroundColor: Colors.white.withValues(alpha: 0.98),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF9500).withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.alarm_add_rounded, color: Color(0xFFFF9500), size: 22),
+    useRootNavigator: true,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (ctx) => Align(
+      alignment: Alignment.bottomCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: StatefulBuilder(
+          builder: (ctx, setDlgState) {
+            final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+          ),
+          padding: EdgeInsets.fromLTRB(18, 12, 18, 26 + bottomInset),
+          decoration: const BoxDecoration(
+            color: WarmPearlColors.sheetBg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            border: Border(
+              top: BorderSide(color: WarmPearlColors.white, width: 1.5),
             ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'Thêm Nhắc Nhở',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: Color(0xFF0F172A),
-                ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x29182036),
+                blurRadius: 48,
+                offset: Offset(0, -18),
               ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Tiêu đề nhắc nhở *',
-                  hintText: 'Nhập tiêu đề nhắc nhở',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (notif.courseCode != null &&
-                  notif.courseCode!.trim().isNotEmpty &&
-                  notif.sourceChannel != 'FB_CTSV' &&
-                  notif.sourceChannel != 'FB_TUVAN_SV' &&
-                  notif.sourceChannel != 'DUT_GENERAL' &&
-                  notif.sourceChannel != 'DUT_STUDENT_AFFAIRS') ...[
-                TextField(
-                  controller: courseCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Mã học phần',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4.5,
+                    decoration: BoxDecoration(
+                      color: WarmPearlColors.sheetHandle,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-              ],
-              TextField(
-                controller: descCtrl,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'Ghi chú chi tiết',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 14),
 
-              // 1. CÁC TÙY CHỌN NHẮC NHỞ NHANH (QUICK REMINDER PRESETS)
-              if (availablePresets.isNotEmpty) ...[
+                // Header
                 Row(
                   children: [
-                    const Icon(Icons.flash_on_rounded, size: 16, color: Color(0xFFFF9500)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Gợi ý nhắc nhanh:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF475569),
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: WarmPearlColors.coralSoft,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: WarmPearlColors.coralBorder),
+                      ),
+                      child: const Icon(
+                        Icons.alarm_add_rounded,
+                        color: WarmPearlColors.coralInk,
+                        size: 20,
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      'Tùy chỉnh trong Profile',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: const Color(0xFF007AFF).withValues(alpha: 0.8),
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Thêm Nhắc Nhở Cá Nhân',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.displayFont,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: WarmPearlColors.inkPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Gắn liền với thông báo thực tế từ nhà trường',
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.bodyFont,
+                              fontSize: 11.5,
+                              color: WarmPearlColors.inkSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: availablePresets.map((preset) {
-                    final isActive = activePresetId == preset.id;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () {
-                        setDlgState(() {
-                          activePresetId = preset.id;
-                          selectedDate = preset.calculateTargetDate();
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                const SizedBox(height: 14),
+
+                // Linked post preview card
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: WarmPearlColors.glassBorder),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: isActive
-                              ? const Color(0xFFFF9500).withValues(alpha: 0.2)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isActive
-                                ? const Color(0xFFFF9500)
-                                : const Color(0xFFCBD5E1),
-                            width: isActive ? 1.5 : 1,
+                          color: WarmPearlColors.coralSoft,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          notif.sourceTitle,
+                          style: const TextStyle(
+                            fontFamily: WarmPearlTypography.displayFont,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: WarmPearlColors.coralInk,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isActive)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 4),
-                                child: Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 13,
-                                  color: Color(0xFFFF9500),
-                                ),
-                              ),
-                            Text(
-                              preset.label,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                                color: isActive
-                                    ? const Color(0xFFB45309)
-                                    : const Color(0xFF334155),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // 2. NGÀY & GIỜ NHẮC NHỞ HIỆN TẠI (DATE PICKER ROW)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.event_rounded, size: 20, color: Color(0xFF007AFF)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        DateFormat('dd/MM/yyyy HH:mm').format(selectedDate),
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                    ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.edit_calendar_rounded, size: 16),
-                      label: const Text('Đổi ngày', style: TextStyle(fontSize: 12)),
-                      onPressed: () async {
-                        final d = await showDatePicker(
-                          context: ctx,
-                          initialDate: selectedDate,
-                          firstDate: DateTime.now().subtract(const Duration(days: 1)),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (d != null && ctx.mounted) {
-                          final t = await showTimePicker(
-                            context: ctx,
-                            initialTime: TimeOfDay.fromDateTime(selectedDate),
-                          );
-                          setDlgState(() {
-                            activePresetId = null; // Hủy preset khi chọn ngày thủ công
-                            selectedDate = DateTime(
-                              d.year,
-                              d.month,
-                              d.day,
-                              t?.hour ?? selectedDate.hour,
-                              t?.minute ?? selectedDate.minute,
-                            );
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // 3. TÍCH CHỌN ĐỒNG BỘ LÊN GOOGLE CALENDAR
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: syncToGoogleCalendar
-                      ? const Color(0xFFE8F0FE)
-                      : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: syncToGoogleCalendar
-                        ? const Color(0xFF4285F4).withValues(alpha: 0.4)
-                        : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () {
-                    setDlgState(() {
-                      syncToGoogleCalendar = !syncToGoogleCalendar;
-                    });
-                  },
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: syncToGoogleCalendar,
-                        activeColor: const Color(0xFF1A73E8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                        onChanged: (val) {
-                          setDlgState(() {
-                            syncToGoogleCalendar = val ?? false;
-                          });
-                        },
-                      ),
-                      const Icon(Icons.edit_calendar_rounded, size: 18, color: Color(0xFF1A73E8)),
                       const SizedBox(width: 8),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Đồng bộ lên Google Calendar',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1E293B),
-                              ),
-                            ),
-                            Text(
-                              'Tự động thêm vào lịch cá nhân ngay khi tạo',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
+                      Expanded(
+                        child: Text(
+                          notif.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: WarmPearlTypography.displayFont,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: WarmPearlColors.inkPrimary,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.check_rounded, size: 18),
-            label: const Text('Lưu nhắc nhở'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF007AFF),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () async {
-              final title = titleCtrl.text.trim();
-              if (title.isEmpty) return;
-              Navigator.of(ctx).pop();
+                const SizedBox(height: 14),
 
-              try {
-                final studentId = session?.studentCode ?? '102230026';
-                await ref.read(dioProvider).post(
-                  '/api/v1/deadlines',
-                  data: {
-                    'student_id': studentId,
-                    'title': title,
-                    'course_code': courseCtrl.text.trim().isEmpty ? null : courseCtrl.text.trim(),
-                    'description': descCtrl.text.trim(),
-                    'due_date': selectedDate.toIso8601String(),
-                    'notification_id': notif.id.toString(),
-                    'item_type': 'REMINDER',
-                    'sync_google_calendar': syncToGoogleCalendar,
+                // Title input
+                Container(
+                  height: 46,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: WarmPearlColors.inputBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: WarmPearlColors.inputBorder,
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: titleCtrl,
+                    style: const TextStyle(
+                      fontFamily: WarmPearlTypography.bodyFont,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: WarmPearlColors.inkPrimary,
+                    ),
+                    decoration: const InputDecoration(
+                      hintText: 'Tiêu đề nhắc việc...',
+                      hintStyle: TextStyle(
+                        color: WarmPearlColors.inkMuted,
+                        fontSize: 13,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Quick presets
+                if (availablePresets.isNotEmpty) ...[
+                  Row(
+                    children: const [
+                      Icon(
+                        Icons.bolt_rounded,
+                        size: 15,
+                        color: WarmPearlColors.coralInk,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Gợi ý nhắc nhanh:',
+                        style: TextStyle(
+                          fontFamily: WarmPearlTypography.displayFont,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: WarmPearlColors.inkSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: availablePresets.map((preset) {
+                      final isActive = activePresetId == preset.id;
+                      return GestureDetector(
+                        onTap: () {
+                          setDlgState(() {
+                            activePresetId = preset.id;
+                            selectedDate = preset.calculateTargetDate();
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? WarmPearlColors.coralSoft
+                                : Colors.white.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: isActive
+                                  ? WarmPearlColors.coralBorder
+                                  : WarmPearlColors.glassBorder,
+                            ),
+                          ),
+                          child: Text(
+                            preset.label,
+                            style: TextStyle(
+                              fontFamily: WarmPearlTypography.bodyFont,
+                              fontSize: 11.5,
+                              fontWeight:
+                                  isActive ? FontWeight.w700 : FontWeight.w600,
+                              color: isActive
+                                  ? WarmPearlColors.coralInk
+                                  : WarmPearlColors.inkSecondary,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // Date Time Picker Row
+                GestureDetector(
+                  onTap: () async {
+                    final pickedDate = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (pickedDate != null && ctx.mounted) {
+                      final pickedTime = await showTimePicker(
+                        context: ctx,
+                        initialTime: TimeOfDay.fromDateTime(selectedDate),
+                      );
+                      if (pickedTime != null) {
+                        setDlgState(() {
+                          activePresetId = null;
+                          selectedDate = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            pickedTime.hour,
+                            pickedTime.minute,
+                          );
+                        });
+                      }
+                    }
                   },
-                );
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: WarmPearlColors.glassBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.event_rounded,
+                          size: 18,
+                          color: WarmPearlColors.coralInk,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Thời gian: ${DateFormat('dd/MM/yyyy HH:mm').format(selectedDate.toLocal())}',
+                          style: const TextStyle(
+                            fontFamily: WarmPearlTypography.displayFont,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: WarmPearlColors.inkPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.edit_calendar_rounded,
+                          size: 16,
+                          color: WarmPearlColors.inkMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
 
-                if (context.mounted) {
-                  final successMsg = syncToGoogleCalendar
-                      ? '⏰ Đã thêm nhắc nhở và tự động đồng bộ Google Calendar: "$title"'
-                      : '⏰ Đã thêm nhắc nhở: "$title"';
-                  AppToast.showSuccess(
-                    context,
-                    successMsg,
-                    duration: const Duration(seconds: 2),
-                    actionLabel: 'Xem Nhắc việc',
-                    onAction: () => context.go('/reminds'),
-                  );
-                }
-              } catch (err) {
-                if (context.mounted) {
-                  AppToast.showError(
-                    context,
-                    'Lỗi thêm nhắc nhở: $err',
-                    duration: const Duration(seconds: 2),
-                  );
-                }
-              }
-            },
+                // Google Calendar Sync Switch
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: WarmPearlColors.glassBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_month_rounded,
+                        size: 18,
+                        color: Color(0xFF1A73E8),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Đồng bộ lên Google Calendar',
+                          style: TextStyle(
+                            fontFamily: WarmPearlTypography.bodyFont,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: WarmPearlColors.inkPrimary,
+                          ),
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: syncToGoogleCalendar,
+                        onChanged: (val) {
+                          setDlgState(() => syncToGoogleCalendar = val);
+                        },
+                        activeTrackColor: WarmPearlColors.mint,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Submit Button
+                GestureDetector(
+                  onTap: () async {
+                    final title = titleCtrl.text.trim();
+                    if (title.isEmpty) return;
+                    Navigator.of(ctx).pop();
+
+                    final studentId = session?.studentCode ?? '';
+
+                    try {
+                      final res = await ref.read(dioProvider).post(
+                        '/api/v1/deadlines',
+                        data: {
+                          'student_id': studentId,
+                          'title': title,
+                          'course_code': courseCtrl.text.trim().isEmpty
+                              ? null
+                              : courseCtrl.text.trim(),
+                          'description': descCtrl.text.trim(),
+                          'due_date': selectedDate.toIso8601String(),
+                          'notification_id': notif.id.toString(),
+                          'item_type': 'REMINDER',
+                          'sync_google_calendar': syncToGoogleCalendar,
+                        },
+                      );
+
+                      ref.invalidate(deadlinesListProvider);
+
+                      if (context.mounted) {
+                        final isSynced = res.data['data']?['google_calendar_synced'] == true ||
+                            res.data['google_calendar_synced'] == true;
+
+                        if (isSynced) {
+                          AppToast.showSuccess(
+                            context,
+                            '⏰ Đã thêm nhắc việc và tự động đồng bộ Google Calendar',
+                            actionLabel: 'Xem ngay',
+                            onAction: () =>
+                                context.go('/deadlines?scope=personal'),
+                          );
+                        } else if (syncToGoogleCalendar) {
+                          AppToast.showInfo(
+                            context,
+                            '⏰ Đã lưu nhắc việc. (Lưu ý: Chưa liên kết Google Calendar trong Cài đặt)',
+                            actionLabel: 'Kết nối',
+                            onAction: () => context.go('/profile'),
+                          );
+                        } else {
+                          AppToast.showSuccess(
+                            context,
+                            '⏰ Đã thêm nhắc nhở: "$title"',
+                            actionLabel: 'Xem ngay',
+                            onAction: () =>
+                                context.go('/deadlines?scope=personal'),
+                          );
+                        }
+                      }
+                    } catch (err) {
+                      if (context.mounted) {
+                        AppToast.showError(
+                          context,
+                          'Lỗi thêm nhắc nhở: $err',
+                        );
+                      }
+                    }
+                  },
+                  child: Container(
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: WarmPearlGradients.coralButton,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: WarmPearlColors.coralGlow,
+                          blurRadius: 16,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'Lưu nhắc việc',
+                      style: TextStyle(
+                        fontFamily: WarmPearlTypography.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     ),
-  );
+  ),
+),
+);
 }
