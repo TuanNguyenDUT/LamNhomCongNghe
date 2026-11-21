@@ -146,4 +146,31 @@ test.describe('Personalization & Session Sync Direct PostgreSQL Tests', () => {
     assert.equal(syncRes.body.status, 'success');
     assert.ok(syncRes.body.data.courses.length > 0);
   });
+
+  test('AUTH-DEMO-01: Tài khoản demo cố định (00000000 / matkhau@123) đăng nhập và đồng bộ an toàn', async () => {
+    const { controller } = createServer(pool);
+
+    // Sai mật khẩu phải từ chối
+    await assert.rejects(
+      () => controller.login({ student_code: '00000000', password: 'wrong_password' }),
+      (err) => err.httpStatus === 401
+    );
+
+    // Đúng mật khẩu phải đăng nhập thành công
+    const loginRes = await controller.login({ student_code: '00000000', password: 'matkhau@123' });
+    assert.equal(loginRes.statusCode, 200);
+    assert.equal(loginRes.body.status, 'success');
+    assert.equal(loginRes.body.data.student.student_code, '00000000');
+    assert.ok(loginRes.body.data.token.startsWith('dut_token_'));
+
+    // Đồng bộ học phần trên tài khoản demo không lỗi
+    const syncRes = await callApi(controller, {
+      method: 'POST',
+      url: '/api/v1/dut/sync-courses',
+      body: { student_code: '00000000' },
+    });
+    assert.equal(syncRes.statusCode, 200);
+    assert.equal(syncRes.body.status, 'success');
+    assert.deepEqual(syncRes.body.data.courses, []);
+  });
 });
