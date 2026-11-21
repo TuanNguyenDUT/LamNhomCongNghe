@@ -11,6 +11,25 @@ const { CourseRepository } = require('../db/course.repository');
 const { NotificationRepository } = require('../db/postgres');
 const { ValidationError, AuthenticationError } = require('../utils/errors');
 
+// Fixed demo/test account for reviewers without an sv.dut.udn.vn account (GEMINI.md Section 3)
+const REVIEWER_DEMO_ACCOUNT = Object.freeze({
+  student_code: '00000000',
+  password: 'matkhau@123',
+  profile: {
+    full_name: 'Tài khoản Trải nghiệm (Reviewer)',
+    faculty: 'Khoa Công nghệ Thông tin',
+    cohort: 'K23',
+    class_name: '23T_Demo',
+    major: 'Công nghệ Thông tin',
+    program: 'Tài khoản Demo cho Người chấm / Reviewer',
+    dob: '',
+    gender: '',
+    school_email: 'reviewer@dut.udn.vn',
+    personal_email: '',
+    phone: '',
+  },
+});
+
 class CourseService {
   constructor({
     pool = null,
@@ -39,8 +58,20 @@ class CourseService {
     const cleanCode = String(studentCode).trim();
     const cleanPass = String(password).trim();
 
-    // 1. Xác thực THẬT SỰ với cổng sv.dut.udn.vn
-    const authResult = await this.crawler.authenticateWithDut(cleanCode, cleanPass);
+    // 1. Kiểm tra tài khoản demo cố định (GEMINI.md Mục 3) hoặc xác thực THẬT SỰ với cổng sv.dut.udn.vn
+    let authResult;
+    if (cleanCode === REVIEWER_DEMO_ACCOUNT.student_code) {
+      if (cleanPass !== REVIEWER_DEMO_ACCOUNT.password) {
+        throw new AuthenticationError('Tài khoản hoặc mật khẩu sv.dut.udn.vn không chính xác!');
+      }
+      authResult = {
+        authenticated: true,
+        profile: REVIEWER_DEMO_ACCOUNT.profile,
+        courses: [],
+      };
+    } else {
+      authResult = await this.crawler.authenticateWithDut(cleanCode, cleanPass);
+    }
     if (!authResult.authenticated) {
       throw new AuthenticationError(
         authResult.message || 'Tài khoản hoặc mật khẩu sv.dut.udn.vn không chính xác!'
@@ -158,7 +189,10 @@ class CourseService {
       }
     }
 
-    const enrolledCourses = await this.crawler.syncStudentCourses(effectiveCode, effectivePassword);
+    const enrolledCourses =
+      effectiveCode === REVIEWER_DEMO_ACCOUNT.student_code
+        ? []
+        : await this.crawler.syncStudentCourses(effectiveCode, effectivePassword);
     const syncedAt = new Date().toISOString();
 
     await this.db.withTransaction(async (tx) => {
