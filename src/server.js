@@ -116,6 +116,19 @@ async function startServer() {
   const pool = getPool();
   await verifyDbConnection(pool);
 
+  // Align PostgreSQL schema idempotently on startup (e.g. convert legacy source_channel ENUM to VARCHAR)
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const migrationPath = path.join(__dirname, 'db/migrations/001_align_direct_pg_schema.sql');
+    if (fs.existsSync(migrationPath)) {
+      const sql = fs.readFileSync(migrationPath, 'utf8');
+      await pool.query(sql);
+    }
+  } catch (migErr) {
+    console.warn('⚠️ Cảnh báo chạy migration 001_align_direct_pg_schema.sql:', migErr.message);
+  }
+
   const PORT = process.env.PORT || 3000;
   const { server, crawlerMgrSvc } = createServer(pool);
 

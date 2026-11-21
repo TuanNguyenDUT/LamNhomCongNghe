@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -116,8 +117,15 @@ class _FollowFanpageSheetState extends ConsumerState<FollowFanpageSheet> {
       }
     } catch (e) {
       if (mounted) {
+        String errMsg = 'Không thể theo dõi Fanpage. Vui lòng kiểm tra lại đường link.';
+        if (e is DioException && e.response?.data is Map) {
+          final serverMsg = e.response?.data['message']?.toString();
+          if (serverMsg != null && serverMsg.isNotEmpty) {
+            errMsg = serverMsg;
+          }
+        }
         setState(() {
-          _errorMessage = 'Không thể theo dõi Fanpage. Vui lòng kiểm tra lại đường link.';
+          _errorMessage = errMsg;
         });
       }
     } finally {
