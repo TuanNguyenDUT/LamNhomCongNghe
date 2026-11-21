@@ -27,10 +27,14 @@ function serveFlutterWebFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
   const fileData = fs.readFileSync(filePath);
-  res.writeHead(200, {
+  const headers = {
     'Content-Type': contentType,
     'Access-Control-Allow-Origin': '*',
-  });
+  };
+  if (ext === '.html' || ext === '.js' || ext === '.json') {
+    headers['Cache-Control'] = 'no-store, no-cache, must-revalidate';
+  }
+  res.writeHead(200, headers);
   res.end(fileData);
 }
 
