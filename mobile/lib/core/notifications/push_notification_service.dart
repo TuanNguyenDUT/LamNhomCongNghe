@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/app_config.dart';
 import '../network/api_client.dart';
 import 'device_identity_service.dart';
 
@@ -47,6 +46,21 @@ class PushNotificationService {
 
   final _subscriptions = <StreamSubscription<dynamic>>[];
   void Function(String notificationId)? _onOpenNotification;
+  String? _studentId;
+  String? _fid;
+
+  Future<void> registerStudent(String studentId) async {
+    _studentId = studentId;
+    if (_fid != null) await _registerFid(_fid!);
+  }
+
+  Future<void> clearStudent() async {
+    try {
+      await _unregisterCurrentDevice();
+    } finally {
+      _studentId = null;
+    }
+  }
 
   Future<void> initialize({
     required void Function(String notificationId) onOpenNotification,
@@ -92,8 +106,8 @@ class PushNotificationService {
   }
 
   Future<void> _registerFid(String fid) async {
-    final studentId = AppConfig.developmentStudentId;
-    if (studentId.isEmpty || fid.isEmpty) {
+    final studentId = _studentId;
+    if (studentId == null || studentId.isEmpty || fid.isEmpty) {
       return;
     }
 
@@ -111,6 +125,7 @@ class PushNotificationService {
   }
 
   void _handleRegistered(String fid) {
+    _fid = fid;
     unawaited(
       _registerFid(fid).catchError((Object error, StackTrace stack) {
         debugPrint('Không thể đăng ký FID với backend: $error\n$stack');
@@ -129,8 +144,8 @@ class PushNotificationService {
   }
 
   Future<void> _unregisterCurrentDevice() async {
-    final studentId = AppConfig.developmentStudentId;
-    if (studentId.isEmpty) {
+    final studentId = _studentId;
+    if (studentId == null || studentId.isEmpty) {
       return;
     }
     final deviceId = await _deviceIdentityService.getOrCreateDeviceId();

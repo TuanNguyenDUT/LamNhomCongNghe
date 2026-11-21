@@ -16,6 +16,8 @@ const { DeviceTokenRepository } = require('../db/device-token.repository');
 const { DeadlineService } = require('./deadline.service');
 const { classifySmartNotification, detectNotificationTopics, matchesInterestedTopics } = require('./classifier.service');
 const { PushNotificationService } = require('./pushNotificationService');
+const { AppError, NotFoundError } = require('../utils/errors');
+const { PushDeliveryService } = require('./push-delivery.service');
 
 /**
  * Kiểm tra xem một thông báo có thuộc về đối tượng sinh viên cụ thể hay không.
@@ -35,18 +37,24 @@ function isNoticeForStudent(notification, student, studentCourses = []) {
     'FB_CTSV',
     'FB_TUVAN_SV',
   ];
-  if (GLOBAL_CHANNELS.includes(sourceChannel) || notification.scope === 'GLOBAL') {
-    return true;
-  }
-
   if (notification.scope === 'PERSONAL') {
     const sCode = student.student_code || student.student_id;
     const sId = student.id;
+    if (notification.target_student_id) {
+      return notification.target_student_id === sCode || notification.target_student_id === sId;
+    }
     return (
       notification.target_student_id === sCode ||
       notification.target_student_id === sId ||
       (notification.content && sCode && notification.content.includes(sCode))
     );
+  }
+
+  if (notification.scope === 'FACULTY' && notification.target_faculty) {
+    return notification.target_faculty === student.faculty;
+  }
+  if (notification.scope === 'COHORT' && notification.target_cohort) {
+    return notification.target_cohort === student.cohort;
   }
 
   if (
@@ -96,7 +104,7 @@ function isNoticeForStudent(notification, student, studentCourses = []) {
     return false;
   }
 
-  return true;
+  return GLOBAL_CHANNELS.includes(sourceChannel) || notification.scope === 'GLOBAL';
 }
 
 class NotificationService {
@@ -137,6 +145,17 @@ class NotificationService {
       EXTRACURRICULAR: 'Đoàn Thanh niên & Ngoại khóa',
     };
     return map[sourceChannel] || 'Thông báo DUT';
+  }
+
+  async assertCanRead(notificationId, studentIdentifier) {
+    const student = await this.studentRepo.requireStudent(studentIdentifier);
+    const item = await this.notificationRepo.getNotificationById(notificationId);
+    if (!item) throw new NotFoundError('Không tìm thấy thông báo');
+    const courses = await this.courseRepo.getStudentCourses(student.id);
+    if (!isNoticeForStudent(item, student, courses)) {
+      throw new AppError('Không có quyền truy cập thông báo này', { httpStatus: 403, code: 'FORBIDDEN' });
+    }
+    return item;
   }
 
   _normalizeTitle(title) {
@@ -503,67 +522,76 @@ class NotificationService {
       created_at: new Date().toISOString(),
     };
 
-    const saved = await this.notificationRepo.upsertNotification(notificationPayload);
-    saved.topics = classified.topics || detectNotificationTopics(saved);
-    saved.scope_type = classified.scope_type || saved.scope;
-    saved.source_type = saved.source_channel;
-    saved.category_tag = classified.category_tag || '#HọcTập';
+    return this.db.withTransaction(async (tx) => {
+      const db = {query:tx.query.bind(tx), withTransaction:fn => fn(tx)};
+      const notificationRepo = new NotificationRepository(db);
+      const studentRepo = new StudentRepository(db);
+      const courseRepo = new CourseRepository(db);
+      const deviceRepo = new DeviceTokenRepository(db);
+      const deadlineSvc = new DeadlineService({db,studentRepo});
+      const deliveries = new PushDeliveryService({db});
+      const saved = await notificationRepo.upsertNotification(notificationPayload);
+      saved.topics = classified.topics || detectNotificationTopics(saved);
+      saved.scope_type = classified.scope_type || saved.scope;
+      saved.source_type = saved.source_channel;
+      saved.category_tag = classified.category_tag || '#HọcTập';
 
-    // 5. Phân phối tới sinh viên mục tiêu trực tiếp trên PostgreSQL
-    const students = await this.studentRepo.listAllStudents();
-    for (const student of students) {
-      const studentCourses = await this.courseRepo.getStudentCourses(student.id);
-      const isTargeted = isNoticeForStudent(saved, student, studentCourses);
+      // 5. Phân phối tới sinh viên mục tiêu trực tiếp trên PostgreSQL
+      const students = await studentRepo.listAllStudents();
+      for (const student of students) {
+        const studentCourses = await courseRepo.getStudentCourses(student.id);
+        const isTargeted = isNoticeForStudent(saved, student, studentCourses);
 
-      if (isTargeted) {
-        if (!saved.course_code && (saved.source_channel === 'DUT_COURSE_CLASS' || saved.scope === 'COURSE')) {
-          const matched = studentCourses.find((c) => {
-            const notifText = `${saved.title} ${saved.content || ''}`.toLowerCase();
-            return notifText.includes((c.course_name || '').toLowerCase()) || notifText.includes((c.course_code || '').toLowerCase());
-          });
-          if (matched) {
-            saved.course_code = matched.course_code;
-            await this.notificationRepo.updateNotificationById(saved.id, { course_code: matched.course_code });
+        if (isTargeted) {
+          if (!saved.course_code && (saved.source_channel === 'DUT_COURSE_CLASS' || saved.scope === 'COURSE')) {
+            const matched = studentCourses.find((c) => {
+              const notifText = `${saved.title} ${saved.content || ''}`.toLowerCase();
+              return notifText.includes((c.course_name || '').toLowerCase()) || notifText.includes((c.course_code || '').toLowerCase());
+            });
+            if (matched) {
+              saved.course_code = matched.course_code;
+              await notificationRepo.updateNotificationById(saved.id, { course_code: matched.course_code });
+            }
           }
-        }
 
-        await this.notificationRepo.distributeToStudent(saved.id, student.id);
+          await notificationRepo.distributeToStudent(saved.id, student.id);
 
-        if (saved.deadline_at) {
-          await this.deadlineSvc.createDeadline({
-            student_id: student.id,
-            notification_id: saved.id,
-            course_code: saved.course_code,
-            category: saved.category,
-            category_code: saved.category_code,
-            category_name: saved.category_name,
-            title: `[Hạn chót] ${saved.title.trim()}`,
-            description: saved.action_required || saved.summary,
-            due_date: saved.deadline_at,
-          });
-        }
+          if (saved.deadline_at) {
+            await deadlineSvc.createDeadline({
+              student_id: student.id,
+              notification_id: saved.id,
+              course_code: saved.course_code,
+              category: saved.category,
+              category_code: saved.category_code,
+              category_name: saved.category_name,
+              title: `[Hạn chót] ${saved.title.trim()}`,
+              description: saved.action_required || saved.summary,
+              due_date: saved.deadline_at,
+            });
+          }
 
-        let shouldPush = false;
-        if (saved.is_emergency || saved.priority === 'URGENT') {
-          shouldPush = true;
-        } else if (student.is_personalized_enabled === false) {
-          shouldPush = saved.scope === 'COURSE';
-        } else {
-          const studentTopics = student.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
-          const notifTopics = saved.topics || detectNotificationTopics(saved);
-          const hasTopicMatch = notifTopics.some((t) => studentTopics.includes(t));
-          shouldPush = hasTopicMatch || saved.scope === 'COURSE';
-        }
+          let shouldPush = false;
+          if (saved.is_emergency || saved.priority === 'URGENT') {
+            shouldPush = true;
+          } else if (student.is_personalized_enabled === false) {
+            shouldPush = saved.scope === 'COURSE';
+          } else {
+            const studentTopics = student.interested_topics || ['hoc_vu', 'hoc_bong', 'tuyen_dung'];
+            const notifTopics = saved.topics || detectNotificationTopics(saved);
+            const hasTopicMatch = notifTopics.some((t) => studentTopics.includes(t));
+            shouldPush = hasTopicMatch || saved.scope === 'COURSE';
+          }
 
-        if (shouldPush) {
-          const devices = await this.deviceRepo.listStudentDevices(
-            [student.id, student.student_code],
-            { activeOnly: true }
-          );
-          for (const device of devices) {
-            try {
-              await this.pushService.sendToDevice({
-                deviceTokenId: device.id,
+          if (shouldPush) {
+            const devices = await deviceRepo.listStudentDevices(
+              [student.id, student.student_code, student.firebase_uid],
+              { activeOnly: true }
+            );
+            for (const device of devices) {
+              await deliveries.enqueue({
+                notificationId: saved.id,
+                studentId: student.id,
+                deviceId: device.id,
                 title: saved.is_emergency ? `🚨 [KHẨN CẤP] ${saved.title}` : saved.title,
                 body: saved.summary || (saved.content || '').slice(0, 100),
                 data: {
@@ -572,21 +600,17 @@ class NotificationService {
                   priority: saved.priority,
                 },
               });
-            } catch (pushErr) {
-              if (pushErr?.code !== 'FCM_NOT_CONFIGURED') {
-                console.warn(`Lỗi gửi push tới thiết bị ${device.device_id}:`, pushErr.message);
-              }
             }
           }
         }
       }
-    }
 
-    return {
-      status: 'INSERTED',
-      message: 'Thu thập và phân loại thông báo thành công',
-      notification: saved,
-    };
+      return {
+        status: 'INSERTED',
+        message: 'Thu thập và phân loại thông báo thành công',
+        notification: saved,
+      };
+    });
   }
 
   /**

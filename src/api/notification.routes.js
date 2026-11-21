@@ -7,6 +7,7 @@ const { URL } = require('node:url');
 const fs = require('node:fs');
 const path = require('node:path');
 const https = require('node:https');
+const { scopeToUser } = require('./auth');
 
 const MIME_MAP = {
   '.html': 'text/html; charset=utf-8',
@@ -61,11 +62,11 @@ function readJsonBody(req) {
     });
     req.on('end', () => {
       if (!body.trim()) {
-        resolve({});
+        resolve(scopeToUser(req, {}));
         return;
       }
       try {
-        resolve(JSON.parse(body));
+        resolve(scopeToUser(req, JSON.parse(body)));
       } catch {
         reject(new Error('JSON body không hợp lệ'));
       }
@@ -86,7 +87,7 @@ async function notificationRouter(req, res, controller) {
 
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = parsedUrl.pathname;
-  const queryParams = Object.fromEntries(parsedUrl.searchParams.entries());
+  const queryParams = scopeToUser(req, Object.fromEntries(parsedUrl.searchParams.entries()));
 
   try {
     // 0. Phục vụ ứng dụng Flutter Mobile Web (Liquid Glass App) tại root "/" và "/app"
@@ -113,8 +114,8 @@ async function notificationRouter(req, res, controller) {
 
       // Phục vụ các tệp tài nguyên tĩnh của Flutter Web (js, wasm, json, css, assets...)
       const subPath = pathname.startsWith('/app/') ? pathname.replace('/app/', '') : pathname.replace(/^\//, '');
-      const targetPath = path.join(flutterWebDir, subPath);
-      if (fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
+      const targetPath = path.resolve(flutterWebDir, subPath);
+      if (targetPath.startsWith(path.resolve(flutterWebDir) + path.sep) && fs.existsSync(targetPath) && fs.statSync(targetPath).isFile()) {
         serveFlutterWebFile(res, targetPath);
         return;
       }
@@ -180,7 +181,7 @@ async function notificationRouter(req, res, controller) {
     }
 
     if (req.method === 'POST' && pathname === '/api/v1/auth/logout') {
-      const result = await controller.logout();
+      const result = await controller.logout(req.authToken);
       sendJson(res, result.statusCode, result.body);
       return;
     }
@@ -408,7 +409,7 @@ async function notificationRouter(req, res, controller) {
         return;
       }
       if (req.method === 'DELETE') {
-        const result = await controller.deleteDeadline(id);
+        const result = await controller.deleteDeadline(id, queryParams.student_id);
         sendJson(res, result.statusCode, result.body);
         return;
       }
@@ -477,12 +478,12 @@ async function notificationRouter(req, res, controller) {
       message: `Endpoint không tồn tại: ${req.method} ${pathname}`,
     });
   } catch (error) {
-    console.error('API Router Error:', error);
+    console.error('API Router Error:', error.code || 'API_ERROR');
     const statusCode = error.httpStatus || 500;
     sendJson(res, statusCode, {
       status: 'error',
       code: error.code || 'INTERNAL_SERVER_ERROR',
-      message: statusCode >= 500 ? (error.message || 'Lỗi máy chủ nội bộ') : error.message,
+      message: statusCode >= 500 ? 'Lỗi máy chủ nội bộ' : error.message,
     });
   }
 }

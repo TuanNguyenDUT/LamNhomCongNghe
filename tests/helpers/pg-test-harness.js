@@ -15,6 +15,7 @@ const { CourseRepository } = require('../../src/db/course.repository');
 const { NotificationRepository, buildContentHash } = require('../../src/db/postgres');
 
 let schemaBootstrapped = false;
+process.env.DATA_ENCRYPTION_KEY ||= crypto.randomBytes(32).toString('base64');
 
 function getTestConnectionString() {
   const url = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL;
@@ -80,6 +81,7 @@ async function ensureTestSchema(pool) {
     const migrationSql = fs.readFileSync(migrationPath, 'utf8');
     await pool.query(migrationSql);
   }
+  await pool.query(fs.readFileSync(path.join(__dirname, '../../src/db/migrations/002_sessions_and_deliveries.sql'), 'utf8'));
   schemaBootstrapped = true;
 }
 

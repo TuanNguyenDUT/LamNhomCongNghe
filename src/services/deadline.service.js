@@ -9,6 +9,8 @@ const { StudentRepository } = require('../db/student.repository');
 const { DeadlineRepository, normalizeDeadlineTitle } = require('../db/deadline.repository');
 const { detectNotificationCategory, matchesInterestedTopics } = require('./classifier.service');
 const { NotFoundError } = require('../utils/errors');
+const { DeviceTokenRepository } = require('../db/device-token.repository');
+const { PushDeliveryService } = require('./push-delivery.service');
 
 class DeadlineService {
   constructor({ pool = null, db = null, studentRepo = null, deadlineRepo = null } = {}) {
@@ -228,9 +230,23 @@ class DeadlineService {
       }
 
       if (currentStage > (deadline.reminder_stage_sent || 0)) {
-        deadline.reminder_stage_sent = currentStage;
-        deadline.updated_at = new Date().toISOString();
-        await this.deadlineRepo.saveDeadline(deadline);
+        const statuses = await this.db.query(
+          'SELECT is_read FROM student_notifications WHERE student_id=$1::uuid AND notification_id=$2::uuid',
+          [deadline.student_id,deadline.notification_id]
+        );
+        if (statuses.rows[0]?.is_read) continue;
+        const student = await this.studentRepo.requireStudent(deadline.student_id);
+        const devices = await new DeviceTokenRepository(this.db).listStudentDevices(
+          [student.id, student.student_code, student.firebase_uid]
+        );
+        for (const device of devices) {
+          await new PushDeliveryService({db:this.db}).enqueue({
+            notificationId:deadline.notification_id, deadlineId:deadline.deadline_id,
+            studentId:deadline.student_id, deviceId:device.id, stage:currentStage,
+            title:deadline.title, body:stageLabel, dueDate:new Date(deadline.due_date).toISOString(),
+            data:{notification_id:deadline.notification_id,deadline_id:deadline.deadline_id},
+          });
+        }
 
         triggeredReminders.push({
           deadline_id: deadline.deadline_id,

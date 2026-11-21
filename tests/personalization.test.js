@@ -130,7 +130,7 @@ test.describe('Personalization & Session Sync Direct PostgreSQL Tests', () => {
       faculty: 'Khoa Công nghệ Thông tin',
       cohort: 'K23',
       class_name: '23T_DT',
-      dut_session_encrypted: Buffer.from('student_real_password_123').toString('base64'),
+      dut_session_encrypted: require('../src/config/secrets').encryptSecret('student_real_password_123'),
       dut_last_synced_at: new Date().toISOString(),
     });
 

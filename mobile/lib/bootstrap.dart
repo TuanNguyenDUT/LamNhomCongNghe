@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app/app.dart';
@@ -22,6 +23,7 @@ Future<void> bootstrap() async {
 
   if (AppConfig.enableFirebase) {
     try {
+      await Firebase.initializeApp();
       await container
           .read(pushNotificationServiceProvider)
           .initialize(

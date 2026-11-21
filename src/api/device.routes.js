@@ -1,6 +1,7 @@
 /** Task 6: REST API đăng ký thiết bị và gửi Push Notification thử. */
 
 const { URL } = require('node:url');
+const { scopeToUser } = require('./auth');
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -20,9 +21,9 @@ function readJsonBody(req) {
       if (body.length > 2 * 1024 * 1024) reject(new Error('Payload quá lớn'));
     });
     req.on('end', () => {
-      if (!body.trim()) return resolve({});
+      if (!body.trim()) return resolve(scopeToUser(req, {}));
       try {
-        resolve(JSON.parse(body));
+        resolve(scopeToUser(req, JSON.parse(body)));
       } catch {
         reject(new Error('JSON body không hợp lệ'));
       }
@@ -50,7 +51,7 @@ async function deviceRouter(req, res, controller) {
     if (req.method === 'DELETE' && deviceMatch) {
       const result = await controller.unregister(
         deviceMatch[1],
-        String(parsedUrl.searchParams.get('student_id') || '').trim()
+        req.auth?.id || String(parsedUrl.searchParams.get('student_id') || '').trim()
       );
       sendJson(res, result.statusCode, result.body);
       return;
